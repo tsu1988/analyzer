@@ -11,6 +11,7 @@
 
 #include <cstring>
 
+
 ClassImp(THaDetector)
 
 //_____________________________________________________________________________
@@ -60,4 +61,26 @@ void THaDetector::MakePrefix()
   THaDetectorBase::MakePrefix( basename );
 
 }
-  
+//_____________________________________________________________________________
+void THaDetector::Draw(const Option_t* opt)
+{
+	//Null implementation
+}
+//_____________________________________________________________________________
+void THaDetector::Draw(TGeometry* geom, const Option_t* opt)
+{
+	//Null implementation
+}
+//_____________________________________________________________________________
+void THaDetector::Draw(TGeometry* geom, const THaEvData& EvData, const Option_t* opt)
+{
+  	//Null implementation
+}
+
+//_____________________________________________________________________________
+void THaDetector::Draw(TGeometry* geom, THaTrack* track, Double_t &t, const Option_t* opt)
+{
+	//Null implementation
+}
+
+

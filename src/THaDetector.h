@@ -14,6 +14,8 @@
 #include "THaDetectorBase.h"
 
 class THaApparatus;
+class THaTrack;
+class TGeometry;
 
 class THaDetector : public THaDetectorBase {
   
@@ -22,6 +24,11 @@ public:
   
   THaApparatus*  GetApparatus() const   { return fApparatus; }
   virtual void   SetApparatus( THaApparatus* );
+
+  virtual void Draw(TGeometry* geom, const Option_t* opt=NULL);
+  virtual void Draw(TGeometry* geom, THaTrack* track, Double_t& t, const Option_t* opt=NULL);
+  virtual void Draw(const Option_t* opt=NULL);
+  virtual void Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt = NULL);
 
 protected:
   THaApparatus*  fApparatus;        // Apparatus containing this detector
