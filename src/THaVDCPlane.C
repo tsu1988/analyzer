@@ -27,6 +27,7 @@
 #include "TBRIK.h"
 #include "TRotMatrix.h"
 #include "THaString.h"
+#include "TGraph.h"
 
 #include <cstring>
 #include <vector>
@@ -552,7 +553,7 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
       cout << "pos: " << wire->GetPos() << endl;
 
       //Conversion to plane coords.
-      Double_t uv = wire->GetPos() - fZ*TMath::Cos(VDC->fVDCAngle);
+      Double_t uv = wire->GetPos() - fZ*TMath::Cos(VDC->GetVDCAngle());
 
       //Conversion to Transport coords.
       Double_t x = uv/TMath::Cos(fWAngle);
@@ -563,14 +564,43 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
       cout << "Wireid: " << wireid << endl;
 
       geom->Node(wireid,"WIRE","VDCWIRE",
-		 x*TMath::Cos(VDC->fVDCAngle),
+		 x*TMath::Cos(VDC->GetVDCAngle()),
 		 0,
-		 fZ+x*TMath::Sin(VDC->fVDCAngle),
+		 fZ+x*TMath::Sin(VDC->GetVDCAngle()),
 		 rot.c_str());
       
     }
 
 }
+
+//_____________________________________________________________________________
+void THaVDCPlane::DrawHitGraph( const Option_t* opt)
+{
+
+  TIter next(fHits);
+
+  Int_t nhits = fHits->GetEntries();
+
+  THaVDCHit* hit;
+
+
+  Double_t x[nhits],y[nhits];
+  Int_t i = 0;
+
+  while(hit = static_cast<THaVDCHit*>( next() ) )
+    {
+     x[i] = hit->GetWire()->GetNum();
+     y[i] = hit->GetTime();
+      
+    }
+  
+  //Fix: Free this!
+  TGraph* g = new TGraph(nhits,x,y);
+  g->SetTitle(fName);
+  g->Draw(opt);
+
+}
+
 
 //_____________________________________________________________________________
 

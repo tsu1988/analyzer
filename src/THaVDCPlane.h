@@ -31,6 +31,7 @@ public:
   virtual Int_t   FitTracks();                // Clusters -> tracks
 
   virtual void    Draw(TGeometry* geom,const THaEvData& evdata,  const Option_t* opt = NULL); // Draw wire geometry
+  virtual void    DrawHitGraph(const Option_t* opt = NULL);
 
   //Get and Set functions
   Int_t          GetNClusters() const { return fClusters->GetLast()+1; }
