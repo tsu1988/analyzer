@@ -1107,16 +1107,16 @@ void THaVDC::DrawGraph(TCanvas* canvas, const Option_t* opt)
   //DrawHitGraph
 
   canvas->cd(3);
-  fDetGraphs.Add(lower->GetUPlane()->DrawHitGraph("A*"));
+  fDetGraphs.Add(lower->GetUPlane()->DrawHitGraph("A*",opt));
   
   canvas->cd(4);
-  fDetGraphs.Add(lower->GetVPlane()->DrawHitGraph("A*"));
+  fDetGraphs.Add(lower->GetVPlane()->DrawHitGraph("A*",opt));
 
   canvas->cd(1);
-  fDetGraphs.Add(upper->GetUPlane()->DrawHitGraph("A*"));
+  fDetGraphs.Add(upper->GetUPlane()->DrawHitGraph("A*",opt));
 
   canvas->cd(2);
-  fDetGraphs.Add(upper->GetVPlane()->DrawHitGraph("A*"));     
+  fDetGraphs.Add(upper->GetVPlane()->DrawHitGraph("A*",opt));     
 
   canvas->Update();
 
