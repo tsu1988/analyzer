@@ -52,7 +52,7 @@ void THaSpectrometerDetector::DefineAxes(Double_t rotation_angle)
   fYax.SetXYZ( 0.0, 1.0, 0.0 );
   fZax = fXax.Cross(fYax);
 
-  cout << "Rotation (spec.): " << rotation_angle;
+  //cout << "Rotation (spec.): " << rotation_angle;
 
   //cout<<"Z: "<<fZax.X()<<" "<<fZax.Y()<<" "<<fZax.Z()<<endl;
 
@@ -91,8 +91,8 @@ bool THaSpectrometerDetector::CalcTrackIntercept(THaTrack* theTrack,
   xcross = v.Dot(fXax);
   ycross = v.Dot(fYax);
   
-  cout << "t0: " << t0.X()<< "," << t0.Y() << "," << t0.Z() << endl;
-  cout << "fOrigin: " << fOrigin.X() << "," << fOrigin.Y() << "," << fOrigin.Z()<< endl;
+  //cout << "t0: " << t0.X()<< "," << t0.Y() << "," << t0.Z() << endl;
+  //cout << "fOrigin: " << fOrigin.X() << "," << fOrigin.Y() << "," << fOrigin.Z()<< endl;
 	  
   return true;
 }
