@@ -231,18 +231,21 @@ Int_t THaVDCPlane::DefineVariables( EMode mode )
   // Register variables in global list
 
   RVarDef vars[] = {
-    { "nhit",   "Number of hits",             "GetNHits()" },
-    { "wire",   "Active wire numbers",        "fHits.THaVDCHit.GetWireNum()" },
-    { "rawtime","Raw TDC values of wires",    "fHits.THaVDCHit.fRawTime" },
-    { "time",   "TDC values of active wires", "fHits.THaVDCHit.fTime" },
-    { "dist",   "Drift distances",            "fHits.THaVDCHit.fDist" },
-    { "nclust", "Number of clusters",         "GetNClusters()" },
-    { "clsiz",  "Cluster sizes",              "fClusters.THaVDCCluster.fSize" },
-    { "clpivot","Cluster pivot wire num",     "fClusters.THaVDCCluster.GetPivotWireNum()" },
-    { "clpos",  "Cluster intercepts",         "fClusters.THaVDCCluster.fInt" },
-    { "slope",  "Cluster slopes",             "fClusters.THaVDCCluster.fSlope" },
-    { "sigsl",  "Cluster slope sigmas",       "fClusters.THaVDCCluster.fSigmaSlope" },
-    { "sigpos", "Cluster position sigmas",    "fClusters.THaVDCCluster.fSigmaInt" },
+    { "nhit",   "Number of hits",          "GetNHits()" },
+    { "wire",   "Active wire numbers",     "fHits.THaVDCHit.GetWireNum()" },
+    { "rawtime","Raw TDC values of wires", "fHits.THaVDCHit.fRawTime" },
+    { "time",   "Raw drift times from TDCs (s)", "fHits.THaVDCHit.fTime" },
+    { "dist",   "Drift distances",         "fHits.THaVDCHit.fDist" },
+    { "fitdist","Fitted drift distances",  "fHits.THaVDCHit.fFitDist" },
+    { "nclust", "Number of clusters",      "GetNClusters()" },
+    { "clsiz",  "Cluster sizes",           "fClusters.THaVDCCluster.fSize" },
+    { "clpivot","Cluster pivot wire num",  "fClusters.THaVDCCluster.GetPivotWireNum()" },
+    { "clpos",  "Cluster intercepts",      "fClusters.THaVDCCluster.fInt" },
+    { "slope",  "Cluster slopes",          "fClusters.THaVDCCluster.fSlope" },
+    { "sigsl",  "Cluster slope error",     "fClusters.THaVDCCluster.fSigmaSlope" },
+    { "sigpos", "Cluster position error",  "fClusters.THaVDCCluster.fSigmaInt" },
+    { "t0",     "Cluster t0",              "fClusters.THaVDCCluster.fT0" },
+    { "chisq",  "Cluster chisq",           "fClusters.THaVDCCluster.fChisq" },
     { 0 }
   };
   return DefineVarsFromList( vars, mode );
@@ -365,9 +368,6 @@ Int_t THaVDCPlane::FindClusters()
   // correspond to decreasing physical position.
   // Ignores possibility of overlapping clusters
 
-  //FIXME: Requires ROOT 3.02. Below is a non-equivalent workaround.
-  //  bool hard_cut = fVDC->TestBits(THaVDC::kTDCbits) == kHardTDCcut;
-  //  bool soft_cut = fVDC->TestBits(kTDCbits) == kSoftTDCcut;
   bool hard_cut, soft_cut;
   if( fVDC ) {
     hard_cut = fVDC->TestBit(THaVDC::kHardTDCcut);
@@ -391,7 +391,6 @@ Int_t THaVDCPlane::FindClusters()
 //    Int_t minTime = 0;        // Smallest TDC time for a given cluster
 //    THaVDCHit * minHit = NULL; // Hit with the smallest TDC time for 
                              // a given cluster
-  //  const Double_t sqrt2 = 0.707106781186547462;
 
   Int_t nextClust = GetNClusters();  // Should be zero
 
@@ -412,7 +411,7 @@ Int_t THaVDCPlane::FindClusters()
 	continue;
     }
 
-    wireNum = hit->GetWire()->GetNum();  
+    wireNum = hit->GetWireNum();  
 
     // Ignore multiple hits per wire
     if ( wireNum == pwireNum )
@@ -600,7 +599,7 @@ TGraph* THaVDCPlane::DrawHitGraph( const Option_t* drawopt, const Option_t* opt)
 
   while(hit = static_cast<THaVDCHit*>( next() ) )
     {
-     x[i] = hit->GetWire()->GetNum();
+     x[i] = hit->GetWireNum();
      
      if(x[i] != prev)
        {
