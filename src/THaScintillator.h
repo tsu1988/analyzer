@@ -20,6 +20,11 @@ public:
   virtual EStatus    Init( const TDatime& run_time );
   virtual Int_t      CoarseProcess( TClonesArray& tracks );
   virtual Int_t      FineProcess( TClonesArray& tracks );
+  virtual Double_t   CalcY();
+  virtual TList*     PaddlesHit();
+
+  virtual void	     Draw(TGeometry* geom, const Option_t* opt = NULL);
+  virtual void	     Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt = NULL);
 
 protected:
 

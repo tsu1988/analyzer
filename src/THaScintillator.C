@@ -358,4 +358,39 @@ Int_t THaScintillator::FineProcess( TClonesArray& tracks )
   return 0;
 }
 
+//_____________________________________________________________________________
+Double_t THaScintillator::CalcY()
+{
+  //Calculate Y position of scintillator hit.
+  return 0;  
+  
+}
+
+//_____________________________________________________________________________
+TList* THaScintillator::PaddlesHit()
+{
+  //Return list of hit paddles.
+ cout << "elements: " << fNelem << endl;
+  for(Int_t i = 0; i < fNelem ; i++)
+  {
+    cout << "#" << i << "Left ADC: " << fLA_c[i] << "  Right: " << fRA_c[i] << endl;
+    
+  }
+      
+  return NULL;
+}
+	
+//_____________________________________________________________________________
+void THaScintillator::Draw(TGeometry* geom, Option_t* opt)
+{
+	THaSpectrometerDetector::Draw(geom,opt);
+}
+
+//_____________________________________________________________________________
+void THaScintillator::Draw(TGeometry* geom,const THaEvData& evdata, Option_t* opt)
+{
+	ClearEvent();
+	Decode(evdata);
+	PaddlesHit();
+}
 ////////////////////////////////////////////////////////////////////////////////
