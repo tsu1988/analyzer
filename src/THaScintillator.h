@@ -26,7 +26,7 @@ public:
   virtual void       DrawPaddle(TGeometry* geom, const char* shapename,Int_t padnum);
   virtual void	     Draw(TGeometry* geom, const Option_t* opt = NULL);
   virtual void	     Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt = NULL);
-
+  virtual void       Draw(const Option_t* opt = NULL){};
 protected:
 
   // Mapping
