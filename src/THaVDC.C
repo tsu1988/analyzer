@@ -29,10 +29,19 @@
 #include "VarDef.h"
 //#include <algorithm>
 #include "TROOT.h"
+#include "TBRIK.h"
+#include "TRotMatrix.h"
+#include "TGeometry.h"
+#include "TNode.h"
+#include "TSPHE.h"
 
 #ifdef WITH_DEBUG
 #include <iostream>
 #endif
+
+#define PI 3.14159
+
+Int_t gNum = 0; // Temp. global rot matrix counter
 
 using namespace std;
 
@@ -899,6 +908,141 @@ void THaVDC::FindBadTracks(TClonesArray& tracks)
   //tracks.Compress();
 }
 
+//_____________________________________________________________________________
+void THaVDC::Draw(TGeometry* geom, Option_t *opt)
+{
 
+  TVector3 loc = GetOrigin();
+
+  Double_t orig[3] = { loc.x() , loc.y() ,loc.z() };
+	  
+  printf("VDC Detector %s at %f,%f,%f \n",GetName(),orig[0],orig[1],orig[2]);
+  //          printf("Detector %s is %f x %f x %f \n",GetName(),fSize[0],fSize[1],fSize[2]);
+	  //
+	  //              // fSize[1],[2] in half-widths, [3] in full width.
+  TBRIK* b = new TBRIK(GetName(),"TITLE","void",1,.5,.25);
+  b->SetLineColor(atoi(opt));
+	//
+  TRotMatrix* rot = NULL;
+  if(!(rot = geom->GetRotMatrix("XY")))
+  {
+    //only Geant-like constructor is implemented.
+    printf("Missing rotmatrix XY.\n");
+  }
+  
+  //Front plane at z coord.
+  geom->Node(GetTitle(),GetTitle(),GetName(),orig[0],orig[1],orig[2]+(fSize[2]/2),"XY");
+  
+	  //
+  fGraphics.Add(b);
+	  //                          
+}
+//_____________________________________________________________________________
+
+void THaVDC::Draw(TGeometry* geom, THaTrack* track,Double_t& t, Option_t *opt)
+{
+
+  Double_t x=0,y = 0;
+
+  if(CalcInterceptCoords(track,x,y))
+  {
+
+     TVector3 loc = GetOrigin(); // FIXME: z is not right. 
+
+     TSPHE* p = new TSPHE("HIT","Hit on detector","void",.05);
+     fGraphics.Add(p);
+
+     geom->Node("HITNODE","Node for hit","HIT",x*TMath::Cos(TMath::Pi()/4),y,x*TMath::Sin(TMath::Pi()/4));
+
+     TVector3 trackdir;
+     GetTrackDir(track,&trackdir);
+     DrawLine(geom,x*TMath::Cos(TMath::Pi()/4),y,x*TMath::Sin(TMath::Pi()/4),4,trackdir);   
+  
+  }
+  
+}
+//_____________________________________________________________________________
+void THaVDC::DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z,Double_t len,TVector3& dir)
+{
+  if(!geom->GetShape("LINE"))
+  {
+    TBRIK* b = new TBRIK("LINE","Track projection.","void",0,0,len/2);
+    fGraphics.Add(b);
+  }
+  
+
+  Double_t px,py,pz,tx,ty,tz;
+
+  tx = 90 + (dir.Theta()*180/PI);
+  px = dir.Phi()*180/PI;
+  ty = 90 + dir.Theta()*180/PI;
+  py = 90 + dir.Phi()*180/PI;
+  tz = dir.Theta()*180/PI;
+  pz = dir.Phi()*180/PI;
+  
+
+  TString rotid = "TRACK";
+  rotid += gNum++;
+	  
+  TRotMatrix* rot = new TRotMatrix(rotid,"TRACK",tx,
+			  px,
+			  ty,
+			  py,
+			  tz,
+			  pz);
+		  
+
+  geom->Node("HITLINE","HITLINE","LINE",x+2*dir.X(),y+2*dir.Y(),z+2*dir.Z(),rotid);
+}
+
+//_____________________________________________________________________________
+/*
+bool THaVDC::CalcTrackIntercept(THaTrack* theTrack, Double_t& t,Double_t& xcross,Double_t& ycross)
+{
+	//Calculates the x,y coords in the transport for the angled VDC.
+	//
+	
+  TVector3 t0( theTrack->GetX(), theTrack->GetY(), 0.0 );
+  Double_t norm = TMath::Sqrt(1.0 + theTrack->GetTheta()*theTrack->GetTheta() +
+     theTrack->GetPhi()*theTrack->GetPhi());
+
+  TVector3 t_hat( theTrack->GetTheta()/norm, theTrack->GetPhi()/norm, 1.0/norm )
+	      ;
+  fDenom.SetColumn( -t_hat, 2 );
+  fNom.SetColumn( t0-fOrigin, 2 );
+
+	  // first get the distance...
+  Double_t det = fDenom.Determinant();
+  if( fabs(det) < 1e-5 )
+    return false;  // No useful solution for this track
+  t = fNom.Determinant() / det;
+//
+  // ...then the intersection point
+  TVector3 v = t0 + t*t_hat - fOrigin;
+  xcross = v.Dot(fXax);
+  ycross = v.Dot(fYax);
+
+  return true;
+	  //                     
+*/
+
+void THaVDC::DefineAxes(Double_t rotation_angle)
+{
+  fXax.SetXYZ( TMath::Cos(TMath::Pi()/4),0, TMath::Sin(TMath::Pi()/4) );
+  fYax.SetXYZ( 0.0, 1, 0.0);
+  fZax = fXax.Cross(fYax);
+
+   //cout<<"Z: "<<fZax.X()<<" "<<fZax.Y()<<" "<<fZax.Z()<<endl;
+  cout << "VDC angle: " << fVDCAngle << endl;
+  cout << "rotation angle: " << rotation_angle << endl;
+
+  fDenom.ResizeTo( 3, 3 );
+  fNom.ResizeTo( 3, 3 );
+  fDenom.SetColumn( fXax, 0 );
+  fDenom.SetColumn( fYax, 1 );
+  fNom.SetColumn( fXax, 0 );
+  fNom.SetColumn( fYax, 1 );
+}
+            
 ////////////////////////////////////////////////////////////////////////////////
 ClassImp(THaVDC)

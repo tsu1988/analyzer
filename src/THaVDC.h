@@ -29,6 +29,10 @@ public:
   virtual Int_t FindVertices( TClonesArray& tracks );
   virtual EStatus Init( const TDatime& date );
 
+  virtual void  Draw(TGeometry* geom, Option_t* opt = NULL);
+  virtual void  Draw(TGeometry* geom, THaTrack* track, Double_t& t,Option_t* opt= NULL);
+  virtual void DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z, Double_t len, TVector3& dir);
+
   // Get and Set Functions
   virtual THaVDCUVPlane* GetUpper() { return fUpper; }
   virtual THaVDCUVPlane* GetLower() { return fLower; }
@@ -77,6 +81,8 @@ protected:
   Int_t    fNumIter;        // Number of iterations for FineTrack()
   Double_t fErrorCutoff;    // Cut on track matching error
 
+  virtual void DefineAxes(Double_t rotation_angle);
+  
   // declarations for target vertex reconstruction
   enum ECoordTypes { kTransport, kRotatingTransport };
   enum EFPMatrixElemTags { T000 = 0, Y000, P000 };
