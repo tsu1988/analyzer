@@ -506,8 +506,11 @@ TTD Lookup Table
 15.1157 15.1159 15.1160 15.1162 15.1163 15.1164 15.1165 15.1166 15.1167 15.1168
 15.1169 15.1169 15.1170 15.1170 15.1171 15.1171 15.1172 15.1172 15.1173 15.1173
 15.1174 15.1174 15.1174 15.1175 15.1176 15.1176 15.1177 15.1177 15.1177 
+[ L.geom ]
+0.0  0.0  0.0                Origin (x,y,z) of VDC coordinate system (meters)
+1.2265 .144 .387             Dimensions of the active VDC package (dx/2,dy/2,dz) (meters)
 [ L.global ]
-0.3327 1                     VDC Angle, Plane Spacing, TTD Converter
+0.3327 1                     Plane Spacing, TTD Converter
 matrix elements
 t 0 0 0 -1.0018E+00 -3.3183E-01 -4.3355E-02  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
 y 0 0 0 -7.7329E-03  1.1061E-03  2.2321E-03  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
