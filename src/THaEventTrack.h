@@ -15,6 +15,9 @@
 #include "TGeometry.h"
 #include "THaSpectrometer.h"
 #include "THaCut.h"
+#include "TCondition.h"
+#include "TThread.h"
+#include "TButton.h"
 
 class THaCut;
 
@@ -28,6 +31,7 @@ public:
   virtual Int_t		Process( const THaEvData& evdata);
 
   	  void		SetCentralAngle(TVector3 cangle);
+	void            Next();
 	  
 protected:
 	
@@ -35,14 +39,29 @@ protected:
   	THaApparatus* 	fApp;
   	TCanvas*	fCanvas;
 	THaCut*		fTest;
+	TButton*        fbutnext;
+	TButton*        fbutquit;
+	TButton*        fbutskip;
 	
-	Int_t		fFlags;
+	Int_t		fFlag;
+	Int_t           fFlags;
 	Int_t		fCount;
 	bool		fIsSetup;
 	
   	TVector3	fCentralAngle;
 
   	Int_t		DrawDetector(const char* name,Float_t sx,Float_t sy,Float_t d);
+	Int_t           DrawEvent(const THaEvData& evdata);
+	void            InitGraphics();
+	static void     ProcessThread(void* arg);
+	
+	void            Quit();
+        void            Skip();
+        void            AddButtons();
+	void            DrawButtons();
+
+	TThread*        fThread;
+
   	TList		fGraphics;
  	TGeometry*	fGeom; 
 	  

@@ -18,6 +18,8 @@
 #include "TRotMatrix.h"
 #include "TBRIK.h"
 #include "TNode.h"
+#include "TButton.h"
+
 
 //----------------------------------------------------
 THaEventTrack::THaEventTrack(const char* name, THaApparatus* app): THaPhysicsModule(name,"EventTrack")
@@ -43,7 +45,7 @@ THaEventTrack::~THaEventTrack()
   // Destructor
 	
 
-  // Free Graphics
+ // Free Graphics
 	
   TIter itr(&fGraphics);
   TObject *t;
@@ -54,7 +56,7 @@ THaEventTrack::~THaEventTrack()
   }
 }
 //----------------------------------------------------
-Int_t THaEventTrack::Process( const THaEvData& evdata )
+Int_t THaEventTrack::DrawEvent(const THaEvData& evdata )
 {
   // do something ...
  
@@ -79,13 +81,14 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
   Int_t ntracks = fSpectro->GetNTracks();
   if( ntracks == 0 )
 	  return 0;
+
 //test-look at only multi-track events.
 //  if( ntracks == 1 )
 //	  return 0;
   
   TClonesArray* tracks = fSpectro->GetTracks();
   if (!tracks)
-	  return -2;
+	  return 0;
   
   //Clear old hits
 
@@ -99,7 +102,7 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
 //   cout << "Node:" << obj->GetName() << obj <<"\n";
     if(TString(obj->GetName()).Contains("HIT"))
     {
-	    fGeom->RecursiveRemove(obj);
+      fGeom->RecursiveRemove(obj);
     }
   }
 
@@ -128,13 +131,55 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
   }
 
   fGeom->Draw();
+
+  cout << "EventDraw: Geom"<<endl;
+
+  AddButtons();
+  DrawButtons();
+
+  cout << "DrawButtons" << endl;
+
   fCanvas->Update();
 
+  return 1;
+
+}
+//----------------------------------------------------
+Int_t THaEventTrack::Process( const THaEvData& evdata )
+{
+  //Event loop.
+
+  fFlag = 0;
+  cout << "IN Process" << endl;
+
+  // sleep(50);
+  //  finitfinished->Wait();
+  // cout << "Done waiting." <<endl;
+
+  //while(fCanvas==NULL);
+    //cout <<"c: "<< fCanvas<< endl;
+  
+  cout << "fCanvas created";
+    
+  cout << "Init Finished." << endl;
+
+  if(!DrawEvent(evdata))
+    return 0;
+ 
+
+  if(fFlag == kTerminate)
+    return fFlag;
+
+ cout << "Draw Event." << endl;
+  
+ /*
   // Wait for user input
   cout << "RETURN: continue, H: run 100 events, R: run to end, F: finish quietly, Q: quit\n";
    char c;
    cin.clear();
-  while( !cin.eof() && cin.get(c) && !strchr("\nqQhHrRfF",c));
+   while( !cin.eof() && cin.get(c) && !strchr("\nqQhHrRfF",c));
+ 
+
   if( c != '\n' ) while( !cin.eof() && cin.get() != '\n');
     if( tolower(c) == 'q' )
       return kTerminate;
@@ -151,7 +196,14 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
     fFlags &= ~kStop;
     fFlags |= kQuiet;
   }
-                                                                             
+ */
+     
+ while(fFlag==0)
+   {
+     gSystem->ProcessEvents();
+     gSystem->Sleep(10);
+   }
+                                                                        
   return 0;
 }
 
@@ -160,18 +212,59 @@ THaAnalysisObject::EStatus THaEventTrack::Init( const TDatime& run_time)
 {
   // Initialize the module.
 
+  cout << "Init EventTrack." << endl;
+
   if( THaPhysicsModule::Init( run_time ))
   {
     return fStatus;
   }
+
   if(!fApp)
   {
 	  return kInitError;
   }
+
+  fCanvas = NULL;
+
+
+  cout << "Creating thread." << endl;
+
+  //fThread = new TThread("Thread",(void(*)(void *)) &ProcessThread, (void*) this);
+  
+  //fThread->Run();
+
+
+  InitGraphics();
+  //AddButtons();
+
+  return kOK;
+}
+
+void THaEventTrack::ProcessThread(void* arg)
+{
+
+  THaEventTrack* newthis = (THaEventTrack*) arg;
+
+    cout << "Thread Started." << endl;
+
+    while (true)
+      {
+	gSystem->ProcessEvents();
+	gSystem->Sleep(10);
+      }
+
+}
+
+void THaEventTrack::InitGraphics()
+{
+
+
   //Initialize the Canvas
 
   TRotMatrix* zero = NULL;
   fCanvas = new TCanvas("EventTrack");
+  fCanvas->SetEditable();
+
   fGeom = new TGeometry("EventTrack","EventTrack");
   fGeom->GetListOfMatrices()->Add(new TRotMatrix("XY","XY",45,0,90,90,-45,0));
   zero = new TRotMatrix("ZERO","ZERO",90,0,90,90,0,0);
@@ -182,11 +275,12 @@ THaAnalysisObject::EStatus THaEventTrack::Init( const TDatime& run_time)
   fGeom->Node("DUMMY","Center","DUM" ,0,0,0);
   
   // Get the spectrometer
+
   fSpectro = static_cast<THaSpectrometer*>
 	  ( FindModule( fApp->GetName(), "THaSpectrometer" ));
   
   if(!fSpectro )
-	  return kInitError;
+	  return;
 
   //Find the included detectors.
   
@@ -202,13 +296,14 @@ THaAnalysisObject::EStatus THaEventTrack::Init( const TDatime& run_time)
     buf+=i+1;
 
     dobj->Draw(fGeom,buf);
-	
+       
   }
  
-  fGeom->Draw();
+  // DrawButtons();
 
-  return kOK;
-}
+
+
+ }
 //----------------------------------------------------
 Int_t THaEventTrack::DrawDetector(const char* name, Float_t sx, Float_t sy, Float_t d)
 {
@@ -232,6 +327,48 @@ Int_t THaEventTrack::DrawDetector(const char* name, Float_t sx, Float_t sy, Floa
 }
 
 //----------------------------------------------------
+void THaEventTrack::AddButtons()
+{
+
+   fbutnext = new TButton("Next","evttrk->Next()",.1,.9,.3,.98);
+
+   fbutskip = new TButton("Skip 100","Skip()",.35,.9,.55,.98);
+
+   fbutquit = new TButton("Quit","Quit()",.6,.9,.8,.98);
+
+   
+}
+void THaEventTrack::DrawButtons()
+{
+
+  fbutnext->Draw();
+  fbutskip->Draw();
+  fbutquit->Draw();
+
+}
+
+
+void THaEventTrack::Next()
+{
+  
+  //fmsgcond->Signal();
+  fFlag = 1;
+
+}
+void THaEventTrack::Quit()
+{
+
+  //fexitcond->Signal();
+  fFlag = kTerminate;
+
+}
+void THaEventTrack::Skip()
+{
+
+  //fmsgcond->Signal();
+  fCount = 100;
+
+}
 
 //----------------------------------------------------
 
