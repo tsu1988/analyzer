@@ -31,9 +31,10 @@ public:
 						Double_t& x, Double_t& y);
           bool             CalcPathLen( THaTrack* track, Double_t& t );
 	  bool		   GetTrackDir( THaTrack* trach, TVector3* dir);		   
-	  void		   Draw(TGeometry* geom,THaTrack* track, Double_t& t, Option_t* opt = NULL);
-	  void		   Draw(TGeometry* geom, Option_t* opt = NULL);
-	  void		   Draw(Option_t* opt = NULL);
+  virtual	  void		   Draw(TGeometry* geom,THaTrack* track, Double_t& t, const Option_t* opt = NULL);
+  virtual	  void		   Draw(TGeometry* geom,const THaEvData& evdata,  const Option_t* opt = NULL);
+  virtual	  void		   Draw(TGeometry* geom, const Option_t* opt = NULL);
+  virtual	  void		   Draw(const Option_t* opt = NULL);
 
 protected:
 
