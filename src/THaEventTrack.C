@@ -423,8 +423,8 @@ void THaEventTrack::Detail()
 
   if(VDC)
     {
-      THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph-Dist","1");
-      THaETVDCGrDetail* f = new THaETVDCGrDetail(VDC,"VDCGr1","VDC Graph-Time","2");
+      THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph-Dist","2");
+      THaETVDCGrDetail* f = new THaETVDCGrDetail(VDC,"VDCGr1","VDC Graph-Time","1");
       THaETVDCGrDetail* g = new THaETVDCGrDetail(VDC,"VDCGr2","VDC Graph-RawTime","3");
       THaETVDCDetail* e = new THaETVDCDetail(VDC,"VDCD","VDC Detail");
 
