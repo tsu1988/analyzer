@@ -25,6 +25,8 @@
 #include "TMath.h"
 #include "VarDef.h"
 
+#include "THaDB.h"
+
 #include <cstring>
 #include <vector>
 #include <iostream>
@@ -220,6 +222,127 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
 
   fIsInit = true;
   fclose(file);
+  return kOK;
+}
+
+//_____________________________________________________________________________
+Int_t THaVDCPlane::ReadDB( const TDatime& date )
+{
+  // load plane paramters from the database, and setup arrays
+  static const char* const here = "ReadDB()";
+  
+  Int_t nWires = 0;
+  
+  
+  // Only build the list of detector elements if it hasn't already
+  // been done, such that the user may specify the list of detector elements
+  // on their own.
+  if (fMapName.size()<=0) {
+    // Build the list of detector elements. VDC's only get 1 kind of entry
+    // per plane, with the 'l' or 'r' at the end
+    TString basename(fPrefix);
+    // First, remove trailing '.'
+    basename.Remove(basename.Last('.'));
+    
+    Ssiz_t pos = basename.First('.');
+    if (pos > 0 && pos != kNPOS) {
+      TString parstr(basename.Data(),pos +1 -1);
+      basename.Remove(0,pos+1);
+      basename.Append(parstr);
+    }
+    basename.ReplaceAll(".","_");
+    basename.ReplaceAll("__",2,"_",1);
+    basename.ToLower();
+    
+    
+    if (basename[basename.Length()-1]!='\0')
+      basename.Append("\0");
+    
+    string mapname(basename);
+    fMapName.push_back(mapname);
+  }
+  
+  if (!fDetMap) {
+    fDetMap = new THaDetMap;
+  }
+
+  Int_t nmods = fDetMap->GetSize();
+  for (unsigned int i=0; i<fMapName.size(); i++) {
+    nmods += gHaDB->GetDetMap( fMapName[i].c_str(), *fDetMap, date);
+  }
+  
+  for (int i=0; i<nmods; i++) {
+    THaDetMap::Module* mod = fDetMap->GetModule(i);
+    nWires += (mod->hi - mod->lo + 1);
+  }
+
+  Double_t origin[3];
+
+  Double_t* TdcOffsets = new Double_t[nWires];
+  
+  TagDef list[] = {
+    { "Origin",       origin,  0, 3 },
+    { "wBegin",       &fWBeg },
+    { "wSpace",       &fWSpac },
+    { "wAngle",       &fWAngle },
+    { "TdcRes",       &fTDCRes },
+    { "TdcMin",       &fMinTime, 0, 0, kInt },
+    { "TdcMax",       &fMaxTime, 0, 0, kInt },
+    { "DriftVel",     &fDriftVel  },
+    { "TdcOffsets",   TdcOffsets, 0, nWires },
+    { "TdcT0",        &fT0 }
+  };
+  
+  if ( !gHaDB->LoadValues(fDBname,list,date) ) {
+    Warning(Here(here),"Couldn't load detector from database.");
+    return kNotinit;
+  }
+
+  fOrigin = TVector3(origin);
+  
+  // Values are the same for each plane
+  fNWiresHit = 0;
+  fNMaxGap = 1;
+ 
+  // Create TClonesArray objects for wires, hits,  and clusters
+  fWires = new TClonesArray("THaVDCWire", nWires);
+
+  vector<Double_t> ttdV;
+  
+  Int_t nRead;
+  // now read in the time-to-drift-distance lookup table (if it exists)
+  if ( gHaDB->GetValue( fDBname, "NTtdBins", fNumBins, date ) >0 && fNumBins>0 
+       && ( nRead = gHaDB->GetArray( fDBname, "Ttdd_table", ttdV, date ) )>0 ) {
+    
+    if (nRead >= fNumBins) {
+      delete [] fTable;
+      fTable = new Float_t[fNumBins];
+      for (Int_t i=0; i<fNumBins; i++) fTable[i] = ttdV[i];
+    } else
+      Error(Here(here),"Cannot get Ttdd_table: %d < %d !",nRead,fNumBins);
+  } else {
+    Warning(Here(here),"Cannot get Ttdd_table! Only found %d entries!",nRead);
+    
+    // if not, set some reasonable defaults
+    fNumBins = 0;
+    delete [] fTable;
+    fTable = NULL;
+  }
+  
+  // Define time-to-drift-distance converter
+  // Currently, we use the analytic converter. 
+  // FIXME: Let user choose this via a parameter
+  THaVDCAnalyticTTDConv* ttdConv = new THaVDCAnalyticTTDConv(fDriftVel);
+  
+  // Read in the TDC offsets for the wires
+  
+  for (int i = 0; i < nWires; i++) {
+    new((*fWires)[i]) THaVDCWire( i, fWBeg+i*fWSpac, TdcOffsets[i], ttdConv );
+  }
+  
+  delete [] TdcOffsets;
+  
+  fIsInit = true;
   return kOK;
 }
 

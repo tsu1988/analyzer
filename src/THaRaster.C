@@ -18,12 +18,15 @@
 #include "TMath.h"
 #include <iostream>
 
+#include "THaDB.h"
+#include "THaString.h"
+
 using namespace std;
 
 //_____________________________________________________________________________
 THaRaster::THaRaster( const char* name, const char* description,
 				  THaApparatus* apparatus ) :
-  THaBeamDet(name,description,apparatus), fFirstChan(NULL), fRawPos(2), fRawSlope(2),fRasterFreq(2),fSlopePedestal(2),fRasterPedestal(2)
+  THaBeamDet(name,description,apparatus), fRawPos(2), fRawSlope(2),fRasterFreq(2),fSlopePedestal(2),fRasterPedestal(2)
 {
   // Constructor
   fRaw2Pos[0].ResizeTo(3,2);
@@ -72,8 +75,6 @@ Int_t THaRaster::ReadDatabase( const TDatime& date )
   // i dont check each time for end of file, needs to be improved
 
   Int_t i=0;
-  delete [] fFirstChan;
-  fFirstChan=new UShort_t[ THaDetMap::kDetMapSize ];
   fDetMap->Clear();
   int first_chan, crate, dummy, slot, first, last, modulid;
 
@@ -81,15 +82,10 @@ Int_t THaRaster::ReadDatabase( const TDatime& date )
     fgets( buf, LEN, fi);
     sscanf(buf,"%d %d %d %d %d %d %d",&first_chan, &crate, &dummy, &slot, &first, &last, &modulid);
     if (first_chan>=0) {
-      if ( fDetMap->AddModule (crate, slot, first, last )<0) {
+      if ( fDetMap->AddModule (crate, slot, first, last, first_chan )<0) {
 	Error( Here(here), "Couldnt add Raster to DetMap. Good bye, blue sky, good bye!");
-	delete [] fFirstChan; 
-	fFirstChan = NULL;
 	fclose(fi);
 	return kInitError;
-      }
-      else {
-	fFirstChan[i++]=first_chan;
       }
     }
   } while (first_chan>=0);
@@ -153,6 +149,69 @@ Int_t THaRaster::ReadDatabase( const TDatime& date )
   fPosOff[2].SetY(dummy2);
 
   fclose(fi);
+  return kOK;
+}
+
+//_____________________________________________________________________________
+// ReadDB:  if detectors cant be added to detmap 
+//          or entry for bpms is missing           -> kInitError
+//          otherwise                              -> kOk
+//          CAUTION: i do not check for incomplete or 
+//                   inconsistent data
+//
+Int_t THaRaster::ReadDB( const TDatime& date )
+{
+  static const char* const here = "ReadDB()";
+  
+  THaString dbname(GetName());
+  dbname.Lower();
+  dbname += "_r";
+  
+  // Read in detector map
+  fDetMap->Clear();
+  if ( gHaDB->GetDetMap(dbname.c_str(),*fDetMap,date) <= 0 ) {
+    Error( Here(here), "Couldnt add Raster to DetMap. Good bye, blue sky, good bye!");
+  }
+  
+  if (!fDBname) SetDBName(GetName());
+
+  Double_t rfreq[2], rped[2], rslope[2];
+  Double_t bpmA_p[3], bpmB_p[3], trg_p[3];
+  Double_t matrA[4], matrB[4], matrT[4];
+
+  TagDef list[] = {
+    { "Frequency", rfreq,  0, 2 },
+    { "Pedestal",  rped,   0, 2 },
+    { "Slope",     rslope, 0, 2 },
+    { "BpmA_pos",  bpmA_p, 0, 3 },
+    { "BpmB_pos",  bpmB_p, 0, 3 },
+    { "Target_pos", trg_p, 0, 3 },
+    { "Matr_posA", matrA, 0, 4 },
+    { "Matr_posB", matrB, 0, 4 },
+    { "Matr_Trgt", matrT, 0, 4 },
+  }; 
+  
+  if ( !gHaDB->LoadValues(fDBname,list,date) ) {
+    Warning(Here(here),"Couldn't load raster info from database.");
+    return kNotinit;
+  }
+
+  // position of the bpm's
+  fPosOff[0].SetXYZ(bpmA_p[0],bpmA_p[1],bpmA_p[2]);
+  fPosOff[1].SetXYZ(bpmB_p[0],bpmB_p[1],bpmB_p[2]);
+  fPosOff[2].SetXYZ(trg_p[0],trg_p[1],trg_p[2]);
+
+  // matrices to translate readouts at BPMs (currents)
+  // to positions at the BPMs and target  
+  fRaw2Pos[0](0,0) = matrA[0];    fRaw2Pos[0](0,1) = matrA[2];
+  fRaw2Pos[0](1,0) = matrA[3];    fRaw2Pos[0](1,1) = matrA[1];
+
+  fRaw2Pos[1](0,0) = matrB[0];    fRaw2Pos[1](0,1) = matrB[2];
+  fRaw2Pos[1](1,0) = matrB[3];    fRaw2Pos[1](1,1) = matrB[1];
+
+  fRaw2Pos[2](0,0) = matrT[0];    fRaw2Pos[2](0,1) = matrT[2];
+  fRaw2Pos[2](1,0) = matrT[3];    fRaw2Pos[2](1,1) = matrT[1];
+
   return kOK;
 }
 
@@ -235,7 +294,7 @@ Int_t THaRaster::Decode( const THaEvData& evdata )
       Int_t chan = evdata.GetNextChan( d->crate, d->slot, j);
       if ((chan>=d->lo)&&(chan<=d->hi)) {
 	Int_t data = evdata.GetData( d->crate, d->slot, chan, 0 );
-	Int_t k = fFirstChan[i] + chan - d->lo -1;
+	Int_t k = d->first + chan - d->lo -1;
 	if (k<2) {
 	  fRawPos(k)= data;
 	  fNfired++;
@@ -283,7 +342,14 @@ Int_t THaRaster::Process( )
   return 0 ;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
 ClassImp(THaRaster)
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
 

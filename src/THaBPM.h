@@ -36,14 +36,13 @@ protected:
 
   void           ClearEvent();
   virtual Int_t  ReadDatabase( const TDatime& date );
+  virtual Int_t  ReadDB( const TDatime& date );
   virtual Int_t  DefineVariables( EMode mode );
 
   //  THaBPM() {}
   //  THaBPM( const THaBPM& ) {}
   THaBPM& operator=( const THaBPM& ) { return *this; }
 
-
-  UShort_t* fFirstChan;     // Beginning channels for each detmap module
 
   TVector  fRawSignal;     // induced signal of the antennas
   TVector  fPedestals;

@@ -21,10 +21,8 @@ const int THaDetMap::kDetMapSize;
 THaDetMap::THaDetMap() : fNmodules(0)
 {
   // Default constructor. Create an empty detector map.
-
-  fMaplength = 10;      // default number of modules
-  fMap = new Module [fMaplength];
-
+  fMaplength = 10; // default number of modules/size of the array
+  fMap = new Module[fMaplength];
 }
 
 //_____________________________________________________________________________
@@ -32,8 +30,8 @@ THaDetMap::THaDetMap( const THaDetMap& rhs )
 {
   // Copy constructor. Initialize one detector map with another.
 
-  fMaplength = rhs.fMaplength;
-  fMap = new Module [fMaplength];
+  fNmodules = rhs.fNmodules;
+  fMap = new Module[fMaplength];
 
   fNmodules = rhs.fNmodules;
 
@@ -46,12 +44,12 @@ THaDetMap& THaDetMap::operator=( const THaDetMap& rhs )
   // THaDetMap assignment operator. Assign one map to another.
 
   if ( this != &rhs ) {
-    fNmodules = rhs.fNmodules;
     if ( fMaplength != rhs.fMaplength ) {
       delete [] fMap;
       fMaplength = rhs.fMaplength;
       fMap = new Module[fMaplength];
     }
+    fNmodules = rhs.fNmodules;
     memcpy(fMap,rhs.fMap,fNmodules*sizeof(Module));
   }
   return *this;
@@ -67,31 +65,51 @@ THaDetMap::~THaDetMap()
 
 //_____________________________________________________________________________
 Int_t THaDetMap::AddModule( UShort_t crate, UShort_t slot, 
-			    UShort_t chan_lo, UShort_t chan_hi, UInt_t firstw,
-			    UInt_t model)
+			    UShort_t chan_lo, UShort_t chan_hi,
+			    UInt_t first, UInt_t model )
 {
+  struct ModuleType {
+    UInt_t model;
+    int adc;
+    int tdc;
+  };
+
+  static const ModuleType module_list[] = {
+    { 1875, 0, 1 },
+    { 1877, 0, 1 },
+    { 1881, 1, 0 },
+    { 1872, 0, 1 },
+    { 3123, 1, 0 },
+    { 1182, 1, 0 },
+    { 0 }
+  };
+
   // Add a module to the map.
 
-  if( fNmodules >= kDetMapSize ) return -1;  //Map is full -- sanity check
-  
-  if( fNmodules >= fMaplength ) {            // need to expand the Map
+  if( fNmodules >= kDetMapSize ) return -1;  //Map is full
+
+  if ( fNmodules >= fMaplength ) { // need to expand the Map
     Int_t oldlen = fMaplength;
     fMaplength += 10;
-    Module* tmpmap = new Module[fMaplength];  // expand in groups of 10 modules
-  
+    Module* tmpmap = new Module[fMaplength]; // expand in groups of 10
+    
     memcpy(tmpmap,fMap,oldlen*sizeof(Module));
     delete [] fMap;
     fMap = tmpmap;
   }
-  
+
   Module& m = fMap[fNmodules];
   m.crate = crate;
-  m.slot = slot;
-  m.lo = chan_lo;
-  m.hi = chan_hi;
-  m.firstw = firstw;
+  m.slot  = slot;
+  m.lo    = chan_lo;
+  m.hi    = chan_hi;
+  m.first = first;
   m.model = model;
 
+  const ModuleType* md = module_list;
+  while ( md->model && model != md->model ) md++;
+  m.model |= ( md->adc ? ADCBit : 0 ) | ( md->tdc ? TDCBit : 0 );
+  
   return ++fNmodules;
 }
 
@@ -108,40 +126,12 @@ void THaDetMap::Print( Option_t* opt ) const
 	 << setw(5) << m->slot 
 	 << setw(5) << m->lo 
 	 << setw(5) << m->hi 
+	 << setw(5) << m->first
+	 << setw(5) << m->model
 	 << endl;
   }
 }
 
-// small structure to hold our set of card-model, adc-type, tdc-type entries
-// Let's keep this local to this file
-struct ModuleType {
-  UInt_t model;
-  int adc;
-  int tdc;
-};
-
-
-static const ModuleType module_list[] =
-{
-  { 1875, 0, 1 },
-  { 1877, 0, 1 },
-  { 1881, 1, 0 },
-  { 3123, 1, 0 },
-  { 1182, 1, 0 },
-  { 0 }
-};
-
-Bool_t THaDetMap::IsADC(Module* d) {
-  const ModuleType* md = module_list;
-  while ( md->model && d->model != md->model ) md++;
-  return md->adc;
-}
-
-Bool_t THaDetMap::IsTDC(Module* d) {
-  const ModuleType* md = module_list;
-  while ( md->model && d->model != md->model ) md++;
-  return md->tdc;
-}
 //_____________________________________________________________________________
 ClassImp(THaDetMap)
 

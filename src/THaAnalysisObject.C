@@ -478,6 +478,15 @@ Int_t THaAnalysisObject::IsDBtag( const string& line, const char* tag,
 }
 
 //_____________________________________________________________________________
+void THaAnalysisObject::SetDBName(const char* dbname)
+{
+  if (!dbname) return;
+  if ( fDBname ) delete [] fDBname;
+  fDBname = new char[strlen(dbname)+1];
+  strcpy(fDBname,dbname);
+}
+
+//_____________________________________________________________________________
 Int_t THaAnalysisObject::LoadDBvalue( FILE* file, const TDatime& date, 
 				      const char* tag, string& text )
 {
@@ -559,7 +568,6 @@ Int_t THaAnalysisObject::LoadDB( FILE* f, const TDatime& date,
   // Load a list of parameters from the run database according to 
   // the contents of the 'tags' structure (see VarDef.h).
 
-  // NEED TO ADD Type-checking HERE!!!
   if( !tags ) return -1;
   const Int_t LEN = 256;
   Int_t np = strlen(prefix);
@@ -570,8 +578,19 @@ Int_t THaAnalysisObject::LoadDB( FILE* f, const TDatime& date,
   while( item->name ) {
     if( item->data ) {
       tag[0] = 0; strncat(tag,prefix,LEN-1); strncat(tag,item->name,LEN-np-1);
-      Double_t *pdata = (Double_t*)item->data;
-      if( LoadDBvalue( f, date, tag, *pdata) && item->fatal )
+      Int_t ret=0;
+      switch ( item->type ) {
+      case kDouble:
+	ret = LoadDBvalue( f, date, tag, *((Double_t*)item->var)); break;
+      default:
+	cerr << "THaAnalysisObject::LoadDB  "
+	     << "READING of VarType " << item->type << " for item " << tag
+	     << " (see VarType.h) not implemented at this point !!! \n"
+	     << endl;
+	ret = -1;
+      }
+
+      if (ret && item->fatal )
 	return item->fatal;
     }
     item++;

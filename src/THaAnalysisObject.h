@@ -41,6 +41,7 @@ public:
   virtual void         SetName( const char* name );
   virtual void         SetNameTitle( const char* name, const char* title );
           EStatus      Status() const            { return fStatus; }
+  virtual void         SetDBName(const char* dbname);
 
   // Static function to provide easy access to database files
   // from CINT scripts etc.
@@ -78,11 +79,13 @@ protected:
   char*           fPrefix;    // Name prefix for global variables
   EStatus         fStatus;    // Initialization status flag
   Int_t           fDebug;     // Debug level
+  char*           fDBname;    // Name for entries in THaDB database
   bool            fIsInit;    // Flag indicating that ReadDatabase called.
   bool            fIsSetup;   // Flag indicating that Setup called.
   TString         fConfig;    // Configuration to use from database
   UInt_t          fProperties;// Properties of this object (see EProperties)
-
+  std::vector<std::string> fMapName; // List of names in the detector map
+  
   virtual Int_t        DefineVariables( EMode mode = kDefine )
      { return kOK; }
 
@@ -112,6 +115,8 @@ protected:
   virtual Int_t        ReadDatabase( const TDatime& date )
      { return kOK; }
   virtual Int_t        ReadRunDatabase( const TDatime& date );
+  virtual Int_t        ReadDB( const TDatime& date )
+     { return kOK; }
   virtual Int_t        RemoveVariables()
      { return DefineVariables( kDelete ); }
 

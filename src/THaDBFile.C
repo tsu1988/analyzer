@@ -995,7 +995,7 @@ Int_t THaDBFile::PutDetMap( const TDatime& date ) {
 
 
 //_____________________________________________________________________________
-Int_t THaDBFile::LoadValues ( const char* system, const DBTagDef* list,
+Int_t THaDBFile::LoadValues ( const char* system, const TagDef* list,
 			      const TDatime& date )
 {
   // Load a number of entries from the database.
@@ -1003,7 +1003,7 @@ Int_t THaDBFile::LoadValues ( const char* system, const DBTagDef* list,
   // must be given, and the memory already allocated
   //
   
-  const DBTagDef *ti = list;
+  const TagDef *ti = list;
   Int_t cnt=0;
   Int_t this_cnt=0;
 
@@ -1012,11 +1012,11 @@ Int_t THaDBFile::LoadValues ( const char* system, const DBTagDef* list,
       // it is an array, use the appropriate interface
       switch (ti->type) {
       case (kDouble) :
-	this_cnt = GetArray(system,ti->name,static_cast<Double_t*>(ti->data),
+	this_cnt = GetArray(system,ti->name,static_cast<Double_t*>(ti->var),
 			    ti->expected,date);
 	break;
       case (kInt) :
-	this_cnt = GetArray(system,ti->name,static_cast<Int_t*>(ti->data),
+	this_cnt = GetArray(system,ti->name,static_cast<Int_t*>(ti->var),
 			    ti->expected,date);
 	break;
       default:
@@ -1027,10 +1027,10 @@ Int_t THaDBFile::LoadValues ( const char* system, const DBTagDef* list,
     } else {
       switch (ti->type) {
       case (kDouble) :
-	this_cnt = GetValue(system,ti->name,*static_cast<Double_t*>(ti->data),date);
+	this_cnt = GetValue(system,ti->name,*static_cast<Double_t*>(ti->var),date);
 	break;
       case (kInt) :
-	this_cnt = GetValue(system,ti->name,*static_cast<Int_t*>(ti->data),date);
+	this_cnt = GetValue(system,ti->name,*static_cast<Int_t*>(ti->var),date);
 	break;
       default:
 	Error("THaDBFile","Invalid type to read %s %s",system,ti->name);
@@ -1054,25 +1054,25 @@ Int_t THaDBFile::LoadValues ( const char* system, const DBTagDef* list,
 }
 
 //_____________________________________________________________________________
-Int_t  THaDBFile::StoreValues( const char* system, const DBTagDef* list,
+Int_t  THaDBFile::StoreValues( const char* system, const TagDef* list,
 		    const TDatime& date )
 {
   // Store the set of values into the database.
   // For array entries, the number of elements to be written out
   // must be given
   
-  const DBTagDef *ti = list;
+  const TagDef *ti = list;
   Int_t cnt=0;
   Int_t this_cnt=0;
 
   while ( ti && ti->name ) {
     switch ( ti->type ) {
     case kDouble:
-      this_cnt = WriteArray( system, ti->name, static_cast<Double_t*>(ti->data),
+      this_cnt = WriteArray( system, ti->name, static_cast<Double_t*>(ti->var),
 			     ti->expected, date );
       break;
     case kInt:
-      this_cnt = WriteArray( system, ti->name, static_cast<Int_t*>(ti->data),
+      this_cnt = WriteArray( system, ti->name, static_cast<Int_t*>(ti->var),
 			     ti->expected, date );
       break;
     default:
@@ -1097,6 +1097,3 @@ void  THaDBFile::SetDescription(const char* description)
 ClassImp(THaDBFile)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
-

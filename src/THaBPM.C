@@ -17,13 +17,13 @@
 #include "VarType.h"
 #include "TMath.h"
 
-
-ClassImp(THaBPM)
+#include "THaDB.h"
+#include "THaString.h"
 
 //_____________________________________________________________________________
 THaBPM::THaBPM( const char* name, const char* description,
 				  THaApparatus* apparatus ) :
-  THaBeamDet(name,description,apparatus), fFirstChan(NULL),
+  THaBeamDet(name,description,apparatus),
   fRawSignal(4),fPedestals(4),fCorSignal(4),fRotPos(2),fRot2HCSPos(2,2)
 {
   // Constructor
@@ -69,23 +69,16 @@ Int_t THaBPM::ReadDatabase( const TDatime& date )
   // i dont check each time for end of file, needs to be improved
 
   Int_t i = 0;
-  delete [] fFirstChan;
-  fFirstChan=new UShort_t[ THaDetMap::kDetMapSize ];
   fDetMap->Clear();
   int first_chan, crate, dummy, slot, first, last, modulid;
   do {
     fgets( buf, LEN, fi);
     sscanf(buf,"%d %d %d %d %d %d %d",&first_chan, &crate, &dummy, &slot, &first, &last, &modulid);
     if (first_chan>=0) {
-      if ( fDetMap->AddModule (crate, slot, first, last )<0) {
+      if ( fDetMap->AddModule (crate, slot, first, last, first_chan )<0) {
 	Error( Here(here), "Couldnt add BPM to DetMap. Good bye, blue sky, good bye!");
-	delete [] fFirstChan; 
-	fFirstChan = NULL;
 	fclose(fi);
 	return kInitError;
-      }
-      else {
-	fFirstChan[i++]=first_chan;
       }
     }
   } while (first_chan>=0);
@@ -134,6 +127,53 @@ Int_t THaBPM::ReadDatabase( const TDatime& date )
   fOffset(1)=dummy6;
 
   fclose(fi);
+  return kOK;
+}
+
+//_____________________________________________________________________________
+//   ALTERNATIVE TO ABOVE ROUTINE
+// ReadDB:  if detectors cant be added to detmap 
+//          or entry for bpms is missing           -> kInitError
+//          otherwise                              -> kOk
+//
+Int_t THaBPM::ReadDB( const TDatime& date )
+{
+  static const char* const here = "ReadDB()";
+
+  THaString dbname(GetName());
+  dbname.Lower();
+  dbname += "_r";
+  
+  // Read in detector map
+  fDetMap->Clear();
+  if ( gHaDB->GetDetMap(dbname.c_str(),*fDetMap,date) <= 0 ) {
+    Error( Here(here), "Couldn't add BPM to DetMap. Good bye, blue sky, good bye!");
+  }
+
+  if (!fDBname) SetDBName(GetName());
+
+  Double_t peds[4], mtrx[4], pos[3];
+  TagDef list[] = {
+    { "Position",  pos,  0, 3 },  // Position of BPM
+    { "SgnlCalib", &fCalibRot },  // Calibration constant, historical
+                                  // using 0.01887 results in matrix elements
+                                  // between 0.0 and 1.0
+    { "Pedestals", peds, 0, 4 },  // Pedestals for antenna readings
+    { "Rot2HCS",   mtrx, 0, 4 },  // 2x2 matrix to rotate from signal to HCS
+  };
+
+  if ( !gHaDB->LoadValues(fDBname,list,date) ) {
+    Warning(Here(here),"Couldn't load raster info from database.");
+    return kNotinit;
+  }
+
+  for (int i=0; i<4; i++) fPedestals(i) = peds[i];
+  
+  fRot2HCSPos(0,0) = mtrx[0];  fRot2HCSPos(0,1) = mtrx[1];
+  fRot2HCSPos(1,0) = mtrx[2];  fRot2HCSPos(1,1) = mtrx[3];
+
+  fOffset.SetXYZ(pos[0],pos[1],pos[2]);
+  
   return kOK;
 }
 
@@ -211,7 +251,7 @@ Int_t THaBPM::Decode( const THaEvData& evdata )
       Int_t chan = evdata.GetNextChan( d->crate, d->slot, j);
       if ((chan>=d->lo)&&(chan<=d->hi)) {
 	Int_t data = evdata.GetData( d->crate, d->slot, chan, 0 );
-	Int_t k = fFirstChan[i] + chan - d->lo -1;
+	Int_t k = d->first + chan - d->lo -1;
 	if ((k<4)&&(fRawSignal(k)==-1)) {
 	  fRawSignal(k)= data;
 	  fNfired++;
@@ -275,5 +315,6 @@ Int_t THaBPM::Process( )
   return 0 ;
 }
 
+ClassImp(THaBPM)
 
 ////////////////////////////////////////////////////////////////////////////////
