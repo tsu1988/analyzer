@@ -18,6 +18,9 @@ THaETVDCGrDetail::THaETVDCGrDetail(THaVDC* vdc,const char* name, const char* tit
   fVDC = vdc;
   fName = name;
   fTitle = title;
+
+  Init();
+
 }
 
 //----------------------------------------------------
