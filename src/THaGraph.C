@@ -369,12 +369,12 @@ void THaGraph::PaintGraph(Int_t npoints, const Double_t* x, const Double_t* y, O
            ComputeLogs(npt, OptionZ);
 	   
 	   //Added to TGraph code
-	   cout << "Color: " << fcolor[i-1] << endl;
+	   //	   cout << "Color: " << fcolor[i-1] << endl;
 
 	   if(fcolor)
 	     {
 	       SetMarkerColor(fcolor[i-1]);
-	       cout << "set color to: " << fcolor[i-1] << endl;
+	       //	       cout << "set color to: " << fcolor[i-1] << endl;
 	     }
            //////////////////////
 
@@ -413,13 +413,13 @@ void THaGraph::PaintGraph(Int_t npoints, const Double_t* x, const Double_t* y, O
      for(Int_t c = 0; c < npt ; c++)
        {
 	
-	 cout << "Color: " << cwork[c] << endl;
+	 // cout << "Color: " << cwork[c] << endl;
 
 	 if(fcolor)
 	   {
 	     gVirtualX->SetMarkerColor(cwork[c]);
 	     //SetMarkerStyle(2);
-	     cout << "set color to: " << cwork[c] << endl;
+	     //  cout << "set color to: " << cwork[c] << endl;
 	   }
            //////////////////////
 
