@@ -20,7 +20,7 @@
 #include "TNode.h"
 #include "TButton.h"
 #include "THaVDC.h"
-
+#include "THaETVDCGrDetail.h"
 
 //----------------------------------------------------
 THaEventTrack::THaEventTrack(const char* name, THaApparatus* app): THaPhysicsModule(name,"EventTrack")
@@ -161,7 +161,17 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
 
   if(!DrawEvent(evdata))
     return 0;
- 
+
+  fCanvas->cd();
+  fCanvas->Update();
+
+  TIter next(&fDetWindows);
+  THaETDetail* dw = NULL;
+
+  while(dw = static_cast<THaETDetail*>(next()))
+    {
+      dw->Process(evdata);
+    }
   
  /*
   // Wait for user input
@@ -371,6 +381,7 @@ void THaEventTrack::Detail()
 {
 
   TCanvas* dcan;
+  TCanvas* dcan2;
 
   Int_t ndetectors = fApp->GetNumDets();
   THaDetector* dobj = NULL;
@@ -388,8 +399,15 @@ void THaEventTrack::Detail()
 
   if(VDC)
     {
-      dcan = new TCanvas("VDC Detail");
-      VDC->DrawDetail(dcan);
+      THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph");
+
+      if(d->Init())
+	fDetWindows.Add(d);
+      
+      // dcan = new TCanvas("VDC Graph");
+      //VDC->DrawGraph(dcan);
+      //dcan2 = new TCanvas("VDC Detail");
+      //VDC->DrawDetail(dcan2);
     }
 
 }

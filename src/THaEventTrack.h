@@ -18,6 +18,7 @@
 #include "TCondition.h"
 #include "TThread.h"
 #include "TButton.h"
+#include "THaETVDCGrDetail.h"
 
 class THaCut;
 
@@ -62,8 +63,7 @@ protected:
         void            AddButtons();
 	void            DrawButtons();
 
-	TThread*        fThread;
-
+	TList           fDetWindows;
   	TList		fGraphics;
  	TGeometry*	fGeom; 
 	  

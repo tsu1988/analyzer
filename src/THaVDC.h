@@ -38,6 +38,7 @@ public:
   virtual void DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z, Double_t len, TVector3& dir);
 
   virtual void DrawDetail(TCanvas* canvas, const Option_t* opt = NULL);
+  virtual void DrawGraph(TCanvas* canvas, const Option_t* opt = NULL);
 
   // Get and Set Functions
   virtual THaVDCUVPlane* GetUpper() { return fUpper; }
@@ -86,6 +87,8 @@ protected:
 
   Int_t    fNumIter;        // Number of iterations for FineTrack()
   Double_t fErrorCutoff;    // Cut on track matching error
+
+  TList    fDetGraphs;     // Array to hold pointers to graphic objects
 
   virtual void DefineAxes(Double_t rotation_angle);
   

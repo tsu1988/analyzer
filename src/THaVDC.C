@@ -36,6 +36,7 @@
 #include "TSPHE.h"
 #include "TBox.h"
 #include "TDiamond.h"
+#include "TGraph.h"
 
 #ifdef WITH_DEBUG
 #include <iostream>
@@ -1023,24 +1024,33 @@ void THaVDC::DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z,Double
 //_____________________________________________________________________________
 
 void THaVDC::DrawDetail(TCanvas* canvas, const Option_t* opt)
-{
-
-  //Draw Details of 4 VDC Planes
-
- /*
-  Double_t x_spacer = 10;
-  Double_t y_spacer = 10;
+{ 
+  Double_t x_spacer = .50;
+  Double_t y_spacer = .50;
 
   Double_t x = fSize[0];
   Double_t y = fSize[1];
 
-  TDiamond* u = new TDiamond(x_spacer ,y_spacer,x + x_spacer, y + y_spacer );
-  TDiamond* v = new TDiamond(x_spacer, y_spacer * 2 + y, x_spacer + x, y_spacer *2 + y*2);
+  TBox* u = new TBox(x_spacer ,y_spacer,x + x_spacer, y + y_spacer );
+  TBox* v = new TBox(x_spacer, y_spacer * 2 + y, x_spacer + x, y_spacer *2 + y*2);
 
-  canvas->cd(1);   
+  canvas->cd();   
+  u->SetFillStyle(0);
+  v->SetFillStyle(0);
+
   u->Draw();
   v->Draw();
- */
+ 
+}
+
+//_____________________________________________________________________________
+
+void THaVDC::DrawGraph(TCanvas* canvas, const Option_t* opt)
+{
+
+  //Draw Graphs of 4 VDC Planes
+
+
   THaVDCUVPlane* lower = GetLower();
   THaVDCUVPlane* upper = GetUpper();
 
@@ -1049,16 +1059,16 @@ void THaVDC::DrawDetail(TCanvas* canvas, const Option_t* opt)
   //DrawHitGraph
 
   canvas->cd(1);
-  lower->GetUPlane()->DrawHitGraph("A*");
-
+  fDetGraphs.Add(lower->GetUPlane()->DrawHitGraph("A*"));
+  
   canvas->cd(2);
-  lower->GetVPlane()->DrawHitGraph("A*");
+  fDetGraphs.Add(lower->GetVPlane()->DrawHitGraph("A*"));
 
   canvas->cd(3);
-  upper->GetUPlane()->DrawHitGraph("A*");
+  fDetGraphs.Add(upper->GetUPlane()->DrawHitGraph("A*"));
 
   canvas->cd(4);
-  upper->GetVPlane()->DrawHitGraph("A*");     
+  fDetGraphs.Add(upper->GetVPlane()->DrawHitGraph("A*"));     
 
   canvas->Update();
 
@@ -1075,8 +1085,8 @@ bool THaVDC::CalcTrackIntercept(THaTrack* theTrack, Double_t& t,Double_t& xcross
   Double_t norm = TMath::Sqrt(1.0 + theTrack->GetTheta()*theTrack->GetTheta() +
      theTrack->GetPhi()*theTrack->GetPhi());
 
-  TVector3 t_hat( theTrack->GetTheta()/norm, theTrack->GetPhi()/norm, 1.0/norm )
-	      ;
+  TVector3 t_hat( theTrack->GetTheta()/norm, theTrack->GetPhi()/norm, 1.0/norm );
+
   fDenom.SetColumn( -t_hat, 2 );
   fNom.SetColumn( t0-fOrigin, 2 );
 

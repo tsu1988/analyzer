@@ -574,7 +574,7 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
 }
 
 //_____________________________________________________________________________
-void THaVDCPlane::DrawHitGraph( const Option_t* opt)
+TGraph* THaVDCPlane::DrawHitGraph( const Option_t* opt)
 {
 
   TIter next(fHits);
@@ -590,14 +590,16 @@ void THaVDCPlane::DrawHitGraph( const Option_t* opt)
   while(hit = static_cast<THaVDCHit*>( next() ) )
     {
      x[i] = hit->GetWire()->GetNum();
-     y[i] = hit->GetTime();
+     y[i++] = hit->GetTime();
       
     }
   
-  //Fix: Free this!
+  //Will be freed by VDC Class.
   TGraph* g = new TGraph(nhits,x,y);
   g->SetTitle(fName);
   g->Draw(opt);
+
+  return g;
 
 }
 

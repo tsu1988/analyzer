@@ -85,4 +85,6 @@
 #pragma link C++ class THaDebugModule+;
 #pragma link C++ class THaGoldenTrack+;
 #pragma link C++ class THaEventTrack+;
+#pragma link C++ class THaETDetail+;
+#pragma link C++ class THaETVDCGrDetail+;
 #endif
