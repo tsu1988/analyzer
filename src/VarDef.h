@@ -29,8 +29,10 @@ struct RVarDef {
 
 struct TagDef {
   const char*      name;     // Tag name
-  Double_t*        var;      // Destination of result (MUST be Double_t!)
-  Int_t            fatal;    // Error to return if tag not found (0=ignore)
+  void*            data;     // Destination of result (type referred to below)
+  int              fatal;    // optional: Error to return if tag not found (0=ignore)
+  int              expected; // optional: number of elements to write/read (0/1 scaler)
+  int              type;     // optional(default kDouble): data type (kInt, etc.)
 };
 
 #endif

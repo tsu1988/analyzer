@@ -559,6 +559,7 @@ Int_t THaAnalysisObject::LoadDB( FILE* f, const TDatime& date,
   // Load a list of parameters from the run database according to 
   // the contents of the 'tags' structure (see VarDef.h).
 
+  // NEED TO ADD Type-checking HERE!!!
   if( !tags ) return -1;
   const Int_t LEN = 256;
   Int_t np = strlen(prefix);
@@ -567,9 +568,10 @@ Int_t THaAnalysisObject::LoadDB( FILE* f, const TDatime& date,
 
   const TagDef* item = tags;
   while( item->name ) {
-    if( item->var ) {
+    if( item->data ) {
       tag[0] = 0; strncat(tag,prefix,LEN-1); strncat(tag,item->name,LEN-np-1);
-      if( LoadDBvalue( f, date, tag, *(item->var)) && item->fatal )
+      Double_t *pdata = (Double_t*)item->data;
+      if( LoadDBvalue( f, date, tag, *pdata) && item->fatal )
 	return item->fatal;
     }
     item++;
