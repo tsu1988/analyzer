@@ -19,7 +19,7 @@ export WITH_DEBUG = 1
 SOVERSION  = 1.3
 PATCH   = 0
 VERSION = $(SOVERSION).$(PATCH)
-EXTVERS =
+EXTVERS = -vdcsim
 NAME    = analyzer-$(VERSION)
 
 #------------------------------------------------------------------------------
