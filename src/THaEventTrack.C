@@ -19,6 +19,7 @@
 #include "TBRIK.h"
 #include "TNode.h"
 #include "TButton.h"
+#include "THaVDC.h"
 
 
 //----------------------------------------------------
@@ -329,6 +330,7 @@ void THaEventTrack::AddButtons()
 
    fbutquit = new TButton("Quit","evttrk->Quit()",.6,.9,.8,.98);
 
+   fbutVDC = new TButton("VDC Detail","evttrk->Detail()",.1,.8,.3,.88);
    
 }
 void THaEventTrack::DrawButtons()
@@ -337,6 +339,7 @@ void THaEventTrack::DrawButtons()
   fbutnext->Draw();
   fbutskip->Draw();
   fbutquit->Draw();
+  fbutVDC->Draw();
 
 }
 
@@ -361,6 +364,33 @@ void THaEventTrack::Skip()
   //fmsgcond->Signal();
   fCount = 100;
   fFlag = 1;
+
+}
+
+void THaEventTrack::Detail()
+{
+
+  TCanvas* dcan;
+
+  Int_t ndetectors = fApp->GetNumDets();
+  THaDetector* dobj = NULL;
+  THaVDC* VDC = NULL;
+
+  for(Int_t i= ndetectors-1 ;i >= 0;i--)
+  {
+    dobj = fApp->GetDetector(i);
+
+    if(dobj->InheritsFrom("THaVDC"))
+      VDC = static_cast<THaVDC*>(dobj);
+        	
+       
+  }
+
+  if(VDC)
+    {
+      dcan = new TCanvas("VDC Detail");
+      VDC->DrawDetail(dcan);
+    }
 
 }
 

@@ -34,7 +34,7 @@ public:
 	void            Next();
 	void            Quit();
         void            Skip();
-	  
+	void            Detail();
 protected:
 	
 	THaSpectrometer* fSpectro;
@@ -44,6 +44,7 @@ protected:
 	TButton*        fbutnext;
 	TButton*        fbutquit;
 	TButton*        fbutskip;
+	TButton*        fbutVDC;
 	
 	Int_t		fFlag;
 	Int_t           fFlags;
