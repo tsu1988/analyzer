@@ -281,15 +281,14 @@ void THaEventTrack::InitGraphics()
   
   Int_t ndetectors = fApp->GetNumDets();
 
-  TString buf(3);
+  TString buf = "134689";
   for(Int_t i= ndetectors-1 ;i >= 0;i--)
   {
     THaDetector* dobj =  fApp->GetDetector(i);
   
-    buf="";
-    buf+=i+1;
+    TString color = (buf.Data())[i];
 
-    dobj->Draw(fGeom,buf);
+    dobj->Draw(fGeom,color);
        
   }
  
