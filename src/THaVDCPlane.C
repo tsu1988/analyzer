@@ -724,16 +724,19 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
 
       Double_t px[2],py[2];
 
-      px[0] = x + (intercept-min-.05)/uvplanesize*x_scale;
-      py[0] = y - (.05)/uvplanesize*y_scale*slope*x_scale;                                       //.1*slope*y_scale;
 
-      px[1] = x + (intercept-min+.05)/(uvplanesize)*x_scale;
-      py[1] = y + (.05)/uvplanesize*y_scale*slope*x_scale;
+      px[0] = x + (intercept-min)/uvplanesize*x_scale - .1;
+      py[0] = y - (.1)*uvplanesize/slope*y_scale/x_scale;                                       //.1*slope*y_scale;
+
+      px[1] = x + (intercept-min)/uvplanesize*x_scale +.1;
+      py[1] = y + (.1)*uvplanesize/slope*y_scale/x_scale;
+
 
       //Fix: Free this.
       TPolyLine* line = new TPolyLine(2,px,py);
 
       cout << "line: "<< px[0] << "," << py[0] << " to " << px[1] << "," <<py[1] << endl;
+
 
       line->SetLineColor(2);
       line->Draw();
