@@ -7,6 +7,7 @@
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
+#include "THaSpectrometer.h"
 #include "THaScintillator.h"
 #include "THaEvData.h"
 #include "THaDetMap.h"
@@ -202,6 +203,7 @@ Int_t THaScintillator::DefineVariables( EMode mode )
     { "ra_c",   "Corrected ADC values right side",   "fRA_c" },
     { "trx",    "x-position of track in det plane",  "fTRX" },
     { "try",    "y-position of track in det plane",  "fTRY" },
+    { "tdcy",   "Y-position from TDC data",          "fTDCY" },
     { 0 }
   };
   return DefineVarsFromList( vars, mode );
@@ -266,6 +268,7 @@ void THaScintillator::ClearEvent()
   memset( fRA_c, 0, lf );                 // Right paddles corrected ADCs
   fTRX = 0.0;                             // Xcoord of track point on scint plane
   fTRY = 0.0;                             // Ycoord of track point on scint plane
+  fTDCY = 0;                             // YCoord from TDC data.
 }
 
 //_____________________________________________________________________________
@@ -341,19 +344,7 @@ Int_t THaScintillator::CoarseProcess( TClonesArray& tracks )
   // plane in the detector coordinate system. For this, parameters of track 
   // reconstructed in THaVDC::CoarseTrack() are used.
 
-  int ne_track = tracks.GetLast()+1;   // Number of reconstructed in Earm tracks
 
-  if ( ne_track > 0 ) {
-    THaTrack* theTrack = static_cast<THaTrack*>( tracks[0] );
-    double fpe_x       = theTrack->GetX();
-    double fpe_y       = theTrack->GetY();
-    double fpe_th      = theTrack->GetTheta();
-    double fpe_ph      = theTrack->GetPhi();
-
-    fTRX = ( fpe_x + fpe_th * fOrigin.Z() ) / 
-      ( cos_angle * (1.0 + fpe_th * tan_angle ) );
-    fTRY = fpe_y + fpe_ph * fOrigin.Z() - fpe_ph * sin_angle * fTRX;
-   }
 
   return 0;
 }
@@ -363,6 +354,41 @@ Int_t THaScintillator::FineProcess( TClonesArray& tracks )
 {
   // Scintillator fine processing.
   // Not implemented. Does nothing, returns 0.
+
+  int ne_track = tracks.GetLast()+1;   // Number of reconstructed in Earm tracks
+
+  if ( ne_track > 0 ) {
+
+    //If available use Golden Track, if not use first track.
+    THaSpectrometer* Spectro;
+
+    THaTrack* theTrack = NULL;
+    if(fApparatus->InheritsFrom("THaSpectrometer"))
+      {
+	Spectro = static_cast<THaSpectrometer*>(fApparatus);
+	theTrack = Spectro->GetGoldenTrack();
+      }
+    
+    if(!theTrack)
+      theTrack = static_cast<THaTrack*>( tracks[0] );
+
+
+
+    double fpe_x       = theTrack->GetX();
+    double fpe_y       = theTrack->GetY();
+    double fpe_th      = theTrack->GetTheta();
+    double fpe_ph      = theTrack->GetPhi();
+
+    fTRX = ( fpe_x + fpe_th * fOrigin.Z() ) / 
+      ( cos_angle * (1.0 + fpe_th * tan_angle ) );
+    fTRY = fpe_y + fpe_ph * fOrigin.Z() - fpe_ph * sin_angle * fTRX;
+
+    //Calculate Y from TDC
+
+    Int_t paddle = (Int_t) TMath::Floor((fTRX+fSize[0])/fSize[0]/2*fNelem);
+    
+    fTDCY = CalcY(paddle);
+   }
 
   return 0;
 }
@@ -381,7 +407,7 @@ Double_t THaScintillator::CalcY(Int_t paddle)
     y = (fC*.30*fTDCScale*(fRT_c[paddle]-fLT_c[paddle])+fSize[1]*2)/2; //Meters
   else
     y = (fC*.30*fTDCScale*(fLT_c[paddle]-fRT_c[paddle])+fSize[1]*2)/2; //Meters
-
+  /*
   cout << "fC: " << fC << " fTDCScale: " << fTDCScale << endl;
 
   cout << "Paddle:" << paddle << "R TDC_c: " << fRT_c[paddle] <<endl ;
@@ -390,6 +416,7 @@ Double_t THaScintillator::CalcY(Int_t paddle)
   cout << "Paddle:" << paddle << "R TDC: " << fRT[paddle] <<endl ;
   cout << "Paddle:" << paddle << "L TDC: " << fLT[paddle] <<endl ;
   cout << "fSize[1]: " << fSize[1] << endl;
+  */
 
   return y;
   
@@ -404,10 +431,10 @@ Int_t THaScintillator::PaddlesHit(Int_t* hits)
 
   Int_t total = 0;
 
- cout << "elements: " << fNelem << endl;
+  // cout << "elements: " << fNelem << endl;
   for(Int_t i = 0; i < fNelem ; i++)
   {
-    cout << "#" << i << "Left ADC: " << fLA_c[i] << "  Right: " << fRA_c[i] << endl;
+    //cout << "#" << i << "Left ADC: " << fLA_c[i] << "  Right: " << fRA_c[i] << endl;
     if(fLA_c[i] > 100)
       hits[total++] = i ;
   }
@@ -495,7 +522,7 @@ void THaScintillator::Draw(TGeometry* geom,const THaEvData& evdata, Option_t* op
 	  MarkPaddle(geom, GetName(),hits[i],color);
      
 	  DrawY(geom,hits[i],CalcY(hits[i]));
-	  cout << "Marking paddle #" << hits[i] <<"@ "<<CalcY(hits[i])<< endl;
+	  //cout << "Marking paddle #" << hits[i] <<"@ "<<CalcY(hits[i])<< endl;
 	}
 
 }
@@ -520,7 +547,7 @@ void THaScintillator::DrawY(TGeometry* geom, Int_t paddle, Double_t y)
 
   geom->Node("HITY","HITY","YPos", leftpaddle+(paddle*fSize[0]*2/fNelem),orig[1]-fSize[1]+y,orig[2],"ZERO");
 
-  cout << "y pos: " << orig[1]-fSize[1] + y << endl;
+  //cout << "y pos: " << orig[1]-fSize[1] + y << endl;
 
 }
 
