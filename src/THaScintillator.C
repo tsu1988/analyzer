@@ -604,7 +604,8 @@ Int_t THaScintillator::FineProcess( TClonesArray& tracks )
   int n_track = tracks.GetLast()+1;   // Number of reconstructed tracks
   
   Double_t dpadx = (2.*fSize[0])/(fNelem); // width of a paddle
-  Double_t padx0 = fOrigin.X()-dpadx*(fNelem+1)*.5;
+  // center of paddle '0'
+  Double_t padx0 = -dpadx*(fNelem-1)*.5;
   
   for ( int i=0; i<n_track; i++ ) {
     THaTrack* theTrack = static_cast<THaTrack*>( tracks[i] );
@@ -618,11 +619,14 @@ Int_t THaScintillator::FineProcess( TClonesArray& tracks )
       continue;
     }
     
+    // xc, yc are the positions of the track intercept
+    //  _RELATIVE TO THE DETECTOR PLANE's_ origin.
+    //
     // look through set of complete hits for closest match
     // loop through due to possible poor matches
     dx = kBig;
     for ( Int_t j=0; j<fNhit; j++ ) {
-      Double_t dx2 = ( padx0 + fHitPad[j]*dpadx)-xc;
+      Double_t dx2 = ( padx0 + fHitPad[j]*dpadx) - xc;
       if (TMath::Abs(dx2) < TMath::Abs(dx) ) {
 	pad = fHitPad[j];
 	dx = dx2;
