@@ -31,6 +31,7 @@
 #include <iostream>
 #include <cmath>
 #include <cstdlib>
+#include <cstdio>
 
 ClassImp(THaAnalysisObject)
 
@@ -38,6 +39,8 @@ using namespace std;
 typedef string::size_type ssiz_t;
 
 TList* THaAnalysisObject::fgModules = NULL;
+
+const Double_t THaAnalysisObject::kBig = 1.e38;
 
 //_____________________________________________________________________________
 THaAnalysisObject::THaAnalysisObject( const char* name, 
@@ -661,6 +664,24 @@ Int_t THaAnalysisObject::SeekDBdate( FILE* file, const TDatime& date,
   }
   fseek( file, (found ? foundpos: pos), SEEK_SET );
   return found;
+}
+
+//_____________________________________________________________________________
+char* THaAnalysisObject::ReadComment( FILE* fp, char *buf, const int len )
+  // Read blank and comment lines ( those starting with '#' or '*' ),
+  // returning the comment.
+  // A line with the first character a non-space character is, in the old
+  // format, also a comment. It would be nice if this was depreciated,
+  // however.
+{
+  int ch = fgetc(fp);  // peak ahead one character
+  ungetc(ch,fp);
+
+  if (ch == EOF || ch == ' ') // || !( ch == '#' || ch == '*' || ch == '\n' ) )
+    return NULL; // a real line of data
+  
+  char *s= fgets(buf,len,fp); // read the comment
+  return s;
 }
 
 //_____________________________________________________________________________

@@ -27,6 +27,8 @@ public:
   enum EType   { kVarDef, kRVarDef };
   enum EMode   { kDefine, kDelete };
 
+  static const Double_t kBig; // = 1.e38; // default junk value
+  
   virtual ~THaAnalysisObject();
   
   virtual const char*  GetDBFileName() const     { return GetPrefix(); }
@@ -124,6 +126,8 @@ protected:
   static std::vector<std::string> 
     GetDBFileList( const char* name, const TDatime& date,
 		   const char* here = "GetDBFileList()" );
+  
+  static char* ReadComment( FILE* fp, char* buf, const int len );
 
   // Only derived classes may construct
   THaAnalysisObject( const char* name, const char* description );
