@@ -13,11 +13,12 @@
 
 //----------------------------------------------------
 
-THaETVDCGrDetail::THaETVDCGrDetail(THaVDC* vdc,const char* name, const char* title)
+THaETVDCGrDetail::THaETVDCGrDetail(THaVDC* vdc,const char* name, const char* title,const char* Opt)
 {
   fVDC = vdc;
   fName = name;
   fTitle = title;
+  fOpt = Opt;
 
   Init();
 
@@ -41,7 +42,7 @@ Int_t THaETVDCGrDetail::Process(const THaEvData& evdata)
   fCanvas->SetEditable(kTRUE);
   Clear();
 
-  fVDC->DrawGraph(fCanvas);
+  fVDC->DrawGraph(fCanvas,fOpt.Data());
   
   fCanvas->Update();
 
