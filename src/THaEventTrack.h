@@ -32,6 +32,8 @@ public:
 
   	  void		SetCentralAngle(TVector3 cangle);
 	void            Next();
+	void            Quit();
+        void            Skip();
 	  
 protected:
 	
@@ -55,8 +57,7 @@ protected:
 	void            InitGraphics();
 	static void     ProcessThread(void* arg);
 	
-	void            Quit();
-        void            Skip();
+
         void            AddButtons();
 	void            DrawButtons();
 

@@ -114,12 +114,20 @@ Int_t THaEventTrack::DrawEvent(const THaEvData& evdata )
     THaTrack* theTrack = static_cast<THaTrack*>( tracks->At(i));
     if(!theTrack || ! theTrack->HasTarget() )
     	continue;
+
+    cout << "Num dets:" << ndetectors << endl;
+
     for(Int_t i=0 ;i < ndetectors;i++)
     {
       THaDetector* dobj =  fApp->GetDetector(i);
       Double_t t;
-      if(TString(dobj->ClassName()) == "THaScintillator") 
+
+      cout << "Detector #" << i << ": "<<  dobj->ClassName() << endl;
+
+      if(TString(dobj->ClassName()) == "THaScintillator" ||
+	 TString(dobj->ClassName()) == "THaShower") 
       {
+	cout << "Evdata Draw" << endl;
 	dobj->Draw(fGeom,evdata);
       }
       else
@@ -132,12 +140,9 @@ Int_t THaEventTrack::DrawEvent(const THaEvData& evdata )
 
   fGeom->Draw();
 
-  cout << "EventDraw: Geom"<<endl;
-
   AddButtons();
   DrawButtons();
 
-  cout << "DrawButtons" << endl;
 
   fCanvas->Update();
 
@@ -150,27 +155,11 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
   //Event loop.
 
   fFlag = 0;
-  cout << "IN Process" << endl;
 
-  // sleep(50);
-  //  finitfinished->Wait();
-  // cout << "Done waiting." <<endl;
-
-  //while(fCanvas==NULL);
-    //cout <<"c: "<< fCanvas<< endl;
-  
-  cout << "fCanvas created";
-    
-  cout << "Init Finished." << endl;
 
   if(!DrawEvent(evdata))
     return 0;
  
-
-  if(fFlag == kTerminate)
-    return fFlag;
-
- cout << "Draw Event." << endl;
   
  /*
   // Wait for user input
@@ -203,7 +192,9 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
      gSystem->ProcessEvents();
      gSystem->Sleep(10);
    }
-                                                                        
+
+  if(fFlag == kTerminate)
+    return fFlag;                                                                        
   return 0;
 }
 
@@ -332,9 +323,9 @@ void THaEventTrack::AddButtons()
 
    fbutnext = new TButton("Next","evttrk->Next()",.1,.9,.3,.98);
 
-   fbutskip = new TButton("Skip 100","Skip()",.35,.9,.55,.98);
+   fbutskip = new TButton("Skip 100","evttrk->Skip()",.35,.9,.55,.98);
 
-   fbutquit = new TButton("Quit","Quit()",.6,.9,.8,.98);
+   fbutquit = new TButton("Quit","evttrk->Quit()",.6,.9,.8,.98);
 
    
 }
@@ -367,6 +358,7 @@ void THaEventTrack::Skip()
 
   //fmsgcond->Signal();
   fCount = 100;
+  fFlag = 1;
 
 }
 
