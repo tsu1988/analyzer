@@ -15,6 +15,8 @@
 #include "THaTrack.h"
 #include "TClonesArray.h"
 #include "TMath.h"
+#include "TBRIK.h"
+#include "TNode.h"
 
 // #include <iostream>
 #include <cstring>
@@ -367,30 +369,105 @@ Double_t THaScintillator::CalcY()
 }
 
 //_____________________________________________________________________________
-TList* THaScintillator::PaddlesHit()
+Int_t THaScintillator::PaddlesHit(Int_t* hits)
 {
+
   //Return list of hit paddles.
+
+  Int_t total = 0;
+
  cout << "elements: " << fNelem << endl;
   for(Int_t i = 0; i < fNelem ; i++)
   {
     cout << "#" << i << "Left ADC: " << fLA_c[i] << "  Right: " << fRA_c[i] << endl;
-    
+    if(fLA_c[i] > 100)
+      hits[total++] = i ;
   }
       
-  return NULL;
+  return total;
 }
 	
 //_____________________________________________________________________________
 void THaScintillator::Draw(TGeometry* geom, Option_t* opt)
 {
-	THaSpectrometerDetector::Draw(geom,opt);
+  TBRIK* b = new TBRIK(GetName(),GetName(),"void",fSize[0]/fNelem/2,fSize[1],fSize[2]/2);
+
+  b->SetLineColor(9);
+  TString color = GetName();
+  color += "C";
+  TBRIK* c = new TBRIK(color,color,"void",fSize[0]/fNelem/2,fSize[1],fSize[2]/2);
+
+  c->SetLineColor(2);
+  c->SetLineWidth(3);
+  
+
+  fPadObjs.Add(b);
+  fPadObjs.Add(c);
+
+  for(Int_t i = 0; i < fNelem ; i++)
+  {
+    DrawPaddle(geom,GetName(),i);
+  }
+
 }
 
+void THaScintillator::DrawPaddle(TGeometry* geom, const char* shapename,Int_t padnum)
+{
+  TVector3 loc = GetOrigin();
+  
+  Double_t orig[3] = { loc.x() , loc.y() ,loc.z() };
+
+  TString name(GetName());
+  name += padnum;
+  Double_t leftedge = orig[0]-fSize[0]/2;
+
+  geom->Node(name,name,shapename, leftedge+(padnum*fSize[0]/fNelem),orig[1],orig[2],"ZERO");
+
+}
+//_____________________________________________________________________________
+bool THaScintillator::MarkPaddle(TGeometry* geom, const char* detname, Int_t padnum,const char* color)
+{
+
+ 
+  if(padnum > fNelem) //Invalid paddle num.
+  {
+    return false;
+  }
+  TString nodename(detname);
+  nodename += padnum;
+
+  TNode* node;
+  if(!(node = geom->GetNode(nodename)))
+     return false;
+
+  geom->RecursiveRemove(node);
+
+  DrawPaddle(geom, color ,padnum);
+  
+  return true;
+
+} 
 //_____________________________________________________________________________
 void THaScintillator::Draw(TGeometry* geom,const THaEvData& evdata, Option_t* opt)
 {
+  // Draw hit paddles.
+
 	ClearEvent();
+	for(Int_t j = 0; j < fNelem; j++)
+	  MarkPaddle(geom,GetName(),j,GetName());
+
 	Decode(evdata);
-	PaddlesHit();
+	Int_t hits[fNelem+1];
+	Int_t numhits = PaddlesHit(hits);
+
+	TString color = GetName();
+	color += "C";
+	for(Int_t i = 0; i < numhits ; i++)
+	{
+	 
+	  MarkPaddle(geom, GetName(),hits[i],color);
+	  cout << "Marking paddle #" << hits[i] << endl;
+	}
+
 }
 ////////////////////////////////////////////////////////////////////////////////

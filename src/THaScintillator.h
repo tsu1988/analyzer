@@ -21,8 +21,9 @@ public:
   virtual Int_t      CoarseProcess( TClonesArray& tracks );
   virtual Int_t      FineProcess( TClonesArray& tracks );
   virtual Double_t   CalcY();
-  virtual TList*     PaddlesHit();
-
+  virtual Int_t      PaddlesHit(Int_t* hits);
+  bool               MarkPaddle(TGeometry* geom, const char* detname, Int_t padnum,const char* color);
+  virtual void       DrawPaddle(TGeometry* geom, const char* shapename,Int_t padnum);
   virtual void	     Draw(TGeometry* geom, const Option_t* opt = NULL);
   virtual void	     Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt = NULL);
 
@@ -56,6 +57,8 @@ protected:
   Float_t*   fRA_c;       // [fNelem] Array of Right paddles corrected ADC ampl-s
   Float_t    fTRX;        // x position of track cross point (cm)
   Float_t    fTRY;        // y position of track cross point (cm)
+
+  TList      fPadObjs;    // List of Graphic objects
 
   // Useful derived quantities
   double tan_angle, sin_angle, cos_angle;
