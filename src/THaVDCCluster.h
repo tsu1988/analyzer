@@ -46,6 +46,7 @@ public:
   THaVDCPlane*   GetPlane()          const { return fPlane; }
   Int_t          GetSize ()          const { return fSize; }
   Double_t       GetSlope()          const { return fSlope; }
+  Double_t       GetLocalSlope()     const { return fLocalSlope; }
   Double_t       GetSigmaSlope()     const { return fSigmaSlope; }
   Double_t       GetIntercept()      const { return fInt; }
   Double_t       GetSigmaIntercept() const { return fSigmaInt; }
@@ -80,6 +81,7 @@ protected:
   THaVDCHit*     fPivot;             // Pivot - hit with smallest drift time
   Double_t       fTimeCorrection;    // correction to be applied when fitting
                                      // drift times
+  Double_t       fLocalSlope;        // Local cluster slope (for event display)
   Double_t       fChisq;             // Reduced chisq of fit
   bool           fFitOK;             // Flag indicating that fit results valid
 

@@ -25,7 +25,7 @@ THaVDCCluster::THaVDCCluster( const THaVDCCluster& rhs ) :
   fSize(rhs.fSize), fPlane(rhs.fPlane), fSlope(rhs.fSlope), 
   fSigmaSlope(rhs.fSigmaSlope), fInt(rhs.fInt), fSigmaInt(rhs.fSigmaInt), 
   fT0(rhs.fT0), fPivot(rhs.fPivot), fTimeCorrection(rhs.fTimeCorrection),
-  fFitOK(rhs.fFitOK)
+  fLocalSlope(rhs.fLocalSlope), fFitOK(rhs.fFitOK)
 {
   // Copy constructor
 
@@ -49,6 +49,7 @@ THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
     fT0         = rhs.fT0;
     fPivot      = rhs.fPivot;
     fTimeCorrection = rhs.fTimeCorrection;
+    fLocalSlope = rhs.fLocalSlope;
     fFitOK      = rhs.fFitOK;
     for( int i = 0; i < fSize; i++ )
       fHits[i] = rhs.fHits[i];
@@ -92,6 +93,7 @@ void THaVDCCluster::ClearFit()
   fInt        = kBig;
   fSigmaInt   = kBig;
   fT0         = 0.0;
+  fLocalSlope = kBig;
   fFitOK      = false;
 }
 
@@ -149,6 +151,7 @@ void THaVDCCluster::EstTrackParameters()
   } else
     fSlope = 1.0;
 
+  fLocalSlope = fSlope;
   fFitOK = true;
 }
 
@@ -278,6 +281,8 @@ void THaVDCCluster::FitSimpleTrack()
     }
   }
   fFitOK = true;
+
+  fLocalSlope = fSlope;
 
   // Save "fitted" drift distances.
 
