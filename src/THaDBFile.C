@@ -1,12 +1,28 @@
 #include "THaDBFile.h"
 
 #include "TString.h"
+#include "TMath.h"
+#include "TSystem.h"
 
 #include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <string>
 #include <cstring>
+
+// for compatibility since strstream is being depreciated,
+// but not all platforms have stringstreams yet
+#ifdef HAS_SSTREAM
+#include <sstream>
+#define ISSTREAM istringstream
+#define OSSTREAM ostringstream
+#define ASSIGN_SSTREAM(a,b) a=b
+#else
+#include <strstream>
+#define ISSTREAM istrstream
+#define OSSTREAM ostrstream
+#define ASSIGN_SSTREAM(a,b)  b<<'\0'; a=b.str()
+#endif
 
 using namespace std;
 
@@ -67,8 +83,6 @@ namespace {
   
 }
 
-const UInt_t MAX_IGNORE = 10000; // ignore a maximum (line size) of 10000 char
-
 //_____________________________________________________________________________
 THaDBFile::THaDBFile(const char* infile, const char* detcfg,
 		       vector<THaDetConfig>* detmap)
@@ -79,6 +93,7 @@ THaDBFile::THaDBFile(const char* infile, const char* detcfg,
   
   if (detmap) fDetectorMap = *detmap;
   fDescription = "";
+  LoadDB();
 }
 
 //_____________________________________________________________________________
@@ -86,17 +101,56 @@ THaDBFile::~THaDBFile()
 {
   // the THaDB parent handles the assigning/freeing of the global
   // variable pointer
+  if (modified) FlushDB();
+  
 }
 
 //_____________________________________________________________________________
-bool THaDBFile::CopyDB(ifstream& in, ofstream& out, streampos pos) {
+int THaDBFile::LoadDB()
+{
+  // Read database from fInFileName, dropping all that is in memory
+  db_contents.erase();
+  ifstream from(fInFileName.c_str());
+  string line;
+  while ( from ) {
+    getline(from,line);
+    db_contents.append(line);
+    db_contents += '\n';
+  }
+  modified = 0;
+
+  return from.eof();
+}
+
+//_____________________________________________________________________________
+int THaDBFile::FlushDB()
+{
+  // Write contents of memory out to file
+  ofstream to(fOutFileName.c_str());
+  to << db_contents;
+  if (db_contents.length()>0 && db_contents[db_contents.length()-1] != '\n')
+    to << endl;
+  modified = 0;
+  
+  return to.good();
+}
+
+//_____________________________________________________________________________
+void  THaDBFile::SetOutFile( const char* outfname )
+{
+  fOutFileName = outfname; 
+}
+
+//_____________________________________________________________________________
+bool THaDBFile::CopyDB(istream& in, ostream& out, streampos pos) {
   // Copy, starting at the current position through position "pos"
   // from "in" to "out"
-  while (in.good() && (pos < 0 || in.tellg()<pos) ) {
-    out.put(in.get());
+  int ch;
+  while ( (ch=in.get())!=EOF && in.good() && (pos < 0 || in.tellg()<pos) ) {
+    out.put(ch);
   }
   if ( !in.good() && !in.eof() ) {
-    Warning("THaDBFile::Copy","Something weird happened while copying...");
+    //    Warning("THaDBFile::Copy","Something weird happened while copying...");
     return false;
   }
   return true;
@@ -131,7 +185,6 @@ Int_t THaDBFile::GetValue( const char* system, const char* attr,
   return ret;
 }
 
-
 //_____________________________________________________________________________
 template<class T>
 Int_t THaDBFile::ReadValue( const char* systemC, const char* attrC,
@@ -143,7 +196,8 @@ Int_t THaDBFile::ReadValue( const char* systemC, const char* attrC,
   // look through the file, looking for the latest date stamp
   // that is still before 'date'
 
-  ifstream from(fInFileName.c_str());
+  ISSTREAM from(db_contents.c_str());
+  //  ifstream from(fInFileName.c_str());
   string system(systemC);
   string attr(attrC);
 
@@ -189,7 +243,8 @@ Int_t THaDBFile::ReadArray( const char* systemC, const char* attrC,
   // Also, for efficiency .reserve'ing the appropriate space for the array
   // before the call is recommended.
 
-  ifstream from(fInFileName.c_str());
+  ISSTREAM from(db_contents.c_str());
+  //  ifstream from(fInFileName.c_str());
   string system(systemC);
   string attr(attrC);
 
@@ -246,15 +301,15 @@ Int_t THaDBFile::ReadArray( const char* systemC, const char* attrC,
   //
   // No resizing is done, so only 'size' elements may be stored.
 
-  ifstream from(fInFileName.c_str());
+  ISSTREAM from(db_contents.c_str());
+  //  ifstream from(fInFileName.c_str());
   string system(systemC);
   string attr(attrC);
 
   Int_t cnt=0;
-  
+
   if ( from.good() && FindEntry(system,attr,from,date) ) {
     while ( from.good() && find_constant(from) ) {
-
       // We must have some constants!
 
       // If the array is full, do not read in any more
@@ -266,7 +321,7 @@ Int_t THaDBFile::ReadArray( const char* systemC, const char* attrC,
       cnt++;
     }
   }
-  
+
   return cnt;
 }
 
@@ -299,7 +354,8 @@ Int_t THaDBFile::ReadMatrix( const char* systemC, const char* attrC,
 {
   // Reads in a matrix of values, broken by '\n'. Each line in the matrix
   // must begin with whitespace
-  ifstream from(fInFileName.c_str());
+  ISSTREAM from(db_contents.c_str());
+  //  ifstream from(fInFileName.c_str());
   string system(systemC);
   string attr(attrC);
   
@@ -372,25 +428,26 @@ Int_t THaDBFile::WriteValue( const char* system, const char* attr,
   // For now, each of these will copy from the old file, writing
   // to the new one
 
-  TDatime orig_date(date);
-  
-  ifstream from(fInFileName.c_str());
-  ofstream to(fOutFileName.c_str());
+  TDatime fnd_date(date);
+
+  ISSTREAM from(db_contents.c_str());
+  OSSTREAM to;
 
   // Find the last location with a date earlier or equal to the current date
   string sysJNK("JUNK");
   string attJNK("JUNK");
   
-  FindEntry(sysJNK,attJNK,from,date);
+  FindEntry(sysJNK,attJNK,from,fnd_date);
 
   // Copy over the old contents
   Int_t pos = from.tellg();
+  from.clear();
   from.seekg(0,ios::beg);
   CopyDB(from,to,pos);
   
-  if (orig_date != date) {
+  if ( date.Get() - fnd_date.Get() > 10) { // ten seconds
     // Write a date entry
-    WriteDate(to,orig_date);
+    WriteDate(to,date);
   }
   
   if (fDescription != "") {
@@ -408,12 +465,19 @@ Int_t THaDBFile::WriteValue( const char* system, const char* attr,
   
   to << value;
   to << endl;
-
+  
   to.precision(o_precision);
   to.flags(o_flag);
 
   // Copy over the rest of the database
+  from.seekg(pos,ios::beg);
   CopyDB(from,to);
+  if ( pos == from.tellg() ) // were already at the end of the file
+    to << endl;              // add a newline
+
+  ASSIGN_SSTREAM(db_contents,to);
+
+  modified = 1;
   
   return 1;
 }
@@ -444,25 +508,27 @@ Int_t THaDBFile::WriteArray( const char* system, const char* attr,
   // For now, each of these will copy from the old file, writing
   // to the new one
 
-  TDatime orig_date(date);
-  
-  ifstream from(fInFileName.c_str());
-  ofstream to(fOutFileName.c_str(),ios::app);
+  TDatime fnd_date(date);
+
+  ISSTREAM from(db_contents.c_str());
+  OSSTREAM to;
   
   // Find the last location with a date (or equal to) the current date
   string sysJNK("JUNK");
   string attJNK("JUNK");
   
-  FindEntry(sysJNK,attJNK,from,date);
+  FindEntry(sysJNK,attJNK,from,fnd_date);
 
   // Copy over the old contents
   Int_t pos = from.tellg();
+  from.clear();
   from.seekg(0,ios::beg);
+
   CopyDB(from,to,pos);
-  
-  if (orig_date != date) {
+
+  if ( date.Get() - fnd_date.Get() > 10) { // ten seconds
     // Write a date entry
-    WriteDate(to,orig_date);
+    WriteDate(to,date);
   }
 
   if (fDescription != "") {
@@ -494,7 +560,14 @@ Int_t THaDBFile::WriteArray( const char* system, const char* attr,
   to.flags(o_flag);
 
   // Copy over the rest of the database
+  from.seekg(pos,ios::beg);
   CopyDB(from,to);
+  if ( pos == from.tellg() ) // were already at the end of the file
+    to << endl;              // add a newline
+  
+  ASSIGN_SSTREAM(db_contents,to);
+
+  modified = 1;
   
   return nwrit;
 }
@@ -525,30 +598,34 @@ Int_t THaDBFile::WriteArray( const char* system, const char* attr,
 			     TDatime date)
 {
 
-  // Write out the sequence of values to the database file
+  // Write out the sequence of values to the database file. Can also
+  // write out scalers (size = 0 or 1)
+
+  if (size == 0) size = 1;
   
   // For now, each of these will copy from the old file, writing
   // to the new one
 
-  TDatime orig_date(date);
-  
-  ifstream from(fInFileName.c_str());
-  ofstream to(fOutFileName.c_str(),ios::app);
+  TDatime fnd_date(date);
+
+  ISSTREAM from(db_contents.c_str());
+  OSSTREAM to;
 
   // Find the last location with a date (or equal to) the current date
   string sysJNK("JUNK");
   string attJNK("JUNK");
   
-  FindEntry(sysJNK,attJNK,from,date);
+  FindEntry(sysJNK,attJNK,from,fnd_date);
 
   // Copy over the old contents
   Int_t pos = from.tellg();
+  from.clear();
   from.seekg(0,ios::beg);
   CopyDB(from,to,pos);
   
-  if (orig_date != date) {
+  if ( date.Get() - fnd_date.Get() > 10) { // ten seconds
     // Write a date entry
-    WriteDate(to,orig_date);
+    WriteDate(to,date);
   }
   
   if (fDescription != "") {
@@ -581,7 +658,14 @@ Int_t THaDBFile::WriteArray( const char* system, const char* attr,
   to.flags(o_flag);
 
   // Copy over the rest of the database
+  from.seekg(pos,ios::beg);
   CopyDB(from,to);
+  if ( pos == from.tellg() )
+    to << endl;
+  
+  ASSIGN_SSTREAM(db_contents,to);
+
+  modified = 1;
 
   return nwrit;
 }
@@ -616,25 +700,26 @@ Int_t THaDBFile::WriteMatrix( const char* system, const char* attr,
   // For now, each of these will copy from the old file, writing
   // to the new one
 
-  TDatime orig_date(date);
-  
-  ifstream from(fInFileName.c_str());
-  ofstream to(fOutFileName.c_str());
+  TDatime fnd_date(date);
+
+  ISSTREAM from(db_contents.c_str());
+  OSSTREAM to;
 
   // Find the last location with a date (or equal to) the current date
   string sysJNK("JUNK");
   string attJNK("JUNK");
   
-  FindEntry(sysJNK,attJNK,from,date);
+  FindEntry(sysJNK,attJNK,from,fnd_date);
 
   // Copy over the old contents
   Int_t pos = from.tellg();
+  from.clear();
   from.seekg(0,ios::beg);
   CopyDB(from,to,pos);
   
-  if (orig_date != date) {
+  if ( date.Get() - fnd_date.Get() > 10) { // ten seconds
     // Write a date entry
-    WriteDate(to,orig_date);
+    WriteDate(to,date);
   }
   
   if (fDescription != "") {
@@ -642,7 +727,7 @@ Int_t THaDBFile::WriteMatrix( const char* system, const char* attr,
   }
   
   // Write out system/attribute  
-  to << system << " " << attr << endl;
+  to << system << " " << attr << '\n';
   
   Int_t nwrit = 0;
 
@@ -669,8 +754,15 @@ Int_t THaDBFile::WriteMatrix( const char* system, const char* attr,
   to.flags(o_flag);
 
   // Copy over the rest of the database
+  from.seekg(pos,ios::beg);
   CopyDB(from,to);
+  if ( pos == from.tellg() )
+    to << endl;
+  
+  ASSIGN_SSTREAM(db_contents,to);
 
+  modified = 1;
+  
   return nwrit;
 }
 
@@ -704,7 +796,7 @@ bool THaDBFile::find_constant(istream& from, int linebreak) {
     
     // Discard the rest of the line at a comment character
     if ( ci=='#' ) {
-      while( (from.ignore(MAX_IGNORE,'\n'), from.gcount()==MAX_IGNORE) );
+      while( from.peek()!='\n' ) from.get();
       continue;
     }
 
@@ -716,7 +808,7 @@ bool THaDBFile::find_constant(istream& from, int linebreak) {
 }
 
 //_____________________________________________________________________________
-bool THaDBFile::NextLine( ifstream& from ) {
+bool THaDBFile::NextLine( istream& from ) {
   // look at the beginning of a new line and determine if it is the beginning
   // of a record, or just blank space or comments
   int ci=from.peek();
@@ -731,20 +823,21 @@ bool THaDBFile::NextLine( ifstream& from ) {
 
 //_____________________________________________________________________________
 void THaDBFile::WriteDate( ostream& to, const TDatime& date ) {
-  // write a line that states the date of the future entries
-  
+  // Write a line that states the date of the future entries
+
+  to << '\n';
   to << "--------[ ";
-  to << date.AsSQLString() << " ]" << endl;
+  to << date.AsSQLString() << " ]\n" << endl;
 }
 
 //_____________________________________________________________________________
-bool THaDBFile::IsDate( ifstream& from, streampos& pos, TDatime& date ) {
+bool THaDBFile::IsDate( istream& from, streampos& pos, TDatime& date ) {
   // if the next line is a date entry, save that information
   // (position before the date and the date itself)
   int ci;
   
   if ( (ci=from.peek()) =='-' ) {
-    pos = from.tellg();
+    pos = from.tellg()+1;
     // this should be a date
     string line;
     getline(from,line);
@@ -766,7 +859,7 @@ bool THaDBFile::IsDate( ifstream& from, streampos& pos, TDatime& date ) {
 
 
 //_____________________________________________________________________________
-bool THaDBFile::FindEntry( string& system, string& attr, ifstream& from,
+bool THaDBFile::FindEntry( string& system, string& attr, istream& from,
 			   TDatime& date ) {
   // Find the line beginning with the desired key.
   // we are always beginning at the start of a line, never
@@ -788,7 +881,11 @@ bool THaDBFile::FindEntry( string& system, string& attr, ifstream& from,
 
   TDatime curdate(950101,0);
   TDatime datetmp(curdate);
+  TDatime fnddate;
+  
   streampos curdate_pos=0;
+
+  from.clear();
   
   // if a wild-card character '*' is the last part of the name, then match to only
   // the first part of the string
@@ -803,18 +900,21 @@ bool THaDBFile::FindEntry( string& system, string& attr, ifstream& from,
 
     // If we passed the target date, stop looping and use what we have
     if ( IsDate(from,curdate_pos,datetmp) ) {
-      prevdate=curdate;
-      curdate = datetmp;
+      prevdate = curdate;
+      curdate  = datetmp;
       
       continue;
     }
-    
+
     // We have a line that should be the beginning of a system/attribute.
     // cannot grab the whole line because the wanted values could
     // be on the same line.
+
     from >> sys_in;
     from >> att_in;
 
+    if ( !from.good() ) break;
+    
     // check against part or the whole string, to find the system and attribute
     sys_match = sys_in==system ||
       ( sys_len && sys_in. STR_COMPARE(0,sys_len,system) ==0 );
@@ -825,8 +925,9 @@ bool THaDBFile::FindEntry( string& system, string& attr, ifstream& from,
       if ( att_match ) {
 	attr = att_in;
 	system = sys_in;
-	
+
 	data_pos = from.tellg();
+	fnddate  = curdate;
       }      
     }
 
@@ -834,12 +935,13 @@ bool THaDBFile::FindEntry( string& system, string& attr, ifstream& from,
     // and let the top part of the routine concern itself with
     // finding the next Key.
     NextLine(from);
-    //while ( (from.ignore(MAX_IGNORE,'\n'), from.gcount()==MAX_IGNORE) );
     
   }
 
   if ( data_pos ) { 
+    from.clear();
     from.seekg(data_pos);
+    date = fnddate;
     return true;
   }
 
@@ -855,6 +957,7 @@ bool THaDBFile::FindEntry( string& system, string& attr, ifstream& from,
     date = prevdate;
   }
 
+  
   return false;
 }
 
@@ -869,8 +972,11 @@ Int_t THaDBFile::GetMatrix( const char* systemC, vector<string>& mtr_name,
   // 
 
   TDatime orig_date(date);
-  
-  ifstream from(fInFileName.c_str());
+
+  ISSTREAM from(db_contents.c_str());
+
+//    ifstream from(fInFileName.c_str());
+
   string system(systemC);
   string attr_save("matrix_*");
   
@@ -916,8 +1022,32 @@ Int_t THaDBFile::PutMatrix( const char* system,
 {
   // Write out the transport matrix to the text-file database.
   // They are passed in as correlated vectors in mtr_name, mtr_rows
+
+  TDatime fnd_date(date);
+
+  ISSTREAM from(db_contents.c_str());
+  OSSTREAM to;
   
-  ofstream to(fOutFileName.c_str(),ios::app);
+  // Find the last location with a date (or equal to) the current date
+  string sysJNK("JUNK");
+  string attJNK("JUNK");
+  
+  FindEntry(sysJNK,attJNK,from,fnd_date);
+
+  // Copy over the old contents
+  Int_t pos = from.tellg();
+  from.clear();
+  from.seekg(0,ios::beg);
+  CopyDB(from,to,pos);
+  
+  if ( date.Get() - fnd_date.Get() > 10) { // ten seconds
+    // Write a date entry
+    WriteDate(to,date);
+  }
+
+  if (fDescription != "") {
+    to << "# " << fDescription << endl;
+  }
   
   vector<string>::size_type i;
   vector<Double_t>::size_type j;
@@ -934,9 +1064,24 @@ Int_t THaDBFile::PutMatrix( const char* system,
     nwrit++;
   }
 
+  // Copy over the rest of the database
+  from.seekg(pos,ios::beg);
+  CopyDB(from,to);
+  if ( pos == from.tellg() )
+    to << endl;
+
+  ASSIGN_SSTREAM(db_contents,to);
+
+  modified = 1;
+
   return nwrit;
 }
 
+//_____________________________________________________________________________
+std::ostream& operator<<(std::ostream& out, THaDBFile& db) {
+  out << db.db_contents << endl;
+  return out;
+}
 
 //_____________________________________________________________________________
 Int_t THaDBFile::LoadDetMap(const TDatime& date) {
@@ -975,6 +1120,7 @@ void THaDBFile::LoadDetCfgFile( const char* detcfg ) {
   LoadDetMap(now);
 }
 
+//_____________________________________________________________________________
 void THaDBFile::SetCalibFile( const char* calib ) {
   // Set the filename from which to read calibration information
   
@@ -1042,8 +1188,6 @@ Int_t THaDBFile::LoadValues ( const char* system, const TagDef* list,
       if ( ti->fatal ) {
 	Fatal("THaDBFile","Could not find %s %s in database",system,ti->name);
       }
-      else
-	Error("THaDBFile","Could not find %s %s in database",system,ti->name);
     }
 
     cnt += this_cnt;

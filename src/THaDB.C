@@ -109,6 +109,9 @@ THaDetConfig::THaDetConfig(string line) {
 }
 
 //_____________________________________________________________________________
+THaDetConfig::~THaDetConfig() { }
+
+//_____________________________________________________________________________
 Int_t THaDB::GetDetMap( const char* sysname, THaDetMap& detmap, const TDatime& date ) {
   // look through the configuration file to determine the
   // mapping of this detector to the read-out electronics.
@@ -140,3 +143,4 @@ Int_t THaDB::GetDetMap( const char* sysname, THaDetMap& detmap, const TDatime& d
 ////////////////////////////////////////////////////////////////////////////////
 
 ClassImp(THaDB)
+ClassImp(THaDetConfig)

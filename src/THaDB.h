@@ -131,6 +131,7 @@ class THaDetConfig {
  public:
   THaDetConfig(std::string line);
   bool IsGood() const;
+  virtual ~THaDetConfig();
   
  private:
   std::string name;
@@ -141,7 +142,8 @@ class THaDetConfig {
  public:
   friend class THaDB;
   friend std::ostream& operator<<(std::ostream&, const THaDetConfig& );
-  
+
+  ClassDef(THaDetConfig,0)
 };
 
 #endif  // HallA_THaDB

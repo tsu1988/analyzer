@@ -17,6 +17,7 @@
 
 #include<string>
 #include<vector>
+#include<iostream>
 
 class THaDBFile : public THaDB {
 
@@ -100,10 +101,18 @@ class THaDBFile : public THaDB {
 
   void  SetDescription( const char* comment);
 
-  void  SetOutFile( const char* outfname ) { fOutFileName = outfname; }
+  void  SetOutFile( const char* outfname );
 
   Int_t PutDetMap( const TDatime& date );
 
+  int LoadDB();       // force reloading of database from file, what is in memory
+  
+  int FlushDB();      // Flush DB in memory to file
+
+  friend std::ostream& operator<<(std::ostream&, THaDBFile&);
+
+  void PrintDB() { cout << *this << endl; }
+  
  protected:
   Int_t LoadDetMap(const TDatime& date);
   
@@ -114,11 +123,11 @@ class THaDBFile : public THaDB {
 
  private:
   bool find_constant(istream& from, int linebreak=0);
-  bool FindEntry( std::string& system, std::string& attr, std::ifstream& from,
+  bool FindEntry( std::string& system, std::string& attr, std::istream& from,
 		  TDatime& date);
 
   void WriteDate(std::ostream& to, const TDatime& date);
-  bool IsDate(std::ifstream& from, std::streampos &pos, TDatime& date );
+  bool IsDate(std::istream& from, std::streampos &pos, TDatime& date );
   
   template<class T>
     Int_t ReadValue( const char* systemC, const char* attrC,
@@ -147,8 +156,12 @@ class THaDBFile : public THaDB {
 		       const vector<vector<T> >& matrix,
 		       TDatime date );
 
-  bool NextLine( std::ifstream& from );
-  bool CopyDB(std::ifstream& from, std::ofstream& to, std::streampos pos=-1);
+  string db_contents; // everything in this database -- buffer for reading/writing
+  
+
+  int modified;
+  bool NextLine( std::istream& from );
+  bool CopyDB(std::istream& from, std::ostream& to, std::streampos pos=-1);
   
  public:
   ClassDef(THaDBFile,0)
