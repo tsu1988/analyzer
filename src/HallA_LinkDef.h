@@ -89,7 +89,6 @@
 #pragma link C++ class THaDB+;
 #pragma link C++ class THaDetConfig+;
 #pragma link C++ class THaDBFile+;
-#pragma link C++ class THaScCalib+;
 #pragma link C++ class THaCoincidenceTime+;
 #pragma link C++ class THaTrackProj+;
 

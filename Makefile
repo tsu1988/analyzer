@@ -134,7 +134,6 @@ SRC           = src/THaFormula.C src/THaVform.C src/THaVhist.C \
 		src/THaGoldenTrack.C \
 		src/THaDB.C src/THaDBFile.C \
                 src/THaCoincidenceTime.C \
-		src/THaScCalib.C \
                 src/THaTrackProj.C
 
 
