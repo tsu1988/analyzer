@@ -34,12 +34,16 @@ THaETVDCGrDetail::~THaETVDCGrDetail()
 Int_t THaETVDCGrDetail::Process(const THaEvData& evdata)
 {
   //Process current event
+
+  fCanvas->SetEditable(kTRUE);
   Clear();
 
   fVDC->DrawGraph(fCanvas);
   
   fCanvas->Update();
 
+  fCanvas->SetEditable(kFALSE);
+  
   return 0;
 }
 
