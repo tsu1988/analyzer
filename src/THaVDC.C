@@ -917,10 +917,10 @@ void THaVDC::Draw(TGeometry* geom, Option_t *opt)
   Double_t orig[3] = { loc.x() , loc.y() ,loc.z() };
 	  
   printf("VDC Detector %s at %f,%f,%f \n",GetName(),orig[0],orig[1],orig[2]);
-  //          printf("Detector %s is %f x %f x %f \n",GetName(),fSize[0],fSize[1],fSize[2]);
+  printf("VDC Detector %s is %f x %f x %f \n",GetName(),fSize[0],fSize[1],fSize[2]);
 	  //
 	  //              // fSize[1],[2] in half-widths, [3] in full width.
-  TBRIK* b = new TBRIK(GetName(),"TITLE","void",1,.5,.25);
+  TBRIK* b = new TBRIK(GetName(),"TITLE","void",fSize[0],fSize[1],fSize[2]/2);
   b->SetLineColor(atoi(opt));
 	//
   TRotMatrix* rot = NULL;
