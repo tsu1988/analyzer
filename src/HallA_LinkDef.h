@@ -88,4 +88,6 @@
 #pragma link C++ class THaETDetail+;
 #pragma link C++ class THaETVDCGrDetail+;
 #pragma link C++ class THaETVDCDetail+;
+#pragma link C++ class THaPolyLine+;
+#pragma link C++ class THaGraph+;
 #endif
