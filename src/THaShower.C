@@ -456,8 +456,6 @@ void THaShower::Draw(TGeometry* geom, const Option_t* opt)
 void THaShower::Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt)
 {
   //Draw all hits on the shower.
-  Decode(evdata);
-
 
   TString name = GetName();
   name += "CHAN";

@@ -390,6 +390,7 @@ Int_t THaScintillator::PaddlesHit(Int_t* hits)
 //_____________________________________________________________________________
 void THaScintillator::Draw(TGeometry* geom, Option_t* opt)
 {
+
   TBRIK* b = new TBRIK(GetName(),GetName(),"void",fSize[0]/fNelem,fSize[1],fSize[2]/2);
 
   b->SetLineColor(9);
@@ -452,11 +453,9 @@ void THaScintillator::Draw(TGeometry* geom,const THaEvData& evdata, Option_t* op
 {
   // Draw hit paddles.
 
-	ClearEvent();
 	for(Int_t j = 0; j < fNelem; j++)
 	  MarkPaddle(geom,GetName(),j,GetName());
 
-	Decode(evdata);
 	Int_t hits[fNelem+1];
 	Int_t numhits = PaddlesHit(hits);
 
