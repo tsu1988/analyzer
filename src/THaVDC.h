@@ -30,7 +30,7 @@ public:
   virtual Int_t FineTrack( TClonesArray& tracks );
   virtual Int_t FindVertices( TClonesArray& tracks );
   virtual EStatus Init( const TDatime& date );
-
+  virtual void Draw(TGeometry* geom, const THaEvData& evdata,const Option_t *opt);
   virtual void  Draw(TGeometry* geom, Option_t* opt = NULL);
   virtual void  Draw(TGeometry* geom, THaTrack* track, Double_t& t,Option_t* opt= NULL);
   virtual void DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z, Double_t len, TVector3& dir);

@@ -469,13 +469,19 @@ Int_t THaVDCPlane::FitTracks()
   return 0;
 }
 //_____________________________________________________________________________
-void THaVDCPlane::Draw(TGeometry* geom, const Option_t* opt)
+void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* opt)
 {
   // Draw wire plane
 
+  Clear();
+  Decode(evdata);
+
   THaVDC* VDC = static_cast<THaVDC*>( fVDC);
 
-  THaString rot;// = new THaString;
+  THaString rot;
+
+  /*
+
   THaString temp;
   if( opt != NULL)
     temp = opt;
@@ -489,11 +495,18 @@ void THaVDCPlane::Draw(TGeometry* geom, const Option_t* opt)
       if(s[i].find("rot=") == 0)
 	 rot = s[i].substr(4);
     }
-
-  cout << "Rot: " << rot.c_str() << endl;
   
+  */
 
-  TIter next( fWires->MakeIterator());
+  if( fWAngle == TMath::Pi()/4)
+    rot = "XY45";
+  else
+    rot = "XY-45";
+
+
+  TIter next( fHits->MakeIterator());
+
+  //  TIter next( fWires->MakeIterator());
 
   Double_t len = VDC->fSize[1]/TMath::Sin(fWAngle*180/TMath::Pi());
 
@@ -532,13 +545,20 @@ void THaVDCPlane::Draw(TGeometry* geom, const Option_t* opt)
 
 
   THaVDCWire* wire;
-  while(wire = static_cast<THaVDCWire*>( next() ) )
+  THaVDCHit* hit;
+  while(hit = static_cast<THaVDCHit*>( next() ) )
     {
-
+      wire = hit->GetWire();
       cout << "pos: " << wire->GetPos() << endl;
       Double_t x = wire->GetPos();
 
-      geom->Node("WIRE","WIRE","VDCWIRE",x*TMath::Cos(TMath::Pi()/4),0,fZ+x*TMath::Sin(TMath::Pi()/4),rot.c_str());
+
+      TString wireid = "HITWIRE";
+      wireid += wire->GetNum();
+
+      cout << "Wireid: " << wireid << endl;
+
+      geom->Node(wireid,"WIRE","VDCWIRE",x*TMath::Cos(TMath::Pi()/4),0,fZ+x*TMath::Sin(TMath::Pi()/4),rot.c_str());
       
     }
 

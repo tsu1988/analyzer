@@ -30,7 +30,7 @@ public:
   virtual Int_t   FindClusters();             // Hits -> clusters  
   virtual Int_t   FitTracks();                // Clusters -> tracks
 
-  virtual void    Draw(TGeometry* geom,  const Option_t* opt = NULL); // Draw wire geometry
+  virtual void    Draw(TGeometry* geom,const THaEvData& evdata,  const Option_t* opt = NULL); // Draw wire geometry
 
   //Get and Set functions
   Int_t          GetNClusters() const { return fClusters->GetLast()+1; }

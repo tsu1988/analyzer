@@ -937,13 +937,7 @@ void THaVDC::Draw(TGeometry* geom, Option_t *opt)
   fGraphics.Add(b);
 	  //                          
   
-  THaVDCUVPlane* lower = GetLower();
-  lower->GetUPlane()->Draw(geom,"rot=XY45");
-  lower->GetVPlane()->Draw(geom,"rot=XY-45");
 
-  THaVDCUVPlane* upper = GetUpper();
-  upper->GetUPlane()->Draw(geom,"rot=XY45");
-  upper->GetVPlane()->Draw(geom,"rot=XY-45");
   
 
 }
@@ -959,18 +953,35 @@ void THaVDC::Draw(TGeometry* geom, THaTrack* track,Double_t& t, Option_t *opt)
 
      TVector3 loc = GetOrigin(); // FIXME: z is not right. 
 
+     /*
      TSPHE* p = new TSPHE("HIT","Hit on detector","void",.05);
      fGraphics.Add(p);
 
      geom->Node("HITNODE","Node for hit","HIT",x*TMath::Cos(TMath::Pi()/4),y,x*TMath::Sin(TMath::Pi()/4));
+     */
 
      TVector3 trackdir;
      GetTrackDir(track,&trackdir);
      DrawLine(geom,x*TMath::Cos(TMath::Pi()/4),y,x*TMath::Sin(TMath::Pi()/4),4,trackdir);   
   
+  
   }
   
 }
+//_____________________________________________________________________________
+void THaVDC::Draw(TGeometry* geom, const THaEvData& evdata,const Option_t *opt)
+{
+
+  THaVDCUVPlane* lower = GetLower();
+  lower->GetUPlane()->Draw(geom,evdata);
+  lower->GetVPlane()->Draw(geom,evdata);
+
+  THaVDCUVPlane* upper = GetUpper();
+  upper->GetUPlane()->Draw(geom,evdata);
+  upper->GetVPlane()->Draw(geom,evdata);     
+
+}
+
 //_____________________________________________________________________________
 void THaVDC::DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z,Double_t len,TVector3& dir)
 {

@@ -133,6 +133,7 @@ Int_t THaEventTrack::DrawEvent(const THaEvData& evdata )
       else
       {      
         dobj->Draw(fGeom,theTrack,t);
+	dobj->Draw(fGeom,evdata);
       }
     }
 			  
