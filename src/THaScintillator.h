@@ -64,6 +64,8 @@ protected:
   Float_t    fTRX;        // x position of track cross point (cm)
   Float_t    fTRY;        // y position of track cross point (cm)
 
+  Float_t    fTDCY;       // y position from TDC data.
+
   TList      fPadObjs;    // List of Graphic objects
 
   // Useful derived quantities
