@@ -117,19 +117,19 @@ Int_t THaEventTrack::DrawEvent(const THaEvData& evdata )
     if(!theTrack || ! theTrack->HasTarget() )
     	continue;
 
-    cout << "Num dets:" << ndetectors << endl;
+    //cout << "Num dets:" << ndetectors << endl;
 
     for(Int_t i=0 ;i < ndetectors;i++)
     {
       THaDetector* dobj =  fApp->GetDetector(i);
       Double_t t;
 
-      cout << "Detector #" << i << ": "<<  dobj->ClassName() << endl;
+      //cout << "Detector #" << i << ": "<<  dobj->ClassName() << endl;
 
       if(TString(dobj->ClassName()) == "THaScintillator" ||
 	 TString(dobj->ClassName()) == "THaShower") 
       {
-	cout << "Evdata Draw" << endl;
+
 	dobj->Draw(fGeom,evdata);
       }
       else
@@ -423,14 +423,20 @@ void THaEventTrack::Detail()
 
   if(VDC)
     {
-      THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph");
+      THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph-Dist","1");
+      THaETVDCGrDetail* f = new THaETVDCGrDetail(VDC,"VDCGr1","VDC Graph-Time","2");
+      THaETVDCGrDetail* g = new THaETVDCGrDetail(VDC,"VDCGr2","VDC Graph-RawTime","3");
       THaETVDCDetail* e = new THaETVDCDetail(VDC,"VDCD","VDC Detail");
 
       fDetWindows.Add(e);
       fDetWindows.Add(d);
+      fDetWindows.Add(f);
+      fDetWindows.Add(g);
 
       d->Process(*fcurevent);
       e->Process(*fcurevent);      
+      f->Process(*fcurevent);      
+      g->Process(*fcurevent);      
     }
 
 }
