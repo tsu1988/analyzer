@@ -161,11 +161,21 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
 
   fcurevent = &evdata; //Store for use by Detail windows.
 
-  fFlag = 0;
 
+  if(fFlag == kQuiet)
+    return 0;
+
+  if(fFlag == 1)
+    {
+      fCount--;
+      if(fCount > 0)
+       return 0;
+      fFlag = 0;
+    }
 
   if(!DrawEvent(evdata))
     return 0;
+
 
   TIter next(&fDetWindows);
   THaETDetail* dw = NULL;
@@ -174,10 +184,10 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
     {
       dw->Process(evdata);
     }
- 
 
-  fCanvas->Update();
+  fCanvas->Update(); 
  
+   
  /*
   // Wait for user input
   cout << "RETURN: continue, H: run 100 events, R: run to end, F: finish quietly, Q: quit\n";
@@ -210,7 +220,8 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
      gSystem->Sleep(10);
    }
 
-  if(fFlag == kTerminate)
+
+ if(fFlag == kTerminate)
     return fFlag;                                                                        
   return 0;
 }
@@ -243,6 +254,11 @@ THaAnalysisObject::EStatus THaEventTrack::Init( const TDatime& run_time)
 
 
   InitGraphics();
+  fGeom->Draw();
+
+  AddButtons();
+  DrawButtons();
+
   //AddButtons();
 
   return kOK;
@@ -297,7 +313,7 @@ void THaEventTrack::InitGraphics()
   
   Int_t ndetectors = fApp->GetNumDets();
 
-  TString buf = "134689";
+  TString buf = "134689134689";
   for(Int_t i= ndetectors-1 ;i >= 0;i--)
   {
     THaDetector* dobj =  fApp->GetDetector(i);
@@ -344,6 +360,8 @@ void THaEventTrack::AddButtons()
    fbutquit = new TButton("Quit","evttrk->Quit()",.6,.9,.8,.98);
 
    fbutVDC = new TButton("VDC Detail","evttrk->Detail()",.1,.8,.3,.88);
+
+   fbutFinish = new TButton("Finish","evttrk->Finish()",.35,.8,.55,.88);
    
 }
 void THaEventTrack::DrawButtons()
@@ -353,6 +371,7 @@ void THaEventTrack::DrawButtons()
   fbutskip->Draw();
   fbutquit->Draw();
   fbutVDC->Draw();
+  fbutFinish->Draw();
 
 }
 
@@ -364,6 +383,12 @@ void THaEventTrack::Next()
   fFlag = 1;
 
 }
+void THaEventTrack::Finish()
+{
+  fFlag = kQuiet;
+
+}
+
 void THaEventTrack::Quit()
 {
 
