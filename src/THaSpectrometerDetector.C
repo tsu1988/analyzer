@@ -122,7 +122,11 @@ void THaSpectrometerDetector::Draw(const Option_t* opt)
 {
 	//Draw something?
 }
-	
+//____________________________________________________________________________
+void THaSpectrometerDetector::Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt)
+{
+  
+}	
 //____________________________________________________________________________
 void THaSpectrometerDetector::Draw(TGeometry* geom, const Option_t* opt)
 {
