@@ -123,7 +123,8 @@ SRC           = src/THaFormula.C src/THaVar.C src/THaVarList.C src/THaCut.C \
 		src/THaTwoarmVertex.C src/THaAvgVertex.C \
 		src/THaExtTarCor.C src/THaDebugModule.C src/THaTrackInfo.C \
 		src/THaGoldenTrack.C src/THaEventTrack.C \
-		src/THaETDetail.C src/THaETVDCGrDetail.C src/THaETVDCDetail.C
+		src/THaETDetail.C src/THaETVDCGrDetail.C src/THaETVDCDetail.C \
+		src/THaPolyLine.C src/THaGraph.C	
 
 OBJ           = $(SRC:.C=.o)
 HDR           = $(SRC:.C=.h) src/THaGlobals.h src/VarDef.h src/VarType.h \
