@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 //                                                                           //
 // THaVDCPlane                                                               //
 //                                                                           //
@@ -550,15 +550,23 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
     {
       wire = hit->GetWire();
       cout << "pos: " << wire->GetPos() << endl;
-      Double_t x = wire->GetPos();
 
+      //Conversion to plane coords.
+      Double_t uv = wire->GetPos() - fZ*TMath::Cos(VDC->fVDCAngle);
+
+      //Conversion to Transport coords.
+      Double_t x = uv/TMath::Cos(fWAngle);
 
       TString wireid = "HITWIRE";
       wireid += wire->GetNum();
 
       cout << "Wireid: " << wireid << endl;
 
-      geom->Node(wireid,"WIRE","VDCWIRE",x*TMath::Cos(TMath::Pi()/4),0,fZ+x*TMath::Sin(TMath::Pi()/4),rot.c_str());
+      geom->Node(wireid,"WIRE","VDCWIRE",
+		 x*TMath::Cos(VDC->fVDCAngle),
+		 0,
+		 fZ+x*TMath::Sin(VDC->fVDCAngle),
+		 rot.c_str());
       
     }
 
