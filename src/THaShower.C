@@ -20,6 +20,7 @@
 #include "TClonesArray.h"
 #include "TDatime.h"
 #include "TMath.h"
+#include "TBRIK.h"
 
 #include <cstring>
 #include <iostream>
@@ -445,6 +446,70 @@ Int_t THaShower::FineProcess( TClonesArray& tracks )
 
   return 0;
 }
+//_____________________________________________________________________________
+void THaShower::Draw(TGeometry* geom, const Option_t* opt)
+{
+  // Draw detector geometry
+  THaSpectrometerDetector::Draw(geom,opt);
+}
+//_____________________________________________________________________________
+void THaShower::Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt)
+{
+  //Draw all hits on the shower.
+  Decode(evdata);
 
+  cout << "THaShower::Draw(): " << fNelem << endl;
+  
+
+  TString name = GetName();
+  name += "CHAN";
+
+  if(!geom->GetShape(name))
+  {
+    Double_t sx = fSize[0]/fNrows;
+    Double_t sy = fSize[1]/(fNelem/fNrows);
+
+    TBRIK* b = new TBRIK(name,"SH","void", sx,sy,fSize[2]/2);
+
+    cout << "Size -- x: " << sx << "y: " << sy << "z: " << fSize[2]/2;
+  }
+  
+  
+
+  for(Int_t i = 0; i < fNelem; i++)
+    {
+      cout << "Lun " << i << ": " << fA_c[i] << endl; 
+      if(fA_c[i] > fEmin)
+	{
+	  DrawHit(geom,i);
+	}     
+    }
+
+}
+void THaShower::DrawHit(TGeometry* geom, Int_t lun)
+{
+  // Draw a hit on the shower.
+
+  //Get x,y coords of logical unit.
+
+  Double_t x = fBlockX[lun];
+  Double_t y = fBlockY[lun];
+
+  Double_t z = fOrigin.Z()+(fSize[2]/2);
+
+  cout << "@ "<<x<<","<<y<<","<<z<<endl;
+
+  TString name = GetName();
+  name += "CHAN";
+  
+  geom->Node("SHOWERHIT","SHOWERHIT",name,x,y,z);
+
+}
+//_____________________________________________________________________________
+void THaShower::Draw(const Option_t* opt)
+{
+  // Not implemented.
+
+}
 ///////////////////////////////////////////////////////////////////////////////
 

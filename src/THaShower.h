@@ -8,6 +8,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "THaPidDetector.h"
+#include "TGeometry.h"
+#include "THaEvData.h"
 
 class THaShower : public THaPidDetector {
 
@@ -24,6 +26,10 @@ public:
           Float_t    GetE() const      { return fE; }
           Float_t    GetX() const      { return fX; }
           Float_t    GetY() const      { return fY; }
+
+	  virtual void       Draw(TGeometry* geom, const Option_t* opt = NULL);
+	  virtual void       Draw(TGeometry* geom, const  THaEvData& evdata,const  Option_t* opt = NULL);
+	  virtual void       Draw(const Option_t* opt = NULL);
 
 protected:
 
@@ -71,6 +77,7 @@ protected:
   void           DeleteArrays();
   virtual Int_t  ReadDatabase( const TDatime& date );
   virtual Int_t  DefineVariables( EMode mode );
+  void           DrawHit(TGeometry* geom, Int_t lun);
   
   ClassDef(THaShower,0)     //Generic shower detector class
 };
