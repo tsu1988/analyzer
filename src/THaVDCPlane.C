@@ -478,8 +478,6 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
 {
   // Draw wire plane
 
-  //  Clear();
-  //  Decode(evdata);
 
   THaVDC* VDC = static_cast<THaVDC*>( fVDC);
 
@@ -606,6 +604,12 @@ TGraph* THaVDCPlane::DrawHitGraph( const Option_t* drawopt, const Option_t* opt)
 	 c[i] = 2;
 	 prev = x[i];
        }
+     
+     // Replaces the above code when GetUsedInFit() is implemented.
+     
+     //if(hit->GetUsedInFit())
+     //  c[i] = 2;
+
 
      switch(atoi(opt))
        {
@@ -637,7 +641,7 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
 
   const Float_t* VDCSize = fVDC->GetSize();
 
-  Double_t uvplanesize = VDCSize[0]*2/TMath::Sin(45*TMath::Pi()/180);
+  Double_t uvplanesize = VDCSize[0]/TMath::Sin(45*TMath::Pi()/180); //*2??
 
   THaVDC* VDC = static_cast<THaVDC*>(fVDC);
   Double_t VDCPlSpacing = VDC->GetSpacing();
@@ -664,7 +668,7 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
 
       p->Draw();
       
-      /*
+      /*      
       cout << "x: " << x << "y:" << y << endl;
       cout << "minpos: "<< minpos << endl;
       cout << "GetPos(): " << -wire->GetPos() << endl;
@@ -672,8 +676,8 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
       cout << "max: " << max << "  min: " << min << endl;
       cout << "VDC: " << VDCSize[0] << endl;
       cout << "draw wire at: " << cur_x <<"  " << y << endl;
-
       */
+      
 
       // Test code
 
@@ -711,7 +715,7 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
       hit_x[1] = hit_x[0];
       
       hit_y[0] = y;
-      Double_t temp =  hit->GetDist();
+      Double_t temp =  hit->GetFitDist();
       hit_y[1] = y + temp * y_scale;
 
       /*      
@@ -747,10 +751,11 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
   while(cluster = static_cast<THaVDCCluster*>( nextclust() ))
     {
       Double_t intercept = cluster->GetIntercept();
-      Double_t slope = cluster->GetSlope();
+      Double_t slope = cluster->GetLocalSlope();
 
       Double_t px[2],py[2];
 
+      cout << "vdcplane:" << fName <<" :intercept: " << intercept << endl;
 
       px[0] = x + (intercept-min)/uvplanesize*x_scale - .1;
       py[0] = y - (.1)*uvplanesize/slope*y_scale/x_scale;                                       //.1*slope*y_scale;
@@ -767,11 +772,10 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
       sprintf(Buf,"Slope (err) = %f (%f)\nIntercept = %f",slope, cluster->GetSigmaSlope(),intercept); 
       line->SetText(Buf,canvas);
       line->SetLineColor(2);
+      line->SetLineWidth(2);
       line->Draw();
 
     }
-
-  canvas->Update();
 
   return x_scale;
 }
