@@ -37,7 +37,7 @@ public:
   virtual void  Draw(TGeometry* geom, THaTrack* track, Double_t& t,Option_t* opt= NULL);
   virtual void DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z, Double_t len, TVector3& dir);
 
-  virtual void DrawDetail(TCanvas* canvas, const Option_t* opt = NULL);
+  virtual Double_t DrawPlanes(TCanvas* canvas,const char plane, const Option_t* opt = NULL);
   virtual void DrawGraph(TCanvas* canvas, const Option_t* opt = NULL);
 
   // Get and Set Functions

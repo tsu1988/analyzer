@@ -1023,24 +1023,69 @@ void THaVDC::DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z,Double
 
 //_____________________________________________________________________________
 
-void THaVDC::DrawDetail(TCanvas* canvas, const Option_t* opt)
+Double_t THaVDC::DrawPlanes(TCanvas* canvas,const char plane, const Option_t* opt)
 { 
-  Double_t x_spacer = .50;
-  Double_t y_spacer = .50;
+  //Draw UV planes side view.
 
-  Double_t x = fSize[0];
-  Double_t y = fSize[1];
+  Double_t x_spacer = .10;
+  Double_t y_spacer = .10;
 
-  TBox* u = new TBox(x_spacer ,y_spacer,x + x_spacer, y + y_spacer );
-  TBox* v = new TBox(x_spacer, y_spacer * 2 + y, x_spacer + x, y_spacer *2 + y*2);
+  //Find range of wires with hits.
 
+  THaVDCUVPlane* lower = GetLower();
+  THaVDCUVPlane* upper = GetUpper();
+
+  THaVDCPlane *p1,*p2;
+
+  if( plane == 'u' || plane == 'V')
+    {
+      p1 = lower->GetUPlane();
+      p2 = upper->GetUPlane();
+    }
+  else
+    {
+      p1 = lower->GetVPlane();
+      p2 = upper->GetVPlane();
+    }
+
+  Double_t min=10, max=-10;
+
+  THaVDCHit* wire;
+  Double_t wirepos;
+
+  TIter nextp1(p1->GetHits());
+  while(wire = static_cast<THaVDCHit*>(nextp1()) )
+    {
+      wirepos = wire->GetPos();
+      if( wirepos < min)
+	min = wirepos;
+      if(wirepos > max)
+	max = wirepos;
+    }
+
+  TIter nextp2(p2->GetHits());
+  while(wire = static_cast<THaVDCHit*>(nextp2()))
+    {
+      wirepos = wire->GetPos();
+      if(wirepos < min)
+	min = wirepos;
+      if(wirepos > max)
+	max = wirepos;
+    }
+  
+  Double_t fw_x = 0;
+  Double_t fw_y = 0;
+  
   canvas->cd();   
-  u->SetFillStyle(0);
-  v->SetFillStyle(0);
 
-  u->Draw();
-  v->Draw();
- 
+  // .
+  fw_x = (x_spacer );
+  fw_y = (y_spacer);
+
+  p1->DrawSide(canvas,fw_x, fw_y,min,max);
+
+  return p2->DrawSide(canvas,fw_x, fw_y,min,max);
+
 }
 
 //_____________________________________________________________________________
@@ -1054,20 +1099,22 @@ void THaVDC::DrawGraph(TCanvas* canvas, const Option_t* opt)
   THaVDCUVPlane* lower = GetLower();
   THaVDCUVPlane* upper = GetUpper();
 
+  canvas->cd();
+
   canvas->Divide(2,2);
 
   //DrawHitGraph
 
-  canvas->cd(1);
+  canvas->cd(3);
   fDetGraphs.Add(lower->GetUPlane()->DrawHitGraph("A*"));
   
-  canvas->cd(2);
+  canvas->cd(4);
   fDetGraphs.Add(lower->GetVPlane()->DrawHitGraph("A*"));
 
-  canvas->cd(3);
+  canvas->cd(1);
   fDetGraphs.Add(upper->GetUPlane()->DrawHitGraph("A*"));
 
-  canvas->cd(4);
+  canvas->cd(2);
   fDetGraphs.Add(upper->GetVPlane()->DrawHitGraph("A*"));     
 
   canvas->Update();
@@ -1113,8 +1160,8 @@ void THaVDC::DefineAxes(Double_t rotation_angle)
   fZax = fXax.Cross(fYax);
 
    //cout<<"Z: "<<fZax.X()<<" "<<fZax.Y()<<" "<<fZax.Z()<<endl;
-  cout << "VDC angle: " << fVDCAngle << endl;
-  cout << "rotation angle: " << rotation_angle << endl;
+  //cout << "VDC angle: " << fVDCAngle << endl;
+  //cout << "rotation angle: " << rotation_angle << endl;
 
   fDenom.ResizeTo( 3, 3 );
   fNom.ResizeTo( 3, 3 );
