@@ -14,6 +14,7 @@
 
 #include "THaDetector.h"
 #include "THaMatrix.h"
+#include "TGeometry.h"
 
 class THaTrack;
 
@@ -27,9 +28,12 @@ public:
 
           bool             CheckIntercept( THaTrack* track );
           bool             CalcInterceptCoords( THaTrack* track, 
-						Double_t& x, Double_t& y );
+						Double_t& x, Double_t& y);
           bool             CalcPathLen( THaTrack* track, Double_t& t );
-
+	  bool		   GetTrackDir( THaTrack* trach, TVector3* dir);		   
+	  void		   Draw(TGeometry* geom,THaTrack* track, Double_t& t, Option_t* opt = NULL);
+	  void		   Draw(TGeometry* geom, Option_t* opt = NULL);
+	  void		   Draw(Option_t* opt = NULL);
 
 protected:
 
@@ -39,6 +43,7 @@ protected:
   TVector3  fZax;                  // Normal to the detector plane
   THaMatrix fDenom;                // Denominator matrix for intercept calc
   THaMatrix fNom;                  // Nominator matrix for intercept calc
+  TList     fGraphics;		   // List of Graphic objects to be freed on destruction.
 
   virtual void  DefineAxes( Double_t rotation_angle );
 
