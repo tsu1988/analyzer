@@ -4,7 +4,7 @@
 export WITH_DEBUG = 1
 
 # Compile debug version
-#export DEBUG = 1
+export DEBUG = 1
 
 # Profiling with gprof
 # export PROFILE = 1
@@ -33,8 +33,9 @@ SCALERDIR     = hana_scaler
 LIBDIR        = $(HA_DIR)/.
 HALLALIBS     = -L$(LIBDIR) -lHallA -ldc -lscaler
 
-LIBS          = 
-GLIBS         =  -lGeom
+LIBS          =  
+GLIBS         =  $(ROOTGLIBS) -lGeom -lThread
+
 
 INCLUDES      = $(ROOTCFLAGS) $(addprefix -I, $(INCDIRS) )
 
