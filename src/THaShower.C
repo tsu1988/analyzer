@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 //                                                                           //
 // THaShower                                                                 //
 //                                                                           //
@@ -458,8 +458,6 @@ void THaShower::Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* o
   //Draw all hits on the shower.
   Decode(evdata);
 
-  cout << "THaShower::Draw(): " << fNelem << endl;
-  
 
   TString name = GetName();
   name += "CHAN";
@@ -471,14 +469,13 @@ void THaShower::Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* o
 
     TBRIK* b = new TBRIK(name,"SH","void", sx,sy,fSize[2]/2);
 
-    cout << "Size -- x: " << sx << "y: " << sy << "z: " << fSize[2]/2;
   }
   
   
 
   for(Int_t i = 0; i < fNelem; i++)
     {
-      cout << "Lun " << i << ": " << fA_c[i] << endl; 
+
       if(fA_c[i] > fEmin)
 	{
 	  DrawHit(geom,i);
@@ -496,8 +493,6 @@ void THaShower::DrawHit(TGeometry* geom, Int_t lun)
   Double_t y = fBlockY[lun];
 
   Double_t z = fOrigin.Z()+(fSize[2]/2);
-
-  cout << "@ "<<x<<","<<y<<","<<z<<endl;
 
   TString name = GetName();
   name += "CHAN";
