@@ -988,6 +988,8 @@ void THaVDC::DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z,Double
   if(!geom->GetShape("LINE"))
   {
     TBRIK* b = new TBRIK("LINE","Track projection.","void",0,0,len/2);
+    b->SetLineWidth(3);
+    b->SetLineColor(4);
     fGraphics.Add(b);
   }
   
