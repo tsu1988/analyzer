@@ -87,4 +87,5 @@
 #pragma link C++ class THaEventTrack+;
 #pragma link C++ class THaETDetail+;
 #pragma link C++ class THaETVDCGrDetail+;
+#pragma link C++ class THaETVDCDetail+;
 #endif
