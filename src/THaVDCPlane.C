@@ -93,26 +93,14 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
   
   // Build the search tag and find it in the file. Search tags
   // are of form [ <prefix> ], e.g. [ R.vdc.u1 ].
-  TString tag(fPrefix); tag.Prepend("["); tag.Append("]"); 
-  tag.Replace( tag.Length()-2, 1, "" );  // delete trailing dot of prefix
-  TString line, tag2(tag);
-  tag.ToLower();
-  bool found = false;
-  while (!found && fgets (buff, LEN, file) != NULL) {
-    char* buf = ::Compress(buff);  //strip blanks
-    if( strlen(buf) > 0 && buf[ strlen(buf)-1 ] == '\n' )
-      buf[ strlen(buf)-1 ] = 0;    //delete trailing newline
-    line = buf; line.ToLower();
-    if ( tag == line ) 
-      found = true;
-    delete [] buf;
-  }
-  if( !found ) {
-    Error(Here(here), "Database entry \"%s\" not found!", tag2.Data() );
+  TString tag(fPrefix);
+  tag.Replace( tag.Length()-1, 1, "" );  // delete trailing dot of prefix
+  if( SeekDBconfig(file,tag,"") == 0 ) {
+    Error(Here(here), "Database entry \"%s\" not found!", tag.Data() );
     fclose(file);
     return kInitError;
   }
-  
+
   //Found the entry for this plane, so read data
   Int_t nWires = 0;    // Number of wires to create
   Int_t crate, slot, lo, hi;
