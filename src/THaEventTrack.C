@@ -21,6 +21,7 @@
 #include "TButton.h"
 #include "THaVDC.h"
 #include "THaETVDCGrDetail.h"
+#include "THaETVDCDetail.h"
 
 //----------------------------------------------------
 THaEventTrack::THaEventTrack(const char* name, THaApparatus* app): THaPhysicsModule(name,"EventTrack")
@@ -142,11 +143,13 @@ Int_t THaEventTrack::DrawEvent(const THaEvData& evdata )
 
   fGeom->Draw();
 
+  fCanvas->Update();
+
   AddButtons();
   DrawButtons();
 
 
-  fCanvas->Update();
+
 
   return 1;
 
@@ -164,9 +167,6 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
   if(!DrawEvent(evdata))
     return 0;
 
-  fCanvas->cd();
-  fCanvas->Update();
-
   TIter next(&fDetWindows);
   THaETDetail* dw = NULL;
 
@@ -174,7 +174,10 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
     {
       dw->Process(evdata);
     }
-  
+ 
+
+  fCanvas->Update();
+ 
  /*
   // Wait for user input
   cout << "RETURN: continue, H: run 100 events, R: run to end, F: finish quietly, Q: quit\n";
@@ -396,14 +399,13 @@ void THaEventTrack::Detail()
   if(VDC)
     {
       THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph");
+      THaETVDCDetail* e = new THaETVDCDetail(VDC,"VDCD","VDC Detail");
 
-      if(d->Init())
-	{
-	  fDetWindows.Add(d);
+      fDetWindows.Add(e);
+      fDetWindows.Add(d);
 
-	  d->Process(*fcurevent);
-	}
-      
+      d->Process(*fcurevent);
+      e->Process(*fcurevent);      
     }
 
 }
