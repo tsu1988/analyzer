@@ -62,10 +62,12 @@ protected:
 
   THaVDCUVPlane* fLower;    // Lower UV plane
   THaVDCUVPlane* fUpper;    // Upper UV plane
+  THaDetector*   fS1;       // First scintillator plane
+  THaDetector*   fS2;       // Second scintillator plane
 
   TClonesArray*  fUVpairs;  // Pairs of matched UV tracks (THaVDCTrackPair obj)
 
-  Double_t fVDCAngle;       // Angle from the VDC cs to TRANSPORT cs (rad)
+  Double_t fVDCAngle;       // Angle from TRANSPORT cs to the VDC cs (rad)
   Double_t fSin_vdc;        // Sine of VDC angle
   Double_t fCos_vdc;        // Cosine of VDC angle
   Double_t fTan_vdc;        // Tangent of VDC angle
@@ -74,10 +76,6 @@ protected:
 
   Int_t    fNumIter;        // Number of iterations for FineTrack()
   Double_t fErrorCutoff;    // Cut on track matching error
-
-  Double_t fCentralDist;    // the path length of the central ray from
-                            // the origin of the transport coordinates to 
-                            // the s1 plane
 
   // declarations for target vertex reconstruction
   enum ECoordTypes { kTransport, kRotatingTransport };

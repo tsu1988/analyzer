@@ -39,7 +39,7 @@ using namespace std;
 //_____________________________________________________________________________
 THaVDC::THaVDC( const char* name, const char* description,
 		THaApparatus* apparatus ) :
-  THaTrackingDetector(name,description,apparatus), fNtracks(0)
+  THaTrackingDetector(name,description,apparatus), fS1(0), fS2(0), fNtracks(0) 
 {
   // Constructor
 
@@ -85,42 +85,24 @@ Int_t THaVDC::ReadDatabase( const TDatime& date )
 
   // load global VDC parameters
   static const char* const here = "ReadDatabase()";
-  const int LEN = 100;
+  const int LEN = 256;
   char buff[LEN];
   
   // Build the search tag and find it in the file. Search tags
   // are of form [ <prefix> ], e.g. [ R.vdc.u1 ].
-  TString tag(fPrefix);
-  Ssiz_t pos = tag.Index("."); 
+  TString apparatus_prefix(fPrefix);
+  Ssiz_t pos = apparatus_prefix.Index("."); 
   if( pos != kNPOS )
-    tag = tag(0,pos+1);
+    apparatus_prefix = apparatus_prefix(0,pos+1);
   else
-    tag.Append(".");
-  tag.Prepend("[");
-  tag.Append("global]"); 
-  TString line, tag2(tag);
-  tag.ToLower();
+    apparatus_prefix.Append(".");
+  TString tag = apparatus_prefix + "global"; 
 
-  bool found = false;
-  while (!found && fgets (buff, LEN, file) != NULL) {
-    char* buf = ::Compress(buff);  //strip blanks
-    //cout<<buf;
-
-    if( strlen(buf) > 0 && buf[ strlen(buf)-1 ] == '\n' )
-      buf[ strlen(buf)-1 ] = 0;    //delete trailing newline
-    line = buf; line.ToLower();
- 
-    //cout<<line.Data()<<endl;
-    if ( tag == line ) 
-      found = true;
-    delete [] buf;
-  }
-  if( !found ) {
-    Error(Here(here), "Database entry %s not found!", tag2.Data() );
+  if( SeekDBconfig(file,tag,"") == 0 ) {
+    Error(Here(here), "Database entry %s not found!", tag.Data() );
     fclose(file);
     return kInitError;
   }
-
   // We found the entry, now read the data
 
   // read in some basic constants first
@@ -258,29 +240,38 @@ Int_t THaVDC::ReadDatabase( const TDatime& date )
       break;
   }
 
-  // Compute derived quantities and set some hardcoded parameters
+  // Compute the VDC tilt angle. It is defined with respect to the 
+  // reference TRANSPORT system, so it is positive for the HRS VDCs.
   const Float_t degrad = TMath::Pi()/180.0;
-  fTan_vdc  = fFPMatrixElems[T000].poly[0];
+  fTan_vdc  = -fFPMatrixElems[T000].poly[0];
   fVDCAngle = TMath::ATan(fTan_vdc);
   fSin_vdc  = TMath::Sin(fVDCAngle);
   fCos_vdc  = TMath::Cos(fVDCAngle);
 
-  DefineAxes((90.0 - fVDCAngle)*degrad);
+  DefineAxes(fVDCAngle);
 
   fNumIter = 1;      // Number of iterations for FineTrack()
   fErrorCutoff = 1e100;
 
-  // figure out the track length from the origin to the s1 plane
+  // Fine geometry section in the file
+  tag = apparatus_prefix + "geom";
+  rewind(file);
+  if( SeekDBconfig(file,tag,"") == 0 ) {
+    Error(Here(here), "No VDC geometry database entry %s found", tag.Data() );
+    fclose(file);
+    return kInitError;
+  }
+  // Read geometry data
+  Double_t x,y,z;
+  fscanf(file, "%lf %lf %lf", &x, &y, &z);
+  fgets(buff, LEN, file);
+  fOrigin.SetXYZ(x,y,z);
+  fscanf(file, "%f %f %f", fSize, fSize+1, fSize+2 );
+  fgets(buff, LEN, file);
 
-  // since we take the VDC to be the origin of the coordinate
-  // space, this is actually pretty simple
-  const THaDetector* s1 = fApparatus->GetDetector("s1");
-  if(s1 == NULL)
-    fCentralDist = 0;
-  else
-    fCentralDist = s1->GetOrigin().Z();
-
-  // FIXME: Set geometry data (fOrigin). Currently fOrigin = (0,0,0).
+  // get scintillator planes for later use
+  fS1 = fApparatus->GetDetector("s1");
+  fS2 = fApparatus->GetDetector("s2");
 
   fIsInit = true;
   fclose(file);
@@ -387,8 +378,8 @@ Int_t THaVDC::ConstructTracks( TClonesArray* tracks, Int_t mode )
 #endif
 
   // Initialize some counters
-  int n_exist = 0, n_mod = 0;
-  int n_oops = 0;
+  int n_exist, n_mod = 0;
+  int n_oops=0;
   // How many tracks already exist in the global track array?
   if( tracks )
     n_exist = tracks->GetLast()+1;
@@ -674,8 +665,9 @@ void THaVDC::CalcFocalPlaneCoords( THaTrack* track, const ECoordTypes mode )
   // Rotating TRANSPORT coordinates
   Double_t r_x, r_y, r_theta, r_phi;
   
-  // tan rho (for the central ray) is stored as a matrix element 
-  tan_rho = fFPMatrixElems[T000].poly[0];
+  // tan rho (for the central ray) 
+  // = tangent of the angle from the VDC cs to the TRANSPORT cs
+  tan_rho = -fTan_vdc;
   cos_rho = 1.0/sqrt(1.0+tan_rho*tan_rho);
 
   // first calculate the transport frame coordinates
@@ -728,7 +720,7 @@ void THaVDC::CalcTargetCoords(THaTrack *track, const ECoordTypes mode)
     y_fp = track->GetY();
     th_fp = track->GetTheta();
     ph_fp = track->GetPhi();
-  } else {//if(mode == kRotatingTransport) {
+  } else if(mode == kRotatingTransport) {
     x_fp = track->GetRX();
     y_fp = track->GetRY();
     th_fp = track->GetRTheta();
@@ -811,14 +803,11 @@ void THaVDC::CorrectTimeOfFlight(TClonesArray& tracks)
 {
   const static Double_t v = 3.0e-8;   // for now, assume that everything travels at c
 
-  // get scintillator planes
-  THaScintillator* s1 = static_cast<THaScintillator*>
-    ( fApparatus->GetDetector("s1") );
-  THaScintillator* s2 = static_cast<THaScintillator*>
-    ( fApparatus->GetDetector("s2") );
-
-  if( (s1 == NULL) || (s2 == NULL) )
+  if( (!fS1 == NULL) || (fS2 == NULL) )
     return;
+
+  THaScintillator* s1 = static_cast<THaScintillator*>(fS1);
+  THaScintillator* s2 = static_cast<THaScintillator*>(fS2);
 
   // adjusts caluculated times so that the time of flight to S1
   // is the same as a track going through the middle of the VDC
@@ -831,7 +820,7 @@ void THaVDC::CorrectTimeOfFlight(TClonesArray& tracks)
     THaTrack* track = static_cast<THaTrack*>( tracks.At(t) );
     
     // calculate the correction, since it's on a per track basis
-    Double_t s1_dist, vdc_dist, dist, tdelta;
+    Double_t s1_dist, vdc_dist, dist, tdelta, central_dist;
     if(!s1->CalcPathLen(track, s1_dist))
       s1_dist = 0.0;
     if(!CalcPathLen(track, vdc_dist))
@@ -845,7 +834,12 @@ void THaVDC::CorrectTimeOfFlight(TClonesArray& tracks)
     else
       dist = s1_dist - vdc_dist;
     
-    tdelta = ( fCentralDist - dist) / v;
+    // figure out the track length from the origin to the s1 plane
+    // since we take the VDC to be the origin of the coordinate
+    // space, this is actually pretty simple
+    central_dist = fS1->GetOrigin().Z();
+
+    tdelta = ( central_dist - dist) / v;
     //cout<<"time correction: "<<tdelta<<endl;
 
     // apply the correction
@@ -868,8 +862,7 @@ void THaVDC::FindBadTracks(TClonesArray& tracks)
 {
   // Flag tracks that don't intercept S2 scintillator as bad
 
-  THaScintillator* s2 = static_cast<THaScintillator*>
-    ( fApparatus->GetDetector("s2") );
+  THaScintillator* s2 = static_cast<THaScintillator*>(fS2);
 
   if(s2 == NULL) {
     //cerr<<"Could not find s2 plane!!"<<endl;
