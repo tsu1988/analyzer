@@ -20,13 +20,15 @@ public:
   virtual EStatus    Init( const TDatime& run_time );
   virtual Int_t      CoarseProcess( TClonesArray& tracks );
   virtual Int_t      FineProcess( TClonesArray& tracks );
-  virtual Double_t   CalcY();
+  virtual Double_t   CalcY(Int_t paddle);
   virtual Int_t      PaddlesHit(Int_t* hits);
   bool               MarkPaddle(TGeometry* geom, const char* detname, Int_t padnum,const char* color);
   virtual void       DrawPaddle(TGeometry* geom, const char* shapename,Int_t padnum);
   virtual void	     Draw(TGeometry* geom, const Option_t* opt = NULL);
   virtual void	     Draw(TGeometry* geom, const THaEvData& evdata, const Option_t* opt = NULL);
   virtual void       Draw(const Option_t* opt = NULL){};
+  virtual void       DrawY(TGeometry* geom, Int_t paddle, Double_t y);
+
 protected:
 
   // Mapping
@@ -39,6 +41,10 @@ protected:
   Float_t*   fRPed;       // [fNelem] ADC pedestals for right paddles
   Float_t*   fLGain;      // [fNelem] ADC gains for left paddles
   Float_t*   fRGain;      // [fNelem] ADC gains for right paddles
+  Float_t    fC;          // Velocity of light in medium
+  Float_t    fTDCScale;   // ns to channel
+  Float_t    fStop;       // Stop Trigger?
+  
   
   // Per-event data
   Int_t      fLTNhit;     // Number of Left paddles TDC times

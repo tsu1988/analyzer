@@ -163,7 +163,14 @@ Int_t THaScintillator::ReadDatabase( const TDatime& date )
   for (i=0;i<fNelem;i++) 
     fscanf (fi,"%f",fRGain+i);                  // Right Pads ADC Coeff-s
   fgets ( buf, LEN, fi );
-
+  fgets ( buf,LEN,fi);
+  fscanf(fi,"%f",&fC);                           // C in medium
+  fgets (buf, LEN, fi);fgets ( buf, LEN, fi);
+  fscanf(fi,"%f",&fTDCScale);                    // ns/channel
+  fgets ( buf, LEN, fi);  fgets ( buf, LEN, fi);
+  fscanf(fi,"%f",&fStop);                        // Stop Trigger?
+  fgets ( buf, LEN, fi);  fgets ( buf, LEN, fi);
+  
   fclose(fi);
   return kOK;
 }
@@ -361,10 +368,31 @@ Int_t THaScintillator::FineProcess( TClonesArray& tracks )
 }
 
 //_____________________________________________________________________________
-Double_t THaScintillator::CalcY()
+Double_t THaScintillator::CalcY(Int_t paddle)
 {
   //Calculate Y position of scintillator hit.
-  return 0;  
+
+  if(paddle < 0 || paddle >= fNelem)
+    return 0;
+
+  Double_t y;
+
+  if( fStop == 1)
+    y = (fC*.30*fTDCScale*(fRT_c[paddle]-fLT_c[paddle])+fSize[1]*2)/2; //Meters
+  else
+    y = (fC*.30*fTDCScale*(fLT_c[paddle]-fRT_c[paddle])+fSize[1]*2)/2; //Meters
+
+  cout << "fC: " << fC << " fTDCScale: " << fTDCScale << endl;
+
+  cout << "Paddle:" << paddle << "R TDC_c: " << fRT_c[paddle] <<endl ;
+  cout << "Paddle:" << paddle << "L TDC_c: " << fLT_c[paddle] <<endl ;
+
+  cout << "Paddle:" << paddle << "R TDC: " << fRT[paddle] <<endl ;
+  cout << "Paddle:" << paddle << "L TDC: " << fLT[paddle] <<endl ;
+  cout << "fSize[1]: " << fSize[1] << endl;
+
+  return y;
+  
   
 }
 
@@ -465,8 +493,36 @@ void THaScintillator::Draw(TGeometry* geom,const THaEvData& evdata, Option_t* op
 	{
 	 
 	  MarkPaddle(geom, GetName(),hits[i],color);
-	  cout << "Marking paddle #" << hits[i] << endl;
+     
+	  DrawY(geom,hits[i],CalcY(hits[i]));
+	  cout << "Marking paddle #" << hits[i] <<"@ "<<CalcY(hits[i])<< endl;
 	}
 
 }
+
+
+//_____________________________________________________________________________
+void THaScintillator::DrawY(TGeometry* geom, Int_t paddle, Double_t y)
+{
+  
+  TVector3 loc = GetOrigin();
+  
+  Double_t orig[3] = { loc.x() , loc.y() ,loc.z() };
+
+  TBRIK* c = new TBRIK("YPos","YPos","void",fSize[0]/fNelem,.02,fSize[2]/2);
+
+  c->SetLineColor(3);
+  c->SetLineWidth(3);
+
+  fPadObjs.Add(c);
+
+  Double_t leftpaddle = orig[0]-fSize[0]+(fSize[0]/fNelem);
+
+  geom->Node("HITY","HITY","YPos", leftpaddle+(paddle*fSize[0]*2/fNelem),orig[1]-fSize[1]+y,orig[2],"ZERO");
+
+  cout << "y pos: " << orig[1]-fSize[1] + y << endl;
+
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
