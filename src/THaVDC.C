@@ -924,18 +924,28 @@ void THaVDC::Draw(TGeometry* geom, Option_t *opt)
   b->SetLineColor(atoi(opt));
 	//
   TRotMatrix* rot = NULL;
-  if(!(rot = geom->GetRotMatrix("XY")))
+  if(!(rot = geom->GetRotMatrix("XZ")))
   {
     //only Geant-like constructor is implemented.
-    printf("Missing rotmatrix XY.\n");
+    printf("Missing rotmatrix XZ.\n");
   }
   
   //Front plane at z coord.
-  geom->Node(GetTitle(),GetTitle(),GetName(),orig[0],orig[1],orig[2]+(fSize[2]/2),"XY");
+  geom->Node(GetTitle(),GetTitle(),GetName(),orig[0],orig[1],orig[2]+(fSize[2]/2),"XZ");
   
 	  //
   fGraphics.Add(b);
 	  //                          
+  
+  THaVDCUVPlane* lower = GetLower();
+  lower->GetUPlane()->Draw(geom,"rot=XY45");
+  lower->GetVPlane()->Draw(geom,"rot=XY-45");
+
+  THaVDCUVPlane* upper = GetUpper();
+  upper->GetUPlane()->Draw(geom,"rot=XY45");
+  upper->GetVPlane()->Draw(geom,"rot=XY-45");
+  
+
 }
 //_____________________________________________________________________________
 

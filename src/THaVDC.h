@@ -17,6 +17,8 @@ class THaVDCUVTrack;
 
 class THaVDC : public THaTrackingDetector {
 
+  friend class THaVDCPlane; // VDCPlane needs to get sizes of VDC for Draw().
+
 public:
   THaVDC( const char* name, const char* description = "",
 	  THaApparatus* a = NULL );
