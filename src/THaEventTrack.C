@@ -156,6 +156,8 @@ Int_t THaEventTrack::Process( const THaEvData& evdata )
 {
   //Event loop.
 
+  fcurevent = &evdata; //Store for use by Detail windows.
+
   fFlag = 0;
 
 
@@ -305,8 +307,6 @@ void THaEventTrack::InitGraphics()
  
   // DrawButtons();
 
-
-
  }
 //----------------------------------------------------
 Int_t THaEventTrack::DrawDetector(const char* name, Float_t sx, Float_t sy, Float_t d)
@@ -380,9 +380,6 @@ void THaEventTrack::Skip()
 void THaEventTrack::Detail()
 {
 
-  TCanvas* dcan;
-  TCanvas* dcan2;
-
   Int_t ndetectors = fApp->GetNumDets();
   THaDetector* dobj = NULL;
   THaVDC* VDC = NULL;
@@ -394,7 +391,6 @@ void THaEventTrack::Detail()
     if(dobj->InheritsFrom("THaVDC"))
       VDC = static_cast<THaVDC*>(dobj);
         	
-       
   }
 
   if(VDC)
@@ -402,12 +398,12 @@ void THaEventTrack::Detail()
       THaETVDCGrDetail* d = new THaETVDCGrDetail(VDC,"VDCGr","VDC Graph");
 
       if(d->Init())
-	fDetWindows.Add(d);
+	{
+	  fDetWindows.Add(d);
+
+	  d->Process(*fcurevent);
+	}
       
-      // dcan = new TCanvas("VDC Graph");
-      //VDC->DrawGraph(dcan);
-      //dcan2 = new TCanvas("VDC Detail");
-      //VDC->DrawDetail(dcan2);
     }
 
 }

@@ -66,6 +66,8 @@ protected:
 	TList           fDetWindows;
   	TList		fGraphics;
  	TGeometry*	fGeom; 
+
+	const THaEvData       *fcurevent;
 	  
 	enum EFlags {
 	      kStop  = BIT(0),    // Wait for key press after every event
