@@ -11,7 +11,7 @@
 #include "THaEvData.h"
 #include "TClonesArray.h"
 #include "TGeometry.h"
-
+#include "TCanvas.h"
 
 class THaVDCWire;
 class THaVDCUVPlane;
@@ -19,6 +19,7 @@ class THaVDCCluster;
 class THaVDCHit;
 class THaVDCTimeToDistConv;
 class TGraph;
+
 
 class THaVDCPlane : public THaSubDetector {
 
@@ -34,6 +35,7 @@ public:
 
   virtual void    Draw(TGeometry* geom,const THaEvData& evdata,  const Option_t* opt = NULL); // Draw wire geometry
   virtual TGraph* DrawHitGraph(const Option_t* opt = NULL);
+  virtual Double_t    DrawSide(TCanvas* canvas, Double_t x, Double_t y,Double_t min, Double_t max);
 
   //Get and Set functions
   Int_t          GetNClusters() const { return fClusters->GetLast()+1; }

@@ -1,4 +1,4 @@
-//////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 //                                                                           //
 // THaVDCPlane                                                               //
 //                                                                           //
@@ -28,6 +28,8 @@
 #include "TRotMatrix.h"
 #include "THaString.h"
 #include "TGraph.h"
+#include "TMarker.h"
+#include "TPolyLine.h"
 
 #include <cstring>
 #include <vector>
@@ -268,6 +270,7 @@ void THaVDCPlane::Clear( Option_t* opt )
   fNWiresHit = 0;
   fHits->Clear();
   fClusters->Clear();
+
 }
 
 //_____________________________________________________________________________
@@ -433,6 +436,7 @@ Int_t THaVDCPlane::FindClusters()
 
       // Make a new THaVDCCluster (using space from fCluster array)  
       clust = new ( (*fClusters)[nextClust++] ) THaVDCCluster(this);
+
     } 
     //Add hit to the cluster
     clust->AddHit(hit);
@@ -474,8 +478,8 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
 {
   // Draw wire plane
 
-  Clear();
-  Decode(evdata);
+  //  Clear();
+  //  Decode(evdata);
 
   THaVDC* VDC = static_cast<THaVDC*>( fVDC);
 
@@ -550,7 +554,7 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
   while(hit = static_cast<THaVDCHit*>( next() ) )
     {
       wire = hit->GetWire();
-      cout << "pos: " << wire->GetPos() << endl;
+
 
       //Conversion to plane coords.
       Double_t uv = wire->GetPos() - fZ*TMath::Cos(VDC->GetVDCAngle());
@@ -561,7 +565,6 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
       TString wireid = "HITWIRE";
       wireid += wire->GetNum();
 
-      cout << "Wireid: " << wireid << endl;
 
       geom->Node(wireid,"WIRE","VDCWIRE",
 		 x*TMath::Cos(VDC->GetVDCAngle()),
@@ -601,6 +604,145 @@ TGraph* THaVDCPlane::DrawHitGraph( const Option_t* opt)
 
   return g;
 
+}
+//_____________________________________________________________________________
+Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t min, Double_t max)
+{
+  // Draw Side view of Plane.
+
+  const Float_t* VDCSize = fVDC->GetSize();
+
+  Double_t uvplanesize = VDCSize[0]*2/TMath::Sin(45*TMath::Pi()/180);
+
+  THaVDC* VDC = static_cast<THaVDC*>(fVDC);
+  Double_t VDCPlSpacing = VDC->GetSpacing();
+  Double_t x_scale = uvplanesize / Double_t( max - min ) *.8 ;
+  Double_t y_scale = .7/VDCPlSpacing;
+
+  y += (fZ) * y_scale;
+
+  TIter next(fWires);
+  THaVDCWire* wire;
+  Double_t minpos = min;
+
+  while(wire = static_cast<THaVDCWire*>( next() ))
+    {
+       
+      if(wire->GetPos() < min || wire->GetPos() > max)
+	continue;
+ 
+      Double_t cur_x = x+(wire->GetPos()-minpos)/uvplanesize*x_scale;
+
+      TMarker* p = new TMarker(cur_x,y,7);
+
+      canvas->cd();
+
+      p->Draw();
+      
+      /*
+      cout << "x: " << x << "y:" << y << endl;
+      cout << "minpos: "<< minpos << endl;
+      cout << "GetPos(): " << -wire->GetPos() << endl;
+      cout << "scale:" << x_scale << endl;
+      cout << "max: " << max << "  min: " << min << endl;
+      cout << "VDC: " << VDCSize[0] << endl;
+      cout << "draw wire at: " << cur_x <<"  " << y << endl;
+
+      */
+
+      // Test code
+
+      /*
+      if(fZ < 0.04 && wire->GetNum() == min)
+	{
+	  Double_t tx[2],ty[2];
+
+	  tx[0] = cur_x;
+	  ty[0] = y;
+	  tx[1] = cur_x;
+	  ty[1] = y + VDCPlSpacing * y_scale;;
+
+	  cout << "Ref Distance: " << VDCPlSpacing * y_scale;
+
+	  TPolyLine* test = new TPolyLine(2,tx,ty);
+	  test->SetLineWidth(1);
+	  test->Draw();
+	}
+      */
+    }
+  
+  //DrawHits
+
+  THaVDCHit* hit;
+  TIter nexthit(fHits);
+
+  while(hit = static_cast<THaVDCHit*>( nexthit() ))
+    {
+      //first coordinate is wire pos.
+
+      Double_t hit_x[2],hit_y[2];
+
+      hit_x[0] = x+(hit->GetPos()-minpos)/uvplanesize*x_scale;
+      hit_x[1] = hit_x[0];
+      
+      hit_y[0] = y;
+      Double_t temp =  hit->GetDist();
+      hit_y[1] = y + temp * y_scale;
+
+      /*      
+      cout << "dist: " << hit->GetDist() <<endl
+           << "rawtime: " << hit->GetRawTime() << endl
+	   << "y_scale: " << y_scale << endl
+	   << "temp: " << temp << endl;
+      */
+      
+      TPolyLine* l = new TPolyLine(2,hit_x,hit_y);
+      l->SetLineWidth(1);
+
+      // cout << "line: " << hit_x[0] << "," << hit_y[0] << "to " << hit_x[0] << "," << hit_y[0] << endl;
+
+
+      l->Draw();
+    }
+
+  //Draw Local Fit
+
+  TClonesArray* clusters(GetClusters());
+  Int_t last = clusters->GetLast();
+  cout << "nclusters = " << last+1 << endl;
+  THaVDCCluster* cluster;
+  if(last+1>0 && clusters->At(0)) {
+    cluster = (THaVDCCluster*)clusters->At(0);
+    cluster->Print();
+  }
+  TIter nextclust(clusters);
+
+  while(cluster = static_cast<THaVDCCluster*>( nextclust() ))
+    {
+      Double_t intercept = cluster->GetIntercept();
+      Double_t slope = cluster->GetSlope();
+
+      Double_t px[2],py[2];
+
+      px[0] = x + (intercept-min-.05)/uvplanesize*x_scale;
+      py[0] = y - (.05)/uvplanesize*y_scale*slope*x_scale;                                       //.1*slope*y_scale;
+
+      px[1] = x + (intercept-min+.05)/(uvplanesize)*x_scale;
+      py[1] = y + (.05)/uvplanesize*y_scale*slope*x_scale;
+
+      //Fix: Free this.
+      TPolyLine* line = new TPolyLine(2,px,py);
+
+      cout << "line: "<< px[0] << "," << py[0] << " to " << px[1] << "," <<py[1] << endl;
+
+      line->SetLineColor(2);
+      line->Draw();
+
+    }
+
+  canvas->Update();
+
+  return x_scale;
 }
 
 
