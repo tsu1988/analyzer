@@ -23,12 +23,17 @@ public:
   
           Bool_t   IsPid() { return kTRUE; }
 
+  virtual void Draw(TGeometry* geom,const THaEvData& evdata,const Option_t* opt =NULL) {};
+  //  virtual void Draw(TGeometry* geom,const Option_t* opt = NULL) {};
+  virtual void Draw(const Option_t* opt = NULL){};
+
 protected:
 
   //Only derived classes may construct me
 
   THaPidDetector( const char* name, const char* description,
 		  THaApparatus* a = NULL );
+
 
   ClassDef(THaPidDetector,0)  //ABC for a PID detector
 };
