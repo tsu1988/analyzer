@@ -26,6 +26,10 @@ public:
           Bool_t   IsTracking() { return kFALSE; }
   virtual Bool_t   IsPid()      { return kFALSE; }
 
+  virtual void Draw(TGeometry* geom,const THaEvData& evdata,const Option_t* opt =NULL) {};
+  //  virtual void Draw(TGeometry* geom,const Option_t* opt = NULL) {};
+  virtual void Draw(const Option_t* opt = NULL){};
+
 protected:
 
   //Only derived classes may construct me
