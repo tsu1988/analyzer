@@ -33,6 +33,8 @@ SCALERDIR     = hana_scaler
 LIBDIR        = $(HA_DIR)/.
 HALLALIBS     = -L$(LIBDIR) -lHallA -ldc -lscaler
 
+SUBDIRS       = $(DCDIR) $(SCALERDIR)
+
 LIBS          = 
 GLIBS         = 
 
@@ -160,6 +162,9 @@ $(SCALERDIR)/libscaler.so:
 
 analyzer:	src/main.o
 		$(LD) $(LDFLAGS) $^ $(HALLALIBS) $(GLIBS) -o $@
+
+subdirs:
+		set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
 
 clean:
 		$(MAKE) -C $(DCDIR) clean
