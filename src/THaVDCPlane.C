@@ -27,9 +27,10 @@
 #include "TBRIK.h"
 #include "TRotMatrix.h"
 #include "THaString.h"
-#include "TGraph.h"
+#include "THaGraph.h"
 #include "TMarker.h"
 #include "TPolyLine.h"
+#include "THaPolyLine.h"
 
 #include <cstring>
 #include <vector>
@@ -577,7 +578,7 @@ void THaVDCPlane::Draw(TGeometry* geom,const THaEvData& evdata, const Option_t* 
 }
 
 //_____________________________________________________________________________
-TGraph* THaVDCPlane::DrawHitGraph( const Option_t* opt)
+TGraph* THaVDCPlane::DrawHitGraph( const Option_t* drawopt, const Option_t* opt)
 {
 
   TIter next(fHits);
@@ -588,19 +589,44 @@ TGraph* THaVDCPlane::DrawHitGraph( const Option_t* opt)
 
 
   Double_t x[nhits],y[nhits];
+  Int_t c[nhits];
+
+  //Initialize the color array.
+  for(Int_t j = 0;j <nhits; j++)
+    c[j] = 1;
+
   Int_t i = 0;
+  Int_t prev = -1;
 
   while(hit = static_cast<THaVDCHit*>( next() ) )
     {
      x[i] = hit->GetWire()->GetNum();
-     y[i++] = hit->GetTime();
+     
+     if(x[i] != prev)
+       {
+	 c[i] = 2;
+	 prev = x[i];
+       }
+
+     switch(atoi(opt))
+       {
+       case 1:
+       	 y[i++] = hit->GetTime();
+	 break;
+       case 2:
+	 y[i++] = hit->GetDist();
+	 break;
+       default:
+	 y[i++] = hit->GetRawTime();
+	 break;
+       }
       
     }
   
   //Will be freed by VDC Class.
-  TGraph* g = new TGraph(nhits,x,y);
+  THaGraph* g = new THaGraph(nhits,x,y,c);
   g->SetTitle(fName);
-  g->Draw(opt);
+  g->Draw(drawopt);
 
   return g;
 
@@ -709,7 +735,9 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
 
   TClonesArray* clusters(GetClusters());
   Int_t last = clusters->GetLast();
-  cout << "nclusters = " << last+1 << endl;
+  
+//cout << "nclusters = " << last+1 << endl;
+
   THaVDCCluster* cluster;
   if(last+1>0 && clusters->At(0)) {
     cluster = (THaVDCCluster*)clusters->At(0);
@@ -733,11 +761,12 @@ Double_t THaVDCPlane::DrawSide(TCanvas* canvas,Double_t x, Double_t y,Double_t m
 
 
       //Fix: Free this.
-      TPolyLine* line = new TPolyLine(2,px,py);
+      THaPolyLine* line = new THaPolyLine(2,px,py);
 
       cout << "line: "<< px[0] << "," << py[0] << " to " << px[1] << "," <<py[1] << endl;
-
-
+      char Buf[100];
+      sprintf(Buf,"Slope (err) = %f (%f)\nIntercept = %f",slope, cluster->GetSigmaSlope(),intercept); 
+      line->SetText(Buf,canvas);
       line->SetLineColor(2);
       line->Draw();
 
