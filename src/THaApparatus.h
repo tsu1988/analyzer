@@ -22,6 +22,7 @@ public:
   virtual Int_t        Decode( const THaEvData& );
           Int_t        GetNumDets()   const      { return fDetectors->GetSize(); }
           THaDetector* GetDetector( const char* name );
+  	  THaDetector* GetDetector(const Int_t i);
   virtual EStatus      Init( const TDatime& run_time );
   virtual void         Print( Option_t* opt="" ) const 
                                                  { fDetectors->Print(opt); }
@@ -47,6 +48,13 @@ THaDetector* THaApparatus::GetDetector( const char* name )
   // This is useful for specialized processing.
 
   return reinterpret_cast<THaDetector*>( fDetectors->FindObject( name ));
+}
+inline
+THaDetector* THaApparatus::GetDetector( const Int_t i)
+{
+	// Find the detector by index.
+	
+  return reinterpret_cast<THaDetector*>( fDetectors->At(i));	
 }
 
 #endif
