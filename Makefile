@@ -161,7 +161,7 @@ $(SCALERDIR)/libscaler.so:
 		$(MAKE) -C $(@D) $(@F)
 
 analyzer:	src/main.o $(LIBDIR)/libdc.so $(LIBDIR)/libscaler.so $(LIBHALLA)
-		$(LD) $(LDFLAGS) $^ $(HALLALIBS) $(GLIBS) -o $@
+		$(LD) $(LDFLAGS) $< $(HALLALIBS) $(GLIBS) -o $@
 
 clean:
 		$(MAKE) -C $(DCDIR) clean
