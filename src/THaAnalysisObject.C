@@ -668,16 +668,16 @@ Int_t THaAnalysisObject::SeekDBdate( FILE* file, const TDatime& date,
 
 //_____________________________________________________________________________
 char* THaAnalysisObject::ReadComment( FILE* fp, char *buf, const int len )
-  // Read blank and comment lines ( those starting with '#' or '*' ),
-  // returning the comment.
-  // A line with the first character a non-space character is, in the old
-  // format, also a comment. It would be nice if this was depreciated,
-  // however.
+  // Read blank and comment lines ( those starting non-starting with a
+  //  space (' '), returning the comment.
+  // If the line is data, then nothing is done and NULL is returned
+  // (so one can search for the next data line with:
+  //   while ( ReadComment(fp, buf, len) );
 {
   int ch = fgetc(fp);  // peak ahead one character
   ungetc(ch,fp);
 
-  if (ch == EOF || ch == ' ') // || !( ch == '#' || ch == '*' || ch == '\n' ) )
+  if (ch == EOF || ch == ' ')
     return NULL; // a real line of data
   
   char *s= fgets(buf,len,fp); // read the comment
