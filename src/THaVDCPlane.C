@@ -24,6 +24,9 @@
 #include "TClass.h"
 #include "TMath.h"
 #include "VarDef.h"
+#include "TBRIK.h"
+#include "TRotMatrix.h"
+#include "THaString.h"
 
 #include <cstring>
 #include <vector>
@@ -31,6 +34,8 @@
 
 using namespace std;
 
+// Forward dec for helper function to multiply matrices.
+void MatrixMultiply(TRotMatrix* mdest, TRotMatrix* m1, TRotMatrix* m2); 
 
 //_____________________________________________________________________________
 THaVDCPlane::THaVDCPlane( const char* name, const char* description,
@@ -463,6 +468,105 @@ Int_t THaVDCPlane::FitTracks()
   }
   return 0;
 }
+//_____________________________________________________________________________
+void THaVDCPlane::Draw(TGeometry* geom, const Option_t* opt)
+{
+  // Draw wire plane
+
+  THaVDC* VDC = static_cast<THaVDC*>( fVDC);
+
+  THaString rot;// = new THaString;
+  THaString temp;
+  if( opt != NULL)
+    temp = opt;
+  
+  vector<THaString> s;
+
+  s = temp.Split();
+
+  for(Int_t i = 0; i < s.size(); i++)
+    {
+      if(s[i].find("rot=") == 0)
+	 rot = s[i].substr(4);
+    }
+
+  cout << "Rot: " << rot.c_str() << endl;
+  
+
+  TIter next( fWires->MakeIterator());
+
+  Double_t len = VDC->fSize[1]/TMath::Sin(fWAngle*180/TMath::Pi());
+
+  if(!geom->GetShape("VDCWIRE"))
+    {
+      TBRIK* b = new TBRIK("VDCWIRE","VDCWIRE","void",0,len,0);
+
+      //Save pointer to delete later.
+
+    }
+
+  TRotMatrix* xz = geom->GetRotMatrix("XZ");
+      //Fix: this is dangerous because we cannot be sure of the existence
+      // of the XZ Matrix.
+
+  if(!geom->GetRotMatrix("XY45"))
+    {
+
+      TRotMatrix* xyvdc =  new TRotMatrix("XY45","XY45",90,45,90,135,0,0);
+
+      MatrixMultiply(xyvdc,xyvdc,xz);
+
+      (geom->GetListOfMatrices())->Add(xyvdc);
+    }
+
+  if(!geom->GetRotMatrix("XY-45"))
+    {
+
+      TRotMatrix* yxvdc =  new TRotMatrix("XY-45","XY-45",90,-45,90,45,0,0);
+
+      MatrixMultiply(yxvdc,yxvdc,xz);
+
+      (geom->GetListOfMatrices())->Add(yxvdc);
+
+    }
+
+
+  THaVDCWire* wire;
+  while(wire = static_cast<THaVDCWire*>( next() ) )
+    {
+
+      cout << "pos: " << wire->GetPos() << endl;
+      Double_t x = wire->GetPos();
+
+      geom->Node("WIRE","WIRE","VDCWIRE",x*TMath::Cos(TMath::Pi()/4),0,fZ+x*TMath::Sin(TMath::Pi()/4),rot.c_str());
+      
+    }
+
+}
+
+//_____________________________________________________________________________
+
+void MatrixMultiply(TRotMatrix* mdest,TRotMatrix* m1, TRotMatrix* m2)
+{
+
+  Double_t temp[9];
+  Double_t* e1 = m1->GetMatrix();
+  Double_t* e2 = m2->GetMatrix();
+  
+  temp[0] = (e1[0] * e2[0]) + (e1[1] * e2[3]) + (e1[2] * e2[6]);
+  temp[1] = (e1[0] * e2[1]) + (e1[1] * e2[4]) + (e1[2] * e2[7]);
+  temp[2] = (e1[0] * e2[2]) + (e1[1] * e2[5]) + (e1[2] * e2[8]);
+
+  temp[3] = (e1[3] * e2[0]) + (e1[4] * e2[3]) + (e1[5] * e2[6]);
+  temp[4] = (e1[3] * e2[1]) + (e1[4] * e2[4]) + (e1[5] * e2[7]);
+  temp[5] = (e1[3] * e2[2]) + (e1[4] * e2[5]) + (e1[5] * e2[8]);
+
+  temp[6] = (e1[6] * e2[0]) + (e1[7] * e2[3]) + (e1[8] * e2[6]);
+  temp[7] = (e1[6] * e2[1]) + (e1[7] * e2[4]) + (e1[8] * e2[7]);
+  temp[8] = (e1[6] * e2[2]) + (e1[7] * e2[5]) + (e1[8] * e2[8]);
+
+  mdest->SetMatrix(temp);
+} 
 
 ///////////////////////////////////////////////////////////////////////////////
 ClassImp(THaVDCPlane)

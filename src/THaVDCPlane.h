@@ -10,6 +10,7 @@
 #include "THaSubDetector.h"
 #include "THaEvData.h"
 #include "TClonesArray.h"
+#include "TGeometry.h"
 
 class THaVDCWire;
 class THaVDCUVPlane;
@@ -28,6 +29,8 @@ public:
   virtual Int_t   Decode( const THaEvData& ); // Raw data -> hits
   virtual Int_t   FindClusters();             // Hits -> clusters  
   virtual Int_t   FitTracks();                // Clusters -> tracks
+
+  virtual void    Draw(TGeometry* geom,  const Option_t* opt = NULL); // Draw wire geometry
 
   //Get and Set functions
   Int_t          GetNClusters() const { return fClusters->GetLast()+1; }
