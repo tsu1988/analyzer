@@ -37,6 +37,9 @@
 #include "TBox.h"
 #include "TDiamond.h"
 #include "TGraph.h"
+#include "THaVDCUVTrack.h"
+#include "THaPolyLine.h"
+
 
 #ifdef WITH_DEBUG
 #include <iostream>
@@ -1038,7 +1041,7 @@ Double_t THaVDC::DrawPlanes(TCanvas* canvas,const char plane, const Option_t* op
 
   THaVDCPlane *p1,*p2;
 
-  if( plane == 'u' || plane == 'V')
+  if( plane == 'u' || plane == 'U')
     {
       p1 = lower->GetUPlane();
       p2 = upper->GetUPlane();
@@ -1079,14 +1082,75 @@ Double_t THaVDC::DrawPlanes(TCanvas* canvas,const char plane, const Option_t* op
   
   canvas->cd();   
 
-  // .
+  // 
   fw_x = (x_spacer );
   fw_y = (y_spacer);
 
   p1->DrawSide(canvas,fw_x, fw_y,min,max);
 
-  return p2->DrawSide(canvas,fw_x, fw_y,min,max);
+  Double_t x_scale = p2->DrawSide(canvas,fw_x, fw_y,min,max);
 
+  Double_t y_scale = .7/GetSpacing();
+
+  // Draw Global Fit
+
+  TClonesArray* tracks = lower->GetUVTracks();
+
+  TIter nexttrack(tracks);
+   
+  THaVDCCluster *upclust,*lowclust;
+  THaVDCUVTrack* thetrack;
+  
+  Double_t px[2],py[2];
+
+  Double_t uvplanesize = fSize[0]/TMath::Sin(45*TMath::Pi()/180);
+
+  while(thetrack = (THaVDCUVTrack*) nexttrack())
+    {
+
+      if(plane == 'u' || plane == 'U')
+	{
+	  lowclust = thetrack->GetUCluster();
+	  THaVDCUVTrack* part = thetrack->GetPartner();
+	  if(part)
+	    upclust = part->GetUCluster();
+	  else
+	    cout << "Track without a partner.(U)" << endl;
+	}
+      else
+	{
+	  lowclust = thetrack->GetVCluster();
+	  THaVDCUVTrack* part = thetrack->GetPartner();
+	  if(part)
+	    upclust = part->GetVCluster();
+	  else
+	    cout << "Track without a partner.(V)" << endl;
+	}
+    
+      px[0] = fw_x + (lowclust->GetIntercept()-min)/uvplanesize * x_scale;
+      py[0] = fw_y + p1->GetZ() * y_scale;
+ 
+      //cout << plane << " intercept: " << lowclust->GetIntercept() << endl;
+      //cout << "min: " << min << endl;
+      //cout << "lower: " << px[0] << "," << py[0] << endl;
+
+      px[1] = fw_x + (upclust->GetIntercept()-min)/uvplanesize * x_scale;
+      py[1] = fw_y + p2->GetZ() * y_scale;
+
+      //cout << plane << " intercept: " << upclust->GetIntercept() << endl;
+      //cout << "min: " << min << endl;
+      //cout << "upper: " << px[1] << "," << py[1] << endl;
+
+      canvas->cd();
+
+      THaPolyLine* global = new THaPolyLine(2,px,py);
+
+      global->Draw();
+
+    }
+  
+  canvas->Update();
+  return x_scale;
 }
 
 //_____________________________________________________________________________
