@@ -576,7 +576,7 @@ Int_t THaAnalysisObject::LoadDB( FILE* f, const TDatime& date,
 
   const TagDef* item = tags;
   while( item->name ) {
-    if( item->data ) {
+    if( item->var ) {
       tag[0] = 0; strncat(tag,prefix,LEN-1); strncat(tag,item->name,LEN-np-1);
       Int_t ret=0;
       switch ( item->type ) {
