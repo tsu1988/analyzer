@@ -19,7 +19,8 @@ class THaVDCCluster : public TObject {
 public:
   THaVDCCluster( THaVDCPlane* owner = NULL ) :
     fSize(0), fPlane(owner), fSlope(kBig), fSigmaSlope(kBig), fInt(kBig),
-    fSigmaInt(kBig), fT0(0.0), fPivot(NULL), fTimeCorrection(0.0), fFitOK(false)
+    fSigmaInt(kBig), fT0(0.0), fPivot(NULL), fTimeCorrection(0.0), 
+    fChisq(kBig), fFitOK(false)
   {}
   THaVDCCluster( const THaVDCCluster&);
   THaVDCCluster& operator=( const THaVDCCluster& );
@@ -51,7 +52,7 @@ public:
   THaVDCHit*     GetPivot()          const { return fPivot; }
   Int_t          GetPivotWireNum()   const;
   Double_t       GetTimeCorrection() const { return fTimeCorrection; }
-
+  Double_t       GetChisq()          const { return fChisq; }
   bool           IsFitOK()           const { return fFitOK; }
 
   void           SetPlane( THaVDCPlane* plane )     { fPlane = plane; }
@@ -79,6 +80,7 @@ protected:
   THaVDCHit*     fPivot;             // Pivot - hit with smallest drift time
   Double_t       fTimeCorrection;    // correction to be applied when fitting
                                      // drift times
+  Double_t       fChisq;             // Reduced chisq of fit
   bool           fFitOK;             // Flag indicating that fit results valid
 
   virtual void   FitSimpleTrack();

@@ -12,6 +12,7 @@
 #include "THaVDCUVTrack.h"
 #include "THaTrack.h"
 #include "TClass.h"
+#include "TMath.h"
 
 #include <iostream>
 
@@ -195,39 +196,43 @@ void THaVDCCluster::FitSimpleTrack()
   Double_t m, sigmaM;  // Slope, St. Dev. in slope
   Double_t b, sigmaB;  // Intercept, St. Dev in Intercept
   Double_t sigmaY;     // St Dev in delta Y values
+  Double_t chisq;      // Estimated reduced Chi^2
 
   Double_t* xArr = new Double_t[fSize];
   Double_t* yArr = new Double_t[fSize];
 
-  Double_t bestFit = 0.0;
+  fChisq = 0.0;
 
-  // Find the index of the pivot wire and copy distances into local arrays
-  // Note that as the index of the hits is increasing, the position of the
-  // wires is decreasing
+  // Estimated uncertainty of drift distances: 1mm
+  const Double_t sig_dist = 1e-3;
 
-  Int_t pivotNum = 0;
+  // Find the index of the pivot wire and copy distances into local arrays.
+  // NB1: As the index of the hits is increasing, the position of the
+  // wires is decreasing.
+  // NB2: Assumes there is only one hit per wire. Currently, this is
+  // ensured in THaVDCPlane::FindClusters()
+
+  Int_t pivotNum = fSize;
   for (int i = 0; i < fSize; i++) {
     if (fHits[i] == fPivot) {
       pivotNum = i;
     }
     xArr[i] = fHits[i]->GetDist() + fTimeCorrection;
     yArr[i] = fHits[i]->GetPos();
+    if( i>pivotNum )
+      xArr[i] = -xArr[i];
   }
   
-  const Int_t nSignCombos = 2; //Number of different sign combinations
-  for (int i = 0; i < nSignCombos; i++) {
+  Int_t fitUsed = -1;
+  for (int i = 0; i < 2; i++) {
+
+    if (i == 1)
+      xArr[pivotNum] = -xArr[pivotNum];
 
     Double_t sumX  = 0.0;   //Drift distances
     Double_t sumXX = 0.0;
     Double_t sumY  = 0.0;   //Position of wires
     Double_t sumXY = 0.0;
-    Double_t sumDY2 = 0.0;  // Sum of squares of delta Y values
-    
-    if (i == 0)
-      for (int j = pivotNum+1; j < fSize; j++)
-	xArr[j] = -xArr[j];
-    else if (i == 1)
-      xArr[pivotNum] = -xArr[pivotNum];
 
     for (int j = 0; j < fSize; j++) {
       Double_t x = xArr[j];  // Distance to wire
@@ -242,20 +247,30 @@ void THaVDCCluster::FitSimpleTrack()
     m  = (N * sumXY - sumX * sumY) / (N * sumXX - sumX * sumX);
     b  = (sumXX * sumY - sumX * sumXY) / (N * sumXX - sumX * sumX);
 
-    // Calculate sum of delta y values
+    // Calculate sum of delta-y and chi2
+    Double_t sumDY2 = 0.0, errsum2 = 0.0;
     for (int j = 0; j < fSize; j++) {
       Double_t y = yArr[j];
       Double_t Y = m * xArr[j] + b;
       sumDY2 += (y - Y) * (y - Y);
+      if( TMath::Abs(m) > 1e-3 ) {
+	y = (yArr[j] - b) / m;
+	Y = xArr[j];
+	errsum2 += (y - Y) * (y - Y);
+      }
     } 
-    
+    if( TMath::Abs(m) <= 1e-3 )
+      errsum2 = kBig;
+
     sigmaY = sqrt (sumDY2 / (N - 2));
-    sigmaM = sigmaY * sqrt ( N / ( N * sumXX - sumX * sumX) );
-    sigmaB = sigmaY * sqrt (sumXX / ( N * sumXX - sumX * sumX) );
+    sigmaM = sigmaY * TMath::Sqrt( N / ( N * sumXX - sumX * sumX) );
+    sigmaB = sigmaY * TMath::Sqrt( sumXX / ( N * sumXX - sumX * sumX) );
+    chisq = errsum2 / ((N-2) * sig_dist * sig_dist);
     
     // Pick the best value
-    if (i == 0 || sigmaY < bestFit) {
-      bestFit = sigmaY;
+    if (i == 0 || chisq < fChisq ) {
+      fitUsed = i;
+      fChisq = chisq;
       fSlope = m;
       fSigmaSlope = sigmaM;
       fInt = b;
@@ -263,6 +278,13 @@ void THaVDCCluster::FitSimpleTrack()
     }
   }
   fFitOK = true;
+
+  // Save "fitted" drift distances.
+
+  for( int i=0; i<fSize; i++ )
+    fHits[i]->SetFitDist( xArr[i] );
+  if( fitUsed == 0 )
+    fHits[pivotNum]->SetFitDist( -xArr[pivotNum] );
 
   delete[] xArr;
   delete[] yArr;
