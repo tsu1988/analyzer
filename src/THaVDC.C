@@ -269,7 +269,7 @@ Int_t THaVDC::ReadDatabase( const TDatime& date )
   fNumIter = 1;      // Number of iterations for FineTrack()
   fErrorCutoff = 1e100;
 
-  // Fine geometry section in the file
+  // Find geometry section in the file
   tag = apparatus_prefix + "geom";
   rewind(file);
   if( SeekDBconfig(file,tag,"") == 0 ) {
