@@ -4,7 +4,7 @@
 export WITH_DEBUG = 1
 
 # Compile debug version
-export DEBUG = 1
+#export DEBUG = 1
 
 # Profiling with gprof
 # export PROFILE = 1
@@ -34,7 +34,7 @@ LIBDIR        = $(HA_DIR)/.
 HALLALIBS     = -L$(LIBDIR) -lHallA -ldc -lscaler
 
 LIBS          = 
-GLIBS         = 
+GLIBS         =  -lGeom
 
 INCLUDES      = $(ROOTCFLAGS) $(addprefix -I, $(INCDIRS) )
 
@@ -87,7 +87,7 @@ CXXFLAGS     += -pg
 LDFLAGS      += -pg
 endif
 
-export ARCH LIBDIR
+export ARCH
 
 #------------------------------------------------------------------------------
 
@@ -121,7 +121,7 @@ SRC           = src/THaFormula.C src/THaVar.C src/THaVarList.C src/THaCut.C \
 		src/THaElectronKine.C src/THaReactionPoint.C \
 		src/THaTwoarmVertex.C src/THaAvgVertex.C \
 		src/THaExtTarCor.C src/THaDebugModule.C src/THaTrackInfo.C \
-		src/THaGoldenTrack.C
+		src/THaGoldenTrack.C src/THaEventTrack.C
 
 OBJ           = $(SRC:.C=.o)
 HDR           = $(SRC:.C=.h) src/THaGlobals.h src/VarDef.h src/VarType.h \
@@ -133,8 +133,7 @@ OBJS          = $(OBJ) haDict.o
 LIBHALLA      = $(LIBDIR)/libHallA.so
 PROGRAMS      = analyzer
 
-all:            subdirs
-		set -e; for i in $(PROGRAMS); do $(MAKE) $$i; done
+all:            subdirs $(PROGRAMS)
 
 src/ha_compiledata.h:
 		echo "#define HA_INCLUDEPATH \"$(INCDIRS)\"" > $@
@@ -146,8 +145,20 @@ $(LIBHALLA):	$(HDR) $(OBJS)
 		$(LD) $(LDFLAGS) $(SOFLAGS) -o $@ $(OBJS)
 		@echo "$@ done"
 
+$(LIBDIR)/libdc.so:	$(DCDIR)/libdc.so
+		cp $< $(LIBDIR)
+
+$(LIBDIR)/libscaler.so:	$(SCALERDIR)/libscaler.so
+		cp $< $(LIBDIR)
+
+$(DCDIR)/libdc.so:
+		$(MAKE) -C $(@D) $(@F)
+
+$(SCALERDIR)/libscaler.so:
+		$(MAKE) -C $(@D) $(@F)
+
 analyzer:	src/main.o $(LIBDIR)/libdc.so $(LIBDIR)/libscaler.so $(LIBHALLA)
-		$(LD) $(LDFLAGS) $< $(HALLALIBS) $(GLIBS) -o $@
+		$(LD) $(LDFLAGS) $^ $(HALLALIBS) $(GLIBS) -o $@
 
 clean:
 		$(MAKE) -C $(DCDIR) clean
