@@ -256,8 +256,10 @@ void THaEventTrack::InitGraphics()
   fCanvas = new TCanvas("EventTrack");
   fCanvas->SetEditable();
 
+  //Fix this: don't create matrices in event class.
+
   fGeom = new TGeometry("EventTrack","EventTrack");
-  fGeom->GetListOfMatrices()->Add(new TRotMatrix("XY","XY",45,0,90,90,-45,0));
+  fGeom->GetListOfMatrices()->Add(new TRotMatrix("XZ","XZ",45,0,90,90,-45,0));
   zero = new TRotMatrix("ZERO","ZERO",90,0,90,90,0,0);
   fGeom->GetListOfMatrices()->Add(zero);
 
