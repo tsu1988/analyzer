@@ -34,6 +34,8 @@
 #include "TGeometry.h"
 #include "TNode.h"
 #include "TSPHE.h"
+#include "TBox.h"
+#include "TDiamond.h"
 
 #ifdef WITH_DEBUG
 #include <iostream>
@@ -1019,6 +1021,50 @@ void THaVDC::DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z,Double
 }
 
 //_____________________________________________________________________________
+
+void THaVDC::DrawDetail(TCanvas* canvas, const Option_t* opt)
+{
+
+  //Draw Details of 4 VDC Planes
+
+ /*
+  Double_t x_spacer = 10;
+  Double_t y_spacer = 10;
+
+  Double_t x = fSize[0];
+  Double_t y = fSize[1];
+
+  TDiamond* u = new TDiamond(x_spacer ,y_spacer,x + x_spacer, y + y_spacer );
+  TDiamond* v = new TDiamond(x_spacer, y_spacer * 2 + y, x_spacer + x, y_spacer *2 + y*2);
+
+  canvas->cd(1);   
+  u->Draw();
+  v->Draw();
+ */
+  THaVDCUVPlane* lower = GetLower();
+  THaVDCUVPlane* upper = GetUpper();
+
+  canvas->Divide(2,2);
+
+  //DrawHitGraph
+
+  canvas->cd(1);
+  lower->GetUPlane()->DrawHitGraph("A*");
+
+  canvas->cd(2);
+  lower->GetVPlane()->DrawHitGraph("A*");
+
+  canvas->cd(3);
+  upper->GetUPlane()->DrawHitGraph("A*");
+
+  canvas->cd(4);
+  upper->GetVPlane()->DrawHitGraph("A*");     
+
+  canvas->Update();
+
+}
+
+
 /*
 bool THaVDC::CalcTrackIntercept(THaTrack* theTrack, Double_t& t,Double_t& xcross,Double_t& ycross)
 {
@@ -1049,6 +1095,7 @@ bool THaVDC::CalcTrackIntercept(THaTrack* theTrack, Double_t& t,Double_t& xcross
 	  //                     
 */
 
+//_____________________________________________________________________________
 void THaVDC::DefineAxes(Double_t rotation_angle)
 {
   fXax.SetXYZ( TMath::Cos(TMath::Pi()/4),0, TMath::Sin(TMath::Pi()/4) );
@@ -1066,6 +1113,7 @@ void THaVDC::DefineAxes(Double_t rotation_angle)
   fNom.SetColumn( fXax, 0 );
   fNom.SetColumn( fYax, 1 );
 }
-            
+           
+
 ////////////////////////////////////////////////////////////////////////////////
 ClassImp(THaVDC)

@@ -10,6 +10,8 @@
 #include "THaTrackingDetector.h"
 #include <vector>
 
+#include "TCanvas.h"
+
 class THaVDCUVPlane;
 class THaTrack;
 class TClonesArray;
@@ -34,6 +36,8 @@ public:
   virtual void  Draw(TGeometry* geom, Option_t* opt = NULL);
   virtual void  Draw(TGeometry* geom, THaTrack* track, Double_t& t,Option_t* opt= NULL);
   virtual void DrawLine(TGeometry* geom, Double_t x, Double_t y, Double_t z, Double_t len, TVector3& dir);
+
+  virtual void DrawDetail(TCanvas* canvas, const Option_t* opt = NULL);
 
   // Get and Set Functions
   virtual THaVDCUVPlane* GetUpper() { return fUpper; }
