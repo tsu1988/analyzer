@@ -26,12 +26,14 @@ void THaPolyLine::ExecuteEvent(Int_t event, Int_t px, Int_t py)
   switch(event)
     {
       case kMouseEnter:
-	ShowToolTip();
+	if(fText)
+	  ShowToolTip();
 
       break;
 
       case kMouseLeave:
-	HideToolTip();
+	if(fText)
+	  HideToolTip();
 
 	break;
     
@@ -61,8 +63,8 @@ void THaPolyLine::HideToolTip()
 
 void THaPolyLine::SetText(const char* text,TCanvas* canvas)
 {
-  cout << "ftext = " << fText << endl;
-  cout << "text = " << text << endl;
+  //  cout << "ftext = " << fText << endl;
+  //cout << "text = " << text << endl;
 
   fText = new TString(text);
   fcanvas = canvas; 
