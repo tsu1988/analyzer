@@ -390,12 +390,12 @@ Int_t THaScintillator::PaddlesHit(Int_t* hits)
 //_____________________________________________________________________________
 void THaScintillator::Draw(TGeometry* geom, Option_t* opt)
 {
-  TBRIK* b = new TBRIK(GetName(),GetName(),"void",fSize[0]/fNelem/2,fSize[1],fSize[2]/2);
+  TBRIK* b = new TBRIK(GetName(),GetName(),"void",fSize[0]/fNelem,fSize[1],fSize[2]/2);
 
   b->SetLineColor(9);
   TString color = GetName();
   color += "C";
-  TBRIK* c = new TBRIK(color,color,"void",fSize[0]/fNelem/2,fSize[1],fSize[2]/2);
+  TBRIK* c = new TBRIK(color,color,"void",fSize[0]/fNelem,fSize[1],fSize[2]/2);
 
   c->SetLineColor(2);
   c->SetLineWidth(3);
@@ -419,9 +419,9 @@ void THaScintillator::DrawPaddle(TGeometry* geom, const char* shapename,Int_t pa
 
   TString name(GetName());
   name += padnum;
-  Double_t leftedge = orig[0]-fSize[0]/2;
+  Double_t leftpaddle = orig[0]-fSize[0]+(fSize[0]/fNelem);
 
-  geom->Node(name,name,shapename, leftedge+(padnum*fSize[0]/fNelem),orig[1],orig[2],"ZERO");
+  geom->Node(name,name,shapename, leftpaddle+(padnum*fSize[0]*2/fNelem),orig[1],orig[2],"ZERO");
 
 }
 //_____________________________________________________________________________
