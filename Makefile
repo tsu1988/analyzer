@@ -4,7 +4,7 @@
 export WITH_DEBUG = 1
 
 # Compile debug version
-#export DEBUG = 1
+export DEBUG = 1
 
 # Profiling with gprof
 # export PROFILE = 1
