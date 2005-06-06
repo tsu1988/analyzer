@@ -181,7 +181,7 @@ int vdcsimgen()
 	  hdrift2->Fill(wirehitLast-wirehitFirst+1, static_cast<float>(hit->time));
 	}
 
-	track->wirehits[j].Add(hit);
+	track->wirehits[j]->Add(hit);
 
 	if (j == 1) { // fill a simple histogram for v1
 	  hwire->Fill(k);

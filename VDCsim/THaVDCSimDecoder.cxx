@@ -113,9 +113,10 @@ int THaVDCSimDecoder::LoadEvent(const int*evbuffer, THaCrateMap* map) {
 */
      // KCR: Now to populate the crateslot guy
      for (int i = 0; i < 4; i++) { // for each plane
-       TIter next(&(simEvent->wirehits[i]));
-       while (TObject *obj = next()) { // iterate over hits
-	 THaVDCSimWireHit *hit = dynamic_cast<THaVDCSimWireHit*>(obj);
+       TObjLink *lnk = simEvent->wirehits[i]->FirstLink();
+       while (lnk) { // iterate over hits
+	 THaVDCSimWireHit *hit = static_cast<THaVDCSimWireHit*>
+	   (lnk->GetObject());
 	 
 	 // KCR: HardCode crate/slot/chan nums:
 	 Int_t chan = hit->wirenum % 96;
@@ -125,6 +126,7 @@ int THaVDCSimDecoder::LoadEvent(const int*evbuffer, THaCrateMap* map) {
 
 	 if (crateslot[idx(roc,slot)]->loadData("tdc",chan,raw,raw)
 	     == SD_ERR) return HED_ERR;
+	 lnk = lnk->Next();
        }
      }
 

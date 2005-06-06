@@ -2,15 +2,16 @@
 #define THaVDCSimRun_
 
 #include "THaRunBase.h"
+#include "THaVDCSim.h"
 
 class TFile;
 class TTree;
-class THaVDCSimEvent;
+class TBranch;
 
 class THaVDCSimRun : public THaRunBase {
  public:
   THaVDCSimRun(const char* description = "")
-    : THaRunBase(description), nentries(0), entry(0) {}
+    : THaRunBase(description), nentries(0), entry(0), event(0) {}
   THaVDCSimRun(const THaVDCSimRun &run);
   virtual ~THaVDCSimRun();
   virtual THaVDCSimRun &operator=(const THaVDCSimRun &rhs);
@@ -26,6 +27,7 @@ class THaVDCSimRun : public THaRunBase {
 
   TFile *rootFile;
   TTree *tree;
+  TBranch *branch;
   THaVDCSimEvent *event;
 
   Int_t nentries;

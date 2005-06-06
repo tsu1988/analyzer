@@ -43,7 +43,8 @@ Int_t THaVDCSimRun::Open()
   event = 0;
 
   tree = static_cast<TTree*>(rootFile->Get("tree"));
-  tree->SetBranchAddress("track", &event);
+  branch = tree->GetBranch("track");
+  branch->SetAddress(&event);
 
   nentries = static_cast<Int_t>(tree->GetEntries());
   entry = 0;
@@ -68,7 +69,7 @@ Int_t THaVDCSimRun::ReadEvent() {
     if (ret) return ret;
   }
 
-  tree->GetEntry(entry++);
+  branch->GetEntry(entry++);
 
   return 0;
 }

@@ -124,6 +124,18 @@ OBJS          = $(OBJ) $(USERDICT).o
 
 all:		$(USERLIB)
 
+vdcsimgen: vdcsimgen.o vdcsimgenDict.o THaVDCSim.o
+	$(LD) $(LDFLAGS) $(LIBS) -o $@ $^ 
+
+vdcsimgenDict.o: vdcsimgenDict.cxx
+	$(CXX) $(CXXFLAGS) -o $@ -c $^
+
+vdcsimgenDict.cxx: THaVDCSim.h vdcsimgen_LinkDef.h
+	$(ROOTSYS)/bin/rootcint -f $@ -c $^
+
+vdcsimgen.o: vdcsimgen.cxx THaVDCSim.h
+	$(CXX) $(CXXFLAGS) -o $@ -c vdcsimgen.cxx
+
 $(USERLIB):	$(HDR) $(OBJS)
 		$(LD) $(LDFLAGS) $(SOFLAGS) -o $@ $(OBJS)
 		@echo "$@ done"

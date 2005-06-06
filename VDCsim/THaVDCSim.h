@@ -41,8 +41,8 @@ public:
 
 class THaVDCSimEvent : public TObject {
 public:
-  THaVDCSimEvent() {}
-  ~THaVDCSimEvent() {Clear();}
+  THaVDCSimEvent();
+  ~THaVDCSimEvent();
 
   // Administrative data
   Int_t event_num;
@@ -55,7 +55,7 @@ public:
   Double_t Theta() {return tan(momentum.Theta());}
 
   // "Simulated" data
-  TList wirehits[4]; //list of hits for each set of wires (u1,v1,u2,v2)
+  TList *wirehits[4]; //list of hits for each set of wires (u1,v1,u2,v2)
 
   virtual void Clear( const Option_t* opt="" );
 

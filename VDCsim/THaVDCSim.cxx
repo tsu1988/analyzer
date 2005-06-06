@@ -4,9 +4,20 @@ ClassImp(THaVDCSimWireHit);
 ClassImp(THaVDCSimEvent);
 ClassImp(THaVDCSimConditions);
 
+THaVDCSimEvent::THaVDCSimEvent() {
+  for (int i = 0; i < 4; i++)
+    wirehits[i] = new TList;
+}
+
+THaVDCSimEvent::~THaVDCSimEvent() {
+  Clear();
+  for (int i = 0; i < 4; i++)
+    delete wirehits[i];
+}
+
 void THaVDCSimEvent::Clear( const Option_t* opt ) {
   for (Int_t i = 0; i < 4; i++)
-    wirehits[i].Delete();
+    wirehits[i]->Delete();
 }
 
 void THaVDCSimConditions::set(Float_t *something,
