@@ -3,6 +3,16 @@
 
 #include "TFile.h"
 #include "TTree.h"
+#include <cstdio>
+#include <evio.h>
+
+using namespace std;
+
+THaVDCSimRun::THaVDCSimRun(const char* description) :
+  THaRunBase(description), event(0), nentries(0), entry(0) 
+{
+  // Constructor
+}
 
 THaVDCSimRun::THaVDCSimRun(const THaVDCSimRun &run)
   : THaRunBase(run), nentries(0), entry(0)
@@ -64,14 +74,18 @@ Int_t THaVDCSimRun::Close() {
 }
 
 Int_t THaVDCSimRun::ReadEvent() {
+  Int_t ret;
   if (!IsOpen()) {
-    Int_t ret = Open();
+    ret = Open();
     if (ret) return ret;
   }
 
-  branch->GetEntry(entry++);
-
-  return 0;
+  ret = branch->GetEntry(entry++);
+  if( ret > 0 )
+    return S_SUCCESS;
+  else if ( ret == 0 )
+    return EOF;
+  return -128;  // CODA_ERR
 }
 
 const Int_t *THaVDCSimRun::GetEvBuffer() const {

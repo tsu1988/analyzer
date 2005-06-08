@@ -10,8 +10,7 @@ class TBranch;
 
 class THaVDCSimRun : public THaRunBase {
  public:
-  THaVDCSimRun(const char* description = "")
-    : THaRunBase(description), nentries(0), entry(0), event(0) {}
+  THaVDCSimRun(const char* description = "");
   THaVDCSimRun(const THaVDCSimRun &run);
   virtual ~THaVDCSimRun();
   virtual THaVDCSimRun &operator=(const THaVDCSimRun &rhs);
