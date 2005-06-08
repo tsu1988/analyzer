@@ -43,6 +43,7 @@
 #include "TSystem.h"
 #include "TROOT.h"
 #include "TMath.h"
+#include "TDirectory.h"
 
 #include <fstream>
 #include <algorithm>
@@ -647,6 +648,13 @@ Int_t THaAnalyzer::DoInit( THaRunBase* run )
 
     // fOutput must be initialized after all apparatuses are
     // initialized and before adding anything to its tree.
+
+    // first, make sure we are in the output file, but remember the previous state.
+    // This makes a difference if another ROOT-file is opened to read in
+    // simulated or old data
+    TDirectory *olddir = gDirectory;
+    fFile->cd();
+    
     if( (retval = fOutput->Init( fOdefFileName )) < 0 ) {
       Error( here, "Error initializing THaOutput." );
     } else if( retval == 1 ) 
@@ -659,6 +667,7 @@ Int_t THaAnalyzer::DoInit( THaRunBase* run )
 	outputTree->Branch( "Event_Branch", fEvent->IsA()->GetName(), 
 			    &fEvent, 16000, 99 );
     }
+    olddir->cd();
 
     // Post-process has to be initialized after all cuts are known
     TIter nextp(fPostProcess);
@@ -693,6 +702,9 @@ Int_t THaAnalyzer::ReadOneEvent()
     Incr(kNevRead);
     break;
 
+  case EOF:
+    // Just exit on EOF - don't count it
+    break;
   case S_EVFILE_TRUNC:
     Incr(kEvFileTrunc);
     break;
@@ -1256,6 +1268,9 @@ Int_t THaAnalyzer::Process( THaRunBase* run )
   // that are defined in the current directory.
 
   if( fDoBench ) fBench->Begin("Output");
+  // Ensure that we are in the output file's current directory
+  // ... someone might have pulled the rug from under our feet
+  if( fFile )   fFile->cd();
   if( fOutput ) fOutput->End();
   if( fFile ) {
     fRun->Write("Run_Data");  // Save run data to ROOT file
