@@ -8,6 +8,8 @@
 
 include $(ROOTSYS)/test/Makefile.arch
 
+export DEBUG = 1
+
 #------------------------------------------------------------------------------
 
 #all: vdcsimgen THaVDCSim.so
@@ -23,6 +25,10 @@ THAVDCSIMLIB  = $(THAVDCSIMSO)
 OBJS          = $(THAVDCSUMO) $(VDCSIMGENO) 
 
 PROGRAMS      = $(VDCSIMGEN)
+
+ifdef DEBUG
+  CXXFLAGS    = -g -Wall -fPIC $(ROOTCFLAGS)
+endif
 
 #------------------------------------------------------------------------------
 
