@@ -56,9 +56,9 @@ distclean:      clean
 ###
 
 THaVDCSim.$(ObjSuf): THaVDCSim.h
-THaVDCSimDict.$(SrcSuf): THaVDCSim.h
+THaVDCSimDict.$(SrcSuf): THaVDCSim.h THaVDCSimLinkDef.h
 	@echo "Generating dictionary $@..."
-	@rootcint -f $@ -c $^ THaVDCSimLinkDef.h
+	rootcint -f $@ -c $^
 
 .$(SrcSuf).$(ObjSuf):
 	$(CXX) $(CXXFLAGS) -c $<

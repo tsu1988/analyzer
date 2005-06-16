@@ -12,8 +12,8 @@
 
 #include "THaVDCSim.h"
 
-int vdcsimgen(TString filename, double deltaTsigma);
-void getargs(double& deltaTsigma, TString& filename, int argc, char*argv[]);
+int vdcsimgen(TString filename, double deltaTsigma, double wireEff);
+void getargs( TString& filename ,double& deltaTsigma, double& wireEff, int argc, char*argv[]);
 void usage();
 
 #ifndef __CINT__
@@ -38,9 +38,10 @@ int main(int argc, char *argv[])
    //set variable defaults
   TString filename = "vdctracks.root"; 
   double deltaTsigma = 4.5;
+  double wireEff = 1;
 
-   getargs(deltaTsigma, filename, argc, argv);
-   return vdcsimgen(filename, deltaTsigma);
+   getargs( filename, deltaTsigma, wireEff, argc, argv);
+   return vdcsimgen( filename, deltaTsigma, wireEff);
 }
 #endif
 
@@ -49,10 +50,11 @@ void usage()
   printf("%s \n", "Usage: %s [-s output file name] [-n noise]");
   puts(" -s <output file name.> Default is 'vcdtracks.root'");
   puts(" -n <noise> Simulated noise sigma value (>0). Default is 4.5");
+  puts(" -e <wire efficiency> Wire Efficiency (decimal form). Default is 1");
   exit(1);
 }
 
-void getargs( double& deltaTsigma, TString& filename,  int argc, char **argv )
+void getargs( TString& filename, double& deltaTsigma, double& wireEff, int argc, char **argv )
 {
   while (argc-- >1){
     char *opt = *++argv;
@@ -79,6 +81,17 @@ void getargs( double& deltaTsigma, TString& filename,  int argc, char **argv )
 	    usage();
 	  opt = "?";
 	  break;
+	case 'e':
+	  if(!*++opt){
+	    if(argc-- <1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  wireEff = atof(opt);
+	  if( wireEff > 1.0)
+	    usage();
+	  opt = "?";
+	  break;
 	default:
 	  usage();
 	}
@@ -87,7 +100,7 @@ void getargs( double& deltaTsigma, TString& filename,  int argc, char **argv )
   }
   }
 
-int vdcsimgen(TString filename, double deltaTsigma)
+int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 {
   // Create a new ROOT binary machine independent file.
   // This file is now becoming the current directory.
@@ -103,9 +116,13 @@ int vdcsimgen(TString filename, double deltaTsigma)
   THaVDCSimConditions *s = new THaVDCSimConditions;
   s->set(s->wireHeight, 0, .026, .335, .026+.335);
   s->set(s->wireUVOffset, 0,0,.335/sqrt(2.0),.335/sqrt(2.0));
+  
+  //set other condition parameters
   s->numWires = 368;
   s->deltaTsigma = deltaTsigma;
-  cout << deltaTsigma << endl;
+  s->tdcTimeLimit = 9.0;
+  s->emissionRate = 0.5;  
+  Float_t lamda = s->tdcTimeLimit * s->emissionRate;  
 
   // driftVelocity is in m/ns
   s->set(s->driftVelocities, .0000504, .0000511, .0000509, .0000505);
@@ -154,16 +171,19 @@ int vdcsimgen(TString filename, double deltaTsigma)
   TH1F *hdeltaT6 = new TH1F ("hdeltaT6", "Relative Time (6 hits)", 200, -100, 100);
   TH1F *hdeltaTNoise6 = new TH1F ("hdeltaTNoise6", "Relative Time (6 hits w/ Noise)", 200, -100, 100);
 
-  THaVDCSimEvent *track = new THaVDCSimEvent;
+  THaVDCSimEvent *event = new THaVDCSimEvent;
   TTree *tree = new TTree("tree","VDC Track info");
-  TBranch *trackBranch = tree->Branch("track", "THaVDCSimEvent", &track); 
+  TBranch *eventBranch = tree->Branch("event", "THaVDCSimEvent", &event);
 
   Int_t event_num = 0;
 
   //create 10000 simulated tracks
-  for ( Int_t i=0; i<10000; i++) 
-   {
-    track->event_num = event_num++;
+  for ( Int_t i=0; i<10000; i++)     {
+
+    Int_t tracktype = 0, tracknum = 0;
+
+  newtrk:
+    THaVDCSimTrack *track = new THaVDCSimTrack(tracktype,tracknum);
 
     // create randomized origin and momentum vectors
     track->origin.SetXYZ(gRandom->Rndm(1)*(x2-x1) + x1,gRandom->Gaus(ymean, ysigma),z0);
@@ -171,6 +191,13 @@ int vdcsimgen(TString filename, double deltaTsigma)
     track->momentum.SetTheta(gRandom->Gaus(pthetamean,pthetasigma));
     track->momentum.SetPhi(gRandom->Gaus(pphimean, pphisigma));
     
+    //only increase event counter if a trigger track
+    if(track->type == 0)
+      event->event_num = event_num++;
+    
+    //fill track information
+    event->tracks.Add(track);
+
     //Fill histogram with origin position
     horigin->Fill(track->X(), track->Y());
 
@@ -242,6 +269,12 @@ int vdcsimgen(TString filename, double deltaTsigma)
 	  d0 /= (1+a2/a1);
 	}
 
+	//if there is a second track, generate random time offset
+	if(track->type == 0)
+	  hit->coinTimeOffset = 0;
+	else
+	  hit->coinTimeOffset = gRandom->Rndm(1)*s->tdcTimeLimit; 
+
 	hit->timeN = (timeOffsets[k+j*s->numWires] - 2*(t 
 	  // Correction for the velocity of the track
 	  // This correction is negligible, because of high momentum
@@ -251,7 +284,7 @@ int vdcsimgen(TString filename, double deltaTsigma)
 	  //+ d*sqrt(pow(tanThetaPrime,2)+1)/track->momentum.Mag()
 	  
 	  // Correction for ionization drift velocities
-	  + d0/s->driftVelocities[j]));
+	  + d0/s->driftVelocities[j])) + hit->coinTimeOffset;
 
 	// reject data that the noise filter would
 	// This shouldn't affect our data at all
@@ -263,7 +296,7 @@ int vdcsimgen(TString filename, double deltaTsigma)
 	}
 	*/
 	
-	hit->time = hit->timeN + gRandom->Gaus(deltaTmean, deltaTsigma); 
+	hit->time = hit->timeN + gRandom->Gaus(deltaTmean, deltaTsigma) + hit->coinTimeOffset; 
 	  //time with additional noise to account for random walk nature of ions
 	  //mean & sigma used based on experimental results (Fissum et all paper, fig 13)
 
@@ -276,8 +309,15 @@ int vdcsimgen(TString filename, double deltaTsigma)
 	
 	counter++;  //increase counter
 
-	if (hit->wirenum < 0 || hit->wirenum > 367) 
-	{
+	//check to assure hit is within bounds	
+	if (hit->wirenum < 0 || hit->wirenum > 367){
+	  delete hit;
+	  continue;
+	}
+
+	//simulate efficiency of wires.
+	double workFail = gRandom->Rndm(1);
+	if(workFail > wireEff){
 	  delete hit;
 	  continue;
 	}
@@ -291,7 +331,9 @@ int vdcsimgen(TString filename, double deltaTsigma)
 	  hwire->Fill(k);
 	}
 
-	track->wirehits[j]->Add(hit);
+	//fill wirehit information
+	event->wirehits[j]->Add(hit);
+	track->hits[j].Add(hit);
 
       } //closes loop going through each hit wire
 
@@ -323,11 +365,25 @@ int vdcsimgen(TString filename, double deltaTsigma)
 
     }//closes loop going through each plane
 
+    //if target track , decide if there will be coincident track
+//     if(track->type == 0){
+//       double secondTrack = gRandom->Rndm(1);
+//       if( secondTrack <= ( exp(-lamda) * lamda*lamda ) /2.0 )
+// 	track->type = 1;
+//     }
+//     else if( track->type == 1)
+//       track->type == 0;  //set back to trigger track
+//
+    // tracktype = 1;
+    // tracknum++;
+    // goto newtrk;
+
     //fill the tree
-    trackBranch->Fill();
+    eventBranch->Fill();
     
     //clean up
-    track->Clear();
+    event->Clear();
+
    } //closes loop going through 10000 trials
 
   // Save SOME objects in this file
@@ -340,6 +396,7 @@ int vdcsimgen(TString filename, double deltaTsigma)
   hnumwiresU2->Write();
   hnumwiresV2->Write();
   horigin->Write();
+
   hdrift->Write();
   hdrift2->Write();
   hdriftNoise->Write();

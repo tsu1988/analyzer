@@ -22,6 +22,8 @@ class THaVDCSimConditions : public TObject {
   TString Prefixes[4];  //array of prefixes to use
   int numWires;   //number of wires in each chamber
   double deltaTsigma;  //sigma value of noise distribution 
+  Float_t tdcTimeLimit;  //window of time the tdc reads (in ns)
+  Float_t emissionRate;  //rate particles are emitted from target (in particles/ns)
 
   void set(Float_t *something,
 	   Float_t a, Float_t b, Float_t c, Float_t d);
@@ -38,6 +40,7 @@ public:
   Int_t wirenum; // Wire number
   Float_t time; // Time of wire hit
   Float_t timeN; //time of wire hit with additional noise
+  Float_t coinTimeOffset; //time offset of the coincident track
 
   ClassDef (THaVDCSimWireHit, 2) // Simple Wirehit class
 };
@@ -45,46 +48,41 @@ public:
 class THaVDCSimEvent : public TObject {
 public:
   THaVDCSimEvent();
-  ~THaVDCSimEvent();
+  virtual ~THaVDCSimEvent();
 
   // Administrative data
   Int_t event_num;
 
-  // "Real" data
-  TVector3 origin; // Origin of track
-  TVector3 momentum; // Momentum of track
-  Double_t X() {return origin.X();}
-  Double_t Y() {return origin.Y();}
-  Double_t Theta() {return tan(momentum.Theta());}
-
   // "Simulated" data
   TList *wirehits[4]; //list of hits for each set of wires (u1,v1,u2,v2)
+  TList tracks;  //list of tracks for each plane
 
   virtual void Clear( const Option_t* opt="" );
 
   ClassDef (THaVDCSimEvent, 1) // Simple simulated track class
 };
 
-class THaVDCSimCluster : public TObject {
- public:
-  THaVDCSimCluster();
+class THaVDCSimTrack : public TObject {
+ public: 
+  THaVDCSimTrack(Int_t type = 0, Int_t num = 0)
+    : type(type), layer(0), track_num(num) {}
 
-  Int_t numHitWires;
-  Int_t wiresHit[numHitWires];
-  Float_t tdcTimes[numHitWires];
-  Float_t tdcTimesN[numHitWires];
+  TVector3 origin; // Origin of track
+  TVector3 momentum; // Momentum of track
+  Double_t X() {return origin.X();}
+  Double_t Y() {return origin.Y();}
+  Double_t Theta() {return tan(momentum.Theta());}
 
-  ClassDef (THaVDCSimCluster, 1)   //simple cluster class
-};
+  Int_t type;   //type of track. 0 = trigger, 1 = coincident, 2 = delta ray, 3 = cosmic ray
+  Int_t layer;  //layer of material track originated from. 0 = target, 1 = vacuum window, 2 = vdc frame etc.
+  Int_t track_num;  //track index
 
-class THaVDCSimClstEvent : public TObject {
- public:
-  THaVDCSimClstEvent();
+  TList hits[4]; // Hits of this track only in each wire plane
 
-  Int_t tracknum;
-  TList *clusters[4];  //list of clusters for each plane of wires
-
-  ClassDef (THaVDCSimClstEvent, 1)  //simple simulated cluster class
+  virtual void Clear( const Option_t* opt="" );
+  virtual void Print( const Option_t* opt="" );
+  
+  ClassDef (THaVDCSimTrack, 1) // Simluated VDC track
 };
 
 #endif

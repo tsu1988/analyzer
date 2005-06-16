@@ -4,13 +4,30 @@
 ClassImp(THaVDCSimWireHit);
 ClassImp(THaVDCSimEvent);
 ClassImp(THaVDCSimConditions);
+ClassImp(THaVDCSimTrack);
 
 #include <iostream>
 using namespace std;
 
-THaVDCSimEvent::THaVDCSimEvent() {
+void THaVDCSimTrack::Clear( const Option_t* opt ) {
   for (int i = 0; i < 4; i++)
+    hits[i].Clear(opt);
+}
+
+void THaVDCSimTrack::Print( const Option_t* opt ) {
+  //TObject::Print(opt);
+  cout << "Track number = " << track_num << ", type = " << type 
+       << ", layer = " << layer << ", obj = " << hex << this << dec << endl;
+  cout << "  Origin   = (" << origin.X() << "," << origin.Y() << "," << origin.Z() << ")" << endl;
+  cout << "  Momentum = (" << momentum.X() << "," << momentum.Y() << "," << momentum.Z() << ")" << endl;
+  cout << "  #hits = " << hits[0].GetSize() << ", " << hits[1].GetSize() << ", "
+       << hits[2].GetSize() << ", " << hits[3].GetSize() << ", " << endl;
+}
+
+THaVDCSimEvent::THaVDCSimEvent() {
+  for (int i = 0; i < 4; i++){
     wirehits[i] = new TList;
+  }
 }
 
 THaVDCSimEvent::~THaVDCSimEvent() {
@@ -21,7 +38,18 @@ THaVDCSimEvent::~THaVDCSimEvent() {
 
 void THaVDCSimEvent::Clear( const Option_t* opt ) {
   for (Int_t i = 0; i < 4; i++)
-    wirehits[i]->Delete();
+    wirehits[i]->Delete(opt);
+
+  // Debug
+#ifdef DEBUG
+  cout << tracks.GetSize() << endl;
+  for( int i=0; i<tracks.GetSize(); i++ ) {
+    THaVDCSimTrack* track = (THaVDCSimTrack*)tracks.At(i);
+    track->Print();
+  }
+#endif
+
+  tracks.Delete(opt);
 }
 
 void THaVDCSimConditions::set(Float_t *something,
