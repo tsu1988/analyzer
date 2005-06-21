@@ -3,13 +3,15 @@
 
 #include "TFile.h"
 #include "TTree.h"
+#include "TError.h"
 #include <cstdio>
 #include <evio.h>
 
 using namespace std;
 
 THaVDCSimRun::THaVDCSimRun(const char* description) :
-  THaRunBase(description), event(0), nentries(0), entry(0) 
+  THaRunBase(description), rootFile(0), tree(0), branch(0),
+  event(0), nentries(0), entry(0)
 {
   // Constructor
 }
@@ -20,6 +22,7 @@ THaVDCSimRun::THaVDCSimRun(const THaVDCSimRun &run)
   rootFile = NULL;
   tree = NULL;
   event = NULL;
+  branch = NULL;
 }
 
 THaVDCSimRun &THaVDCSimRun::operator=(const THaVDCSimRun &rhs)
@@ -53,7 +56,17 @@ Int_t THaVDCSimRun::Open()
   event = 0;
 
   tree = static_cast<TTree*>(rootFile->Get("tree"));
-  branch = tree->GetBranch("track");
+  if( !tree ) {
+    Error( "THaVDCSimRun:Open", 
+	   "Tree 'tree' does not exist in the input file. Have a nice day." );
+    return -2;
+  }
+  branch = tree->GetBranch("event");
+  if( !branch ) {
+    Error( "THaVDCSimRun:Open", 
+	   "Branch 'event' does not exist in the input tree. Have a nice day." );
+    return -3;
+  }
   branch->SetAddress(&event);
 
   nentries = static_cast<Int_t>(tree->GetEntries());
