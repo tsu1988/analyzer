@@ -63,7 +63,7 @@ void THaVDCSimConditions::set(Float_t *something,
 Int_t THaVDCSimConditions::ReadDatabase(int j, float* timeOffsets, const int numWires)
   {
     //open the file as read only
-    FILE* file = fopen("/u/home/orsborn/vdcsim/DB/20030415/db_L.vdc.dat", "r");
+    FILE* file = fopen(databaseFile, "r");
     if( !file ) return 1;
 
     // Use default values until ready to read from database
@@ -92,10 +92,18 @@ Int_t THaVDCSimConditions::ReadDatabase(int j, float* timeOffsets, const int num
       return 1;
     }
     
-    for(int i = 0; i<7; i++)
-      fgets(buff, LEN, file);  //skip 7 lines to get to actual offset data
+    for(int i = 0; i<5; i++)
+      fgets(buff, LEN, file);  //skip 5 lines to get to drift velocity
+    
+    //read in drift velocity
+    Float_t driftVel = 0.0;
+    fscanf(file, "%f", &driftVel);
+    driftVelocities[j] = driftVel/1000000000.0;   //convert to m/ns
+
+    fgets(buff, LEN, file); // Read to end of line
+    fgets(buff, LEN, file); // Skip line
   
-    //Found the entry for this plane, so read time offsets and wire numbers
+    //Found the offset entries for this plane, so read time offsets and wire numbers
     int*   wire_nums    = new int[4*numWires];
 
     for (int i = j*numWires; i < (j+1)*numWires; i++) {

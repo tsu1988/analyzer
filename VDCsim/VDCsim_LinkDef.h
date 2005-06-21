@@ -9,5 +9,6 @@
 #pragma link C++ class THaVDCSimConditions+;
 #pragma link C++ class THaVDCSimDecoder+;
 #pragma link C++ class THaVDCSimRun+;
+#pragma link C++ class THaVDCSimTrack+;
 
 #endif

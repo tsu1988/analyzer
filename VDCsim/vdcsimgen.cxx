@@ -12,10 +12,6 @@
 
 #include "THaVDCSim.h"
 
-int vdcsimgen(TString filename, double deltaTsigma, double wireEff);
-void getargs( TString& filename ,double& deltaTsigma, double& wireEff, int argc, char*argv[]);
-void usage();
-
 #ifndef __CINT__
 #include "TFile.h"
 #include "TH1.h"
@@ -29,32 +25,44 @@ void usage();
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <math.h>
+#include <fstream>
 
 using namespace std;
+
+int vdcsimgen( THaVDCSimConditions* s );
+void getargs( int argc, char*argv[], THaVDCSimConditions* s );
+void usage();
 
 //______________________________________________________________________________
 int main(int argc, char *argv[])
 {
-   //set variable defaults
-  TString filename = "vdctracks.root"; 
-  double deltaTsigma = 4.5;
-  double wireEff = 1;
+  //declare simulation conditions class
+  THaVDCSimConditions *s = new THaVDCSimConditions;
 
-   getargs( filename, deltaTsigma, wireEff, argc, argv);
-   return vdcsimgen( filename, deltaTsigma, wireEff);
+  getargs( argc, argv, s );
+  int ret = vdcsimgen( s );
+
+  delete s;
+  return ret;
 }
 #endif
 
 void usage()
 {
   printf("%s \n", "Usage: %s [-s output file name] [-n noise]");
-  puts(" -s <output file name.> Default is 'vcdtracks.root'");
-  puts(" -n <noise> Simulated noise sigma value (>0). Default is 4.5");
-  puts(" -e <wire efficiency> Wire Efficiency (decimal form). Default is 1");
+  puts(" -s <Output File Name> Default is 'vcdtracks.root'");
+  puts(" -f <Textfile Name> Must be of form name.data(). Default is 'trackInfo.data()'");
+  puts(" -a <Number of trials> Controls number of events generated. Default is 10,000");
+  puts(" -d <Database file name> Default is '/u/home/orsborn/vdcsim/DB/20030415/db_L.vdc.dat' ");
+  puts(" -n <Noise> Simulated noise sigma value (>0). Default is 4.5");
+  puts(" -e <Wire Efficiency> (In decimal form). Default is 1");
+  puts(" -r <emission rate> Target's Emission Rate (in particles/ns). Default is 0.000002 (2 kHz)");
+  puts (" -t <tdc time window> Length of time the TDCs can collect data (in ns). Default is 900");
   exit(1);
 }
 
-void getargs( TString& filename, double& deltaTsigma, double& wireEff, int argc, char **argv )
+void getargs( int argc, char **argv, THaVDCSimConditions* s )
 {
   while (argc-- >1){
     char *opt = *++argv;
@@ -67,7 +75,36 @@ void getargs( TString& filename, double& deltaTsigma, double& wireEff, int argc,
 	      usage();
 	    opt = *++argv;
 	   }
-	  filename = opt;
+	  s->filename = opt;
+	  opt = "?";
+	  break;
+	case 'f':
+	  if(!*++opt){
+	    if (argc-- < 1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  s->textFile = opt;
+	  opt = "?";
+	  break;
+	case 'a':
+	  if(!*++opt){
+	    if (argc-- < 1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  s->numTrials = atoi(opt);
+	  if ( s->numTrials < 0.0 )
+	    usage();
+	  opt = "?";
+	  break;
+	case 'd':
+	  if(!*++opt){
+	    if (argc-- <1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  s->databaseFile = opt;
 	  opt = "?";
 	  break;
 	case 'n':
@@ -76,8 +113,8 @@ void getargs( TString& filename, double& deltaTsigma, double& wireEff, int argc,
 	      usage();
 	    opt = *++argv;
 	  }
-	  deltaTsigma = atof(opt);
-	  if( deltaTsigma < 0.0 )
+	  s->noiseSigma = atof(opt);
+	  if( s->noiseSigma < 0.0 )
 	    usage();
 	  opt = "?";
 	  break;
@@ -87,8 +124,30 @@ void getargs( TString& filename, double& deltaTsigma, double& wireEff, int argc,
 	      usage();
 	    opt = *++argv;
 	  }
-	  wireEff = atof(opt);
-	  if( wireEff > 1.0)
+	  s->wireEff = atof(opt);
+	  if( s->wireEff > 1.0)
+	    usage();
+	  opt = "?";
+	  break;
+	case 'r':
+	  if(!*++opt){
+	    if(argc-- <1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  s->emissionRate = atof(opt);
+	  if( s->emissionRate < 0.0)
+	    usage();
+	  opt = "?";
+	  break;
+	case 't':
+	  if(!*++opt){
+	    if(argc-- <1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  s->tdcTimeLimit = atof(opt);
+	  if( s->tdcTimeLimit < 0.0)
 	    usage();
 	  opt = "?";
 	  break;
@@ -100,32 +159,21 @@ void getargs( TString& filename, double& deltaTsigma, double& wireEff, int argc,
   }
   }
 
-int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
+int vdcsimgen( THaVDCSimConditions* s )
 {
   // Create a new ROOT binary machine independent file.
   // This file is now becoming the current directory.
- TFile hfile(filename,"RECREATE","ROOT file for VDC simulation");
-
-  // Define the appropriate range for incident tracks
-  const Float_t x1(-.8), x2(.9), ymean(0), ysigma(.01), z0(-1);
-  const Float_t pthetamean(TMath::Pi()/4.0), 
-    pthetasigma(atan(1.1268)-TMath::Pi()/4.0), pmag0(1), 
-    pphimean(0), pphisigma(atan(.01846)), deltaTmean(0);
+  TFile hfile(s->filename,"RECREATE","ROOT file for VDC simulation");
 
   // Define the height of the sense wires
-  THaVDCSimConditions *s = new THaVDCSimConditions;
-  s->set(s->wireHeight, 0, .026, .335, .026+.335);
-  s->set(s->wireUVOffset, 0,0,.335/sqrt(2.0),.335/sqrt(2.0));
+  s->set(s->wireHeight, 0, s->cellHeight, s->planeSpacing, s->cellHeight + s->planeSpacing);
+  s->set(s->wireUVOffset, 0,0, s->planeSpacing/sqrt(2.0), s->planeSpacing/sqrt(2.0));
   
-  //set other condition parameters
-  s->numWires = 368;
-  s->deltaTsigma = deltaTsigma;
-  s->tdcTimeLimit = 9.0;
-  s->emissionRate = 0.5;  
-  Float_t lamda = s->tdcTimeLimit * s->emissionRate;  
+  //calculate probability using Poisson distribution
+  Float_t probability = 1.0 - exp(-s->emissionRate*s->tdcTimeLimit);
 
   // driftVelocity is in m/ns
-  s->set(s->driftVelocities, .0000504, .0000511, .0000509, .0000505);
+  // s->set(s->driftVelocities, .0000504, .0000511, .0000509, .0000505);
 
   //hardcode prefixes for wire planes.
   s->Prefixes[0] = "L.vdc.u1";
@@ -170,45 +218,79 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
   TH1F *hdeltaTNoise5 = new TH1F ("hdeltaTNoise5", "Relative Time (5 hits w/ Noise)", 200, -100, 100); 
   TH1F *hdeltaT6 = new TH1F ("hdeltaT6", "Relative Time (6 hits)", 200, -100, 100);
   TH1F *hdeltaTNoise6 = new TH1F ("hdeltaTNoise6", "Relative Time (6 hits w/ Noise)", 200, -100, 100);
+  TH1F *hnumtracks = new TH1F ( "hnumtracks", "Number of Tracks Per Event", 5, 0, 5);
 
   THaVDCSimEvent *event = new THaVDCSimEvent;
   TTree *tree = new TTree("tree","VDC Track info");
   TBranch *eventBranch = tree->Branch("event", "THaVDCSimEvent", &event);
 
-  Int_t event_num = 0;
+  //open text file to put track info into
+  ofstream textFile(s->textFile, ios::out);
+  if(!textFile.is_open())
+    cout << "Error Opening Text File\n";
+
+  //write important sim conditions to text file
+  textFile << "******Simulation Conditions******\n"
+	   << "Output File Name = " << s->filename << endl
+	   << "Database File Read = " << s->databaseFile << endl
+	   << "Number of Trials = " << s->numTrials << endl
+	   << "Noise Sigma = " << s->noiseSigma << " ns\n"
+	   << "Wire Efficiency = " << s->wireEff << endl
+	   << "Emission Rate = " << s->emissionRate << " particle/ns\n"
+	   << "TDC Time Window = " << s->tdcTimeLimit << " ns\n\n";
 
   //create 10000 simulated tracks
-  for ( Int_t i=0; i<10000; i++)     {
+  for ( Int_t i=0; i< s->numTrials; i++) {
 
+    //set track type, track number, and event number each time loop executes
     Int_t tracktype = 0, tracknum = 0;
+    event->event_num = i + 1;
+    textFile << "\nEvent: " << event->event_num << endl << "***************************************\n";
 
   newtrk:
     THaVDCSimTrack *track = new THaVDCSimTrack(tracktype,tracknum);
 
-    // create randomized origin and momentum vectors
-    track->origin.SetXYZ(gRandom->Rndm(1)*(x2-x1) + x1,gRandom->Gaus(ymean, ysigma),z0);
-    track->momentum.SetXYZ(0,0,pmag0);
-    track->momentum.SetTheta(gRandom->Gaus(pthetamean,pthetasigma));
-    track->momentum.SetPhi(gRandom->Gaus(pphimean, pphisigma));
-    
-    //only increase event counter if a trigger track
-    if(track->type == 0)
-      event->event_num = event_num++;
-    
-    //fill track information
-    event->tracks.Add(track);
+    // create randomized origin and momentum vectors for trigger and coincident tracks
+    if(track->type == 0 || track->type == 1){
+      track->origin.SetXYZ(gRandom->Rndm(1)*(s->x2-s->x1) + s->x1, gRandom->Gaus(s->ymean, s->ysigma), s->z0);
+      track->momentum.SetXYZ(0,0,s->pmag0);
+      track->momentum.SetTheta(gRandom->Gaus(s->pthetamean, s->pthetasigma));
+      track->momentum.SetPhi(gRandom->Gaus(s->pphimean, s->pphisigma));
+    }
+
+    //write track info to text file
+    textFile << "Track number = " << tracknum << ", type = " << tracktype << endl
+	     << "Origin = ( " << track->origin.X() << ", " << track->origin.Y() << ", " 
+	     << track->origin.Z() << " )" << endl
+	     << "Momentum = ( " << track->momentum.X() << ", " << track->momentum.Y() <<", "
+	     << track->momentum.Z() << " )\n";
 
     //Fill histogram with origin position
     horigin->Fill(track->X(), track->Y());
 
+    //generate a time offset for the track
+    if(track->type == 0)
+      track->timeOffset = 0.0;
+    else if(track->type == 1)
+      track->timeOffset = gRandom->Rndm(1)*s->tdcTimeLimit; 
+    //****Note******* 
+    //Here we use a linear approximation of the exponential 
+    //probability of s->timeOffset. 
+    //Assuming low emission rates (< 10kHz) and time windows of ~100 ms, this is acceptable.
+
+
+    //fill track information
+    event->tracks.Add(track);
+
     //run through each plane (u1, v1, u2, v2)
     for (Int_t j=0; j < 4; j++) 
     {    
+      textFile << "\nPlane: " << j << endl;
       // figuring out which wires are hit
       
       //calculate time it takes to hit wire plane and the position at which it hits
-      Float_t t = (s->wireHeight[j]-track->origin.Z())/track->momentum.Z();
-      TVector3 position = track->origin + t*track->momentum;
+      Float_t travelTime = (s->wireHeight[j]-track->origin.Z())/track->momentum.Z();
+      TVector3 position = track->origin + travelTime*track->momentum;
  
       // Get it into (u,v,z) coordinates for u plane
       // (v,-u,z) coordinates for v plane
@@ -238,13 +320,20 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 
       Int_t wirehitFirst, wirehitLast, pivotWire, counter = 0;
       Float_t times[6];
-      Float_t timesN[6];  //arrays to hold times when 5 wires hit (to calc. relative time)
+      Float_t noiseTimes[6];  //arrays to hold times when 5 wires hit (to calc. relative time)
 
-      pivotWire = static_cast<Int_t>(x/.00424);
-      wirehitFirst = static_cast<Int_t>((x - .026/tanThetaPrime/2)/.00424);
-      wirehitLast = static_cast<Int_t>((x + .026/tanThetaPrime/2)/.00424);
+      pivotWire = static_cast<Int_t>(x/s->cellWidth);
+      wirehitFirst = static_cast<Int_t>((x - s->cellHeight/tanThetaPrime/2)/s->cellWidth);
+      wirehitLast = static_cast<Int_t>((x + s->cellHeight/tanThetaPrime/2)/s->cellWidth);
+      
+      //write the hit wires to text file
+      textFile << "Wires Hit = \t\t";
+      for(int m = wirehitFirst; m <= wirehitLast; m++)
+	textFile << m << "\t\t";
+      textFile << endl << "Hit Times (ns) = \t";
 
       Int_t numwires = wirehitLast - wirehitFirst + 1;
+      bool aWireFailed = false;
 
       //loop through each hit wire
       for (Int_t k=wirehitFirst; k<=wirehitLast; k++) 
@@ -255,7 +344,7 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 	hit->wirenum = k;
 
 	// distance from crossing point to wire "k"
-	Float_t d = x - (k+.5)*.00424;
+	Float_t d = x - (k+.5)* s->cellWidth;
 	// Actual drift distance
 	Float_t d0 = TMath::Abs(d)*tanThetaPrime;
 
@@ -269,13 +358,12 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 	  d0 /= (1+a2/a1);
 	}
 
-	//if there is a second track, generate random time offset
-	if(track->type == 0)
-	  hit->coinTimeOffset = 0;
-	else
-	  hit->coinTimeOffset = gRandom->Rndm(1)*s->tdcTimeLimit; 
+	hit->rawTime = d0;
 
-	hit->timeN = (timeOffsets[k+j*s->numWires] - 2*(t 
+	textFile << hit->rawTime << "\t";
+
+	//convert rawTime to tdctime
+	hit->rawTDCtime = (timeOffsets[k+j*s->numWires] - s->tdcConvertFactor*(travelTime 
 	  // Correction for the velocity of the track
 	  // This correction is negligible, because of high momentum
 
@@ -284,7 +372,7 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 	  //+ d*sqrt(pow(tanThetaPrime,2)+1)/track->momentum.Mag()
 	  
 	  // Correction for ionization drift velocities
-	  + d0/s->driftVelocities[j])) + hit->coinTimeOffset;
+	  + hit->rawTime/s->driftVelocities[j] + track->timeOffset));
 
 	// reject data that the noise filter would
 	// This shouldn't affect our data at all
@@ -296,38 +384,44 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 	}
 	*/
 	
-	hit->time = hit->timeN + gRandom->Gaus(deltaTmean, deltaTsigma) + hit->coinTimeOffset; 
+	hit->time = hit->rawTDCtime + s->tdcConvertFactor*(gRandom->Gaus(s->noiseMean, s->noiseSigma)); 
 	  //time with additional noise to account for random walk nature of ions
-	  //mean & sigma used based on experimental results (Fissum et all paper, fig 13)
 
 	//if 4,5, or 6 wires hit, keep track of each time 
 	if(numwires >= 4 && numwires <= 6)
 	{
-	  times[counter] = hit->time;
-	  timesN[counter] = hit->timeN;
+	  times[counter] = hit->rawTDCtime;
+	  noiseTimes[counter] = hit->time;
 	}
 	
 	counter++;  //increase counter
 
 	//check to assure hit is within bounds	
-	if (hit->wirenum < 0 || hit->wirenum > 367){
+	if (hit->wirenum < 0 || hit->wirenum > s->numWires - 1){
+	  delete hit;
+	  continue;
+	}
+ 	//make sure hit time falls within time tdc is open
+	if (hit->time < 0.0){
 	  delete hit;
 	  continue;
 	}
 
 	//simulate efficiency of wires.
 	double workFail = gRandom->Rndm(1);
-	if(workFail > wireEff){
+	if(workFail > s->wireEff){
 	  delete hit;
+	  hit->wireFail = true;
+	  aWireFailed = true;
 	  continue;
 	}
 
 	//fill histograms for v1 plane
 	if (j == 1) 
 	{
-	  hdrift->Fill((hit->timeN));
+	  hdrift->Fill((hit->rawTDCtime));
 	  hdriftNoise->Fill((hit->time));
-	  hdrift2->Fill(wirehitLast-wirehitFirst+1, (hit->timeN));
+	  hdrift2->Fill(wirehitLast-wirehitFirst+1, (hit->time));
 	  hwire->Fill(k);
 	}
 
@@ -336,7 +430,17 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 	track->hits[j].Add(hit);
 
       } //closes loop going through each hit wire
-
+      
+      //write tdc times to text file
+      textFile << endl << "Raw TDC Times = \t";
+      for(int m = 0; m < numwires; m++)
+	textFile << times[m] << "\t\t";
+      textFile << endl << "Final TDC Times = \t";
+      for(int m = 0; m < numwires; m++)
+	textFile << noiseTimes[m] << "\t\t";
+      textFile << endl;
+      
+      //fill number of wire histograms for each plane
       if(j == 0)      
 	hnumwiresU1->Fill(wirehitLast - wirehitFirst + 1);
       else if(j == 1)
@@ -347,46 +451,71 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
 	hnumwiresV2->Fill(wirehitLast - wirehitFirst +1);
 
       // calculate relative time and store in histograms for 4, 5, and 6 hits
-      if(numwires == 4)
-        {
-	  hdeltaTNoise4->Fill((times[0] - times[1]) - (times[3] - times[2]));
-	  hdeltaT4->Fill((timesN[0] - timesN[1]) - (timesN[3] - timesN[2]));
-        }
-      else if(numwires == 5)
-	{
-	  hdeltaTNoise5->Fill((times[0] - times[1]) - (times[4] - times[3]));
-	  hdeltaT5->Fill((timesN[0] - timesN[1]) - (timesN[4] - times[3]));
+      // use 10^38 if a wire failed during the hit (since resolution would be completely lost!)
+      if(aWireFailed){
+	if(numwires == 4){
+	  hdeltaTNoise4->Fill(100000000000000000000000000000000000000.0);
+	  hdeltaT4->Fill(100000000000000000000000000000000000000.0);
 	}
-      else if(numwires == 6)
-	{
-	  hdeltaTNoise6->Fill((times[0] - times[1]) - (times[5] - times[4]));
-	  hdeltaT6->Fill((timesN[0] - timesN[1]) - (timesN[5] - timesN[4]));
+	else if(numwires == 5){
+	  hdeltaTNoise5->Fill(100000000000000000000000000000000000000.0);
+	  hdeltaT5->Fill(100000000000000000000000000000000000000.0);
 	}
+        else if(numwires == 6){
+	  hdeltaTNoise6->Fill(100000000000000000000000000000000000000.0);
+	  hdeltaT6->Fill(100000000000000000000000000000000000000.0);
+	}
+      }
+       else{
+	if(numwires == 4)
+	  {
+	    hdeltaTNoise4->Fill((noiseTimes[0] - noiseTimes[1]) - (noiseTimes[3] - noiseTimes[2]));
+	    hdeltaT4->Fill((times[0] - times[1]) - (times[3] - times[2]));
+	  }
+	else if(numwires == 5)
+	  {
+	    hdeltaTNoise5->Fill((noiseTimes[0] - noiseTimes[1]) - (noiseTimes[4] - noiseTimes[3]));
+	    hdeltaT5->Fill((times[0] - times[1]) - (times[4] - times[3]));
+	  }
+	else if(numwires == 6)
+	  {
+	    hdeltaTNoise6->Fill((noiseTimes[0] - noiseTimes[1]) - (noiseTimes[5] - noiseTimes[4]));
+	    hdeltaT6->Fill((times[0] - times[1]) - (times[5] - times[4]));
+	  }
+       }
 
     }//closes loop going through each plane
 
     //if target track , decide if there will be coincident track
-//     if(track->type == 0){
-//       double secondTrack = gRandom->Rndm(1);
-//       if( secondTrack <= ( exp(-lamda) * lamda*lamda ) /2.0 )
-// 	track->type = 1;
-//     }
-//     else if( track->type == 1)
-//       track->type == 0;  //set back to trigger track
-//
-    // tracktype = 1;
-    // tracknum++;
-    // goto newtrk;
+    if(track->type == 0){
+       double secondTrack = gRandom->Rndm(1);
+       if( secondTrack <= probability ){
+	tracktype = 1;
+	tracknum++;
+	goto newtrk;  //go back to where new tracks are created, still within the same event
 
-    //fill the tree
+       }
+    }
+
+    //*******all tracks for the single event have now been generated*******
+   
+    //fill histogram of number of tracks per event
+    hnumtracks->Fill(tracknum + 1);
+    
+    //fill the tree with event information
     eventBranch->Fill();
     
-    //clean up
+    //clean up. This clears wirehits Tlists and the track TList
     event->Clear();
 
-   } //closes loop going through 10000 trials
+   } //closes loop going through all the trials
 
-  // Save SOME objects in this file
+  //close text file
+  textFile.close();
+  if(textFile.is_open())
+    cout << "Error Closing Text File\n";
+
+  // Save objects in this file
   tree->Write();
   s->Write("s");
 
@@ -396,7 +525,6 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
   hnumwiresU2->Write();
   hnumwiresV2->Write();
   horigin->Write();
-
   hdrift->Write();
   hdrift2->Write();
   hdriftNoise->Write();
@@ -406,7 +534,8 @@ int vdcsimgen(TString filename, double deltaTsigma, double wireEff)
   hdeltaTNoise5->Write();
   hdeltaT6->Write();
   hdeltaTNoise6->Write();
-
+  hnumtracks->Write();
+ 
   // Close the file.
   hfile.Close();
 
