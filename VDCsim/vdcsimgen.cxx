@@ -302,6 +302,7 @@ int vdcsimgen( THaVDCSimConditions* s )
       
       //find out which range of wires are hit
       
+      //FIXME: THIS IS WRONG!!!
       Float_t tanThetaPrime = track->Theta()*sqrt(2.0);
       Double_t a1 = 0.0, a2 = 0.0;
       
@@ -318,13 +319,14 @@ int vdcsimgen( THaVDCSimConditions* s )
       // position in m, 0 = sense wire #0
       Float_t x = position.X() - s->wireUVOffset[j];
 
-      Int_t wirehitFirst, wirehitLast, pivotWire, counter = 0;
+      Int_t wirehitFirst, wirehitLast, counter = 0;
       Float_t times[6];
       Float_t noiseTimes[6];  //arrays to hold times when 5 wires hit (to calc. relative time)
 
-      pivotWire = static_cast<Int_t>(x/s->cellWidth);
-      wirehitFirst = static_cast<Int_t>((x - s->cellHeight/tanThetaPrime/2)/s->cellWidth);
-      wirehitLast = static_cast<Int_t>((x + s->cellHeight/tanThetaPrime/2)/s->cellWidth);
+      wirehitFirst = 
+	static_cast<Int_t>((x - s->cellHeight/tanThetaPrime/2)/s->cellWidth+.5);
+      wirehitLast = 
+	static_cast<Int_t>((x + s->cellHeight/tanThetaPrime/2)/s->cellWidth+.5);
       
       //write the hit wires to text file
       textFile << "Wires Hit = \t\t";
