@@ -52,19 +52,20 @@ void THaVDCSimEvent::Clear( const Option_t* opt ) {
   tracks.Delete(opt);
 }
 
-void THaVDCSimConditions::set(Float_t *something,
-			      Float_t a, Float_t b, Float_t c, Float_t d) {
+void THaVDCSimConditions::set(Double_t *something,
+			      Double_t a, Double_t b, Double_t c, Double_t d) {
   something[0] = a;
   something[1] = b;
   something[2] = c;
   something[3] = d;
 }
 
-Int_t THaVDCSimConditions::ReadDatabase(int j, float* timeOffsets, const int numWires)
+Int_t THaVDCSimConditions::ReadDatabase(int j, Double_t* timeOffsets, const int numWires)
   {
     //open the file as read only
     FILE* file = fopen(databaseFile, "r");
     if( !file ) return 1;
+
 
     // Use default values until ready to read from database
 
@@ -96,8 +97,8 @@ Int_t THaVDCSimConditions::ReadDatabase(int j, float* timeOffsets, const int num
       fgets(buff, LEN, file);  //skip 5 lines to get to drift velocity
     
     //read in drift velocity
-    Float_t driftVel = 0.0;
-    fscanf(file, "%f", &driftVel);
+    Double_t driftVel = 0.0;
+    fscanf(file, "%lf", &driftVel);
     driftVelocities[j] = driftVel/1000000000.0;   //convert to m/ns
 
     fgets(buff, LEN, file); // Read to end of line
@@ -108,8 +109,8 @@ Int_t THaVDCSimConditions::ReadDatabase(int j, float* timeOffsets, const int num
 
     for (int i = j*numWires; i < (j+1)*numWires; i++) {
       int wnum = 0;
-      float offset = 0.0;
-      fscanf(file, " %d %f", &wnum, &offset);
+      Double_t offset = 0.0;
+      fscanf(file, " %d %lf", &wnum, &offset);
       wire_nums[i] = wnum-1; // Wire numbers in file start at 1
       timeOffsets[i] = offset;
     }

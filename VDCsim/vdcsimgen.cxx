@@ -55,7 +55,7 @@ void usage()
   puts(" -f <Textfile Name> Must be of form name.data(). Default is 'trackInfo.data()'");
   puts(" -a <Number of trials> Controls number of events generated. Default is 10,000");
   puts(" -d <Database file name> Default is '/u/home/orsborn/vdcsim/DB/20030415/db_L.vdc.dat' ");
-  puts(" -n <Noise> Simulated noise sigma value (>0). Default is 4.5");
+  puts(" -n <Noise> Simulated noise sigma value (>0). Default is 0.0");
   puts(" -e <Wire Efficiency> (In decimal form). Default is 1");
   puts(" -r <emission rate> Target's Emission Rate (in particles/ns). Default is 0.000002 (2 kHz)");
   puts (" -t <tdc time window> Length of time the TDCs can collect data (in ns). Default is 900");
@@ -170,7 +170,7 @@ int vdcsimgen( THaVDCSimConditions* s )
   s->set(s->wireUVOffset, 0,0, s->planeSpacing/sqrt(2.0), s->planeSpacing/sqrt(2.0));
   
   //calculate probability using Poisson distribution
-  Float_t probability = 1.0 - exp(-s->emissionRate*s->tdcTimeLimit);
+  Double_t probability = 1.0 - exp(-s->emissionRate*s->tdcTimeLimit);
 
   // driftVelocity is in m/ns
   // s->set(s->driftVelocities, .0000504, .0000511, .0000509, .0000505);
@@ -181,9 +181,9 @@ int vdcsimgen( THaVDCSimConditions* s )
   s->Prefixes[2] = "L.vdc.u2";
   s->Prefixes[3] = "L.vdc.v2";
 
-  float timeOffsets[4*s->numWires];
+  Double_t timeOffsets[4*s->numWires];
  
-  //get time offsets from the file (default is 20030415/L.vdc.dat)
+  //get time offsets and drift velocities from the file (default is 20030415/L.vdc.dat)
   for(int j=0; j<4; j++){
     Int_t getoffset = s->ReadDatabase(j, timeOffsets, s->numWires); 
     if(getoffset == 1) 
@@ -239,7 +239,7 @@ int vdcsimgen( THaVDCSimConditions* s )
 	   << "Emission Rate = " << s->emissionRate << " particle/ns\n"
 	   << "TDC Time Window = " << s->tdcTimeLimit << " ns\n\n";
 
-  //create 10000 simulated tracks
+  //create numTrials simulated tracks
   for ( Int_t i=0; i< s->numTrials; i++) {
 
     //set track type, track number, and event number each time loop executes
@@ -278,32 +278,53 @@ int vdcsimgen( THaVDCSimConditions* s )
     //probability of s->timeOffset. 
     //Assuming low emission rates (< 10kHz) and time windows of ~100 ms, this is acceptable.
 
-
     //fill track information
     event->tracks.Add(track);
 
     //run through each plane (u1, v1, u2, v2)
     for (Int_t j=0; j < 4; j++) 
-    {    
-      textFile << "\nPlane: " << j << endl;
-      // figuring out which wires are hit
-      
+    {
       //calculate time it takes to hit wire plane and the position at which it hits
-      Float_t travelTime = (s->wireHeight[j]-track->origin.Z())/track->momentum.Z();
+      Double_t travelTime = (s->wireHeight[j]-track->origin.Z())/track->momentum.Z();
       TVector3 position = track->origin + travelTime*track->momentum;
- 
-      // Get it into (u,v,z) coordinates for u plane
+
+      //write position on the u1 plane in TRANSPORT coordinates to 
+      //track info and text file.
+      if(j == 0){
+	track->ray[0] = position.X();
+	track->ray[1] = position.Y();
+	if(track->momentum.Z() != 0.0){
+	  track->ray[2] = track->momentum.X()/track->momentum.Z();
+	  track->ray[3] = track->momentum.Y()/track->momentum.Z();
+	} else{
+	  track->ray[2] = 0.0;
+	  track->ray[3] = 0.0;
+	}	
+	track->ray[4] = position.Z();  //should be zero or very very close! 
+	textFile << "Position (x, y, Theta, Phi, z) = \t( "
+		 << track->ray[0] << ",\t" << track->ray[1] << ",\t" 
+		 << track->ray[2] << ",\t" << track->ray[3] <<", \t" 
+		 << track->ray[4] << " )\n";
+      }
+      textFile << "\nPlane: " << j << endl;
+
+      Double_t tanThetaPrime;
+      //FOR TEST PURPOSES
+      //Stick tanThetaPrime to 1 (i.e. thetaPrime = 45 degrees)
+      tanThetaPrime = 1.0;
+//        if(j%2 == 0)
+//  	tanThetaPrime = sqrt(2.0)/(track->ray[2] + track->ray[3]);
+//        else
+//  	tanThetaPrime = sqrt(2.0)/(track->ray[2] - track->ray[3]);
+
+      // Get position into (u,v,z) coordinates for u plane
       // (v,-u,z) coordinates for v plane
       if (j%2 == 0)
 	position.RotateZ(TMath::Pi()/4.0);
       else
 	position.RotateZ(-TMath::Pi()/4.0);
-	
-      
+     
       //find out which range of wires are hit
-      
-      //FIXME: THIS IS WRONG!!!
-      Float_t tanThetaPrime = track->Theta()*sqrt(2.0);
       Double_t a1 = 0.0, a2 = 0.0;
       
       // Find the values of a1 and a2 by evaluating the proper polynomials
@@ -317,16 +338,12 @@ int vdcsimgen( THaVDCSimConditions* s )
       a2 += fA2tdcCor[0];
       
       // position in m, 0 = sense wire #0
-      Float_t x = position.X() - s->wireUVOffset[j];
+      Double_t x = position.X() - s->wireUVOffset[j];
 
-      Int_t wirehitFirst, wirehitLast, counter = 0;
-      Float_t times[6];
-      Float_t noiseTimes[6];  //arrays to hold times when 5 wires hit (to calc. relative time)
+      Int_t wirehitFirst, wirehitLast;
 
-      wirehitFirst = 
-	static_cast<Int_t>((x - s->cellHeight/tanThetaPrime/2)/s->cellWidth+.5);
-      wirehitLast = 
-	static_cast<Int_t>((x + s->cellHeight/tanThetaPrime/2)/s->cellWidth+.5);
+      wirehitFirst = static_cast<Int_t>((x - (s->cellHeight/2.0)/tanThetaPrime)/s->cellWidth + 0.5);
+      wirehitLast = static_cast<Int_t>((x + (s->cellHeight/2.0)/tanThetaPrime)/s->cellWidth + 0.5);
       
       //write the hit wires to text file
       textFile << "Wires Hit = \t\t";
@@ -336,6 +353,18 @@ int vdcsimgen( THaVDCSimConditions* s )
 
       Int_t numwires = wirehitLast - wirehitFirst + 1;
       bool aWireFailed = false;
+      bool hitOutOfBounds = false;
+      bool negativeTDC = false;
+      Int_t times[numwires];
+      Int_t noiseTimes[numwires];  //arrays to hold times when 5 wires hit (to calc. relative time)
+      Double_t distances[numwires];  //array to hold distances
+      Int_t counter = -1;
+      //initialize arrays to zero
+      for(int m = 0; m < numwires; m++){
+	times[m] = 0;
+	noiseTimes[m] = 0;
+	distances[m] = 0.0;
+      }
 
       //loop through each hit wire
       for (Int_t k=wirehitFirst; k<=wirehitLast; k++) 
@@ -344,11 +373,13 @@ int vdcsimgen( THaVDCSimConditions* s )
 	THaVDCSimWireHit *hit = new THaVDCSimWireHit;
 
 	hit->wirenum = k;
+	counter++;
 
 	// distance from crossing point to wire "k"
-	Float_t d = x - (k+.5)* s->cellWidth;
+	Double_t d = x - (k + 0.5) * s->cellWidth;
 	// Actual drift distance
-	Float_t d0 = TMath::Abs(d)*tanThetaPrime;
+	Double_t d0 = TMath::Abs(d)*tanThetaPrime;
+	hit->distance = d0;
 
 	// Inversion of THaVDCAnalyticTTDConv::ConvertTimeToDist
 	if (d0 > a1 + a2) 
@@ -360,12 +391,13 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  d0 /= (1+a2/a1);
 	}
 
-	hit->rawTime = d0;
-
-	textFile << hit->rawTime << "\t";
+	hit->rawTime = d0/s->driftVelocities[j];
+	textFile << hit->rawTime << "\t\t";
 
 	//convert rawTime to tdctime
-	hit->rawTDCtime = (timeOffsets[k+j*s->numWires] - s->tdcConvertFactor*(travelTime 
+	hit->rawTDCtime = static_cast<Int_t>( (timeOffsets[k+j*s->numWires] - 
+					       s->tdcConvertFactor*(hit->rawTime + track->timeOffset)) );
+
 	  // Correction for the velocity of the track
 	  // This correction is negligible, because of high momentum
 
@@ -374,7 +406,6 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  //+ d*sqrt(pow(tanThetaPrime,2)+1)/track->momentum.Mag()
 	  
 	  // Correction for ionization drift velocities
-	  + hit->rawTime/s->driftVelocities[j] + track->timeOffset));
 
 	// reject data that the noise filter would
 	// This shouldn't affect our data at all
@@ -386,27 +417,22 @@ int vdcsimgen( THaVDCSimConditions* s )
 	}
 	*/
 	
-	hit->time = hit->rawTDCtime + s->tdcConvertFactor*(gRandom->Gaus(s->noiseMean, s->noiseSigma)); 
+	hit->time =static_cast <Int_t>( hit->rawTDCtime + 
+					s->tdcConvertFactor*(gRandom->Gaus(s->noiseMean, s->noiseSigma)) ); 
 	  //time with additional noise to account for random walk nature of ions
-
-	//if 4,5, or 6 wires hit, keep track of each time 
-	if(numwires >= 4 && numwires <= 6)
-	{
-	  times[counter] = hit->rawTDCtime;
-	  noiseTimes[counter] = hit->time;
-	}
-	
-	counter++;  //increase counter
 
 	//check to assure hit is within bounds	
 	if (hit->wirenum < 0 || hit->wirenum > s->numWires - 1){
 	  delete hit;
+	  hitOutOfBounds = true;
 	  continue;
 	}
- 	//make sure hit time falls within time tdc is open
-	if (hit->time < 0.0){
+	
+	//make sure hit time falls within time tdc is open
+	if (hit->time < 0){
 	  delete hit;
-	  continue;
+	  negativeTDC = true;
+     	  continue;
 	}
 
 	//simulate efficiency of wires.
@@ -417,6 +443,12 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  aWireFailed = true;
 	  continue;
 	}
+
+	//fill arrays for times if hit still exists
+	//note: if hit doesn't exist, value will be default of 0
+	times[counter] = hit->rawTDCtime;
+	noiseTimes[counter] = hit->time;
+	distances[counter] = hit->distance;
 
 	//fill histograms for v1 plane
 	if (j == 1) 
@@ -433,15 +465,42 @@ int vdcsimgen( THaVDCSimConditions* s )
 
       } //closes loop going through each hit wire
       
-      //write tdc times to text file
+      /*
+      // go through tlist and get data
+      textFile << "Plane " << j << ": \n";
+      TList* hitlist = event->wirehits[j];
+      TIter next(hitlist);
+      Int_t m = 1;
+      while( THaVDCSimHit* hit = (THaVDCSimHit*)next() ) {
+            textFile << "Hit " << m << ":\t"
+	    << hit->wirenum << "\t"
+	    << hit->dist << "/t"
+	    << hit->rawTime << "/t"
+	    << hit->time << "\n";
+	    m++;
+      }*/
+
+      //write tdc times and distances to text file
       textFile << endl << "Raw TDC Times = \t";
       for(int m = 0; m < numwires; m++)
 	textFile << times[m] << "\t\t";
       textFile << endl << "Final TDC Times = \t";
       for(int m = 0; m < numwires; m++)
 	textFile << noiseTimes[m] << "\t\t";
+      textFile << endl << "Drift Distances = \t";
+      for(int m = 0; m < numwires; m++){
+	textFile << distances[m] << "\t";
+	if(distances[m] == 0.0)
+	  textFile << "\t";
+      }
       textFile << endl;
-      
+      if(hitOutOfBounds)
+	textFile << "\tHit(s) Out of Bounds\n";
+      if(negativeTDC)
+	textFile << "\tNegative TDC Time(s)\n";
+      if(aWireFailed)
+	textFile << "\tWire failure(s)\n";
+
       //fill number of wire histograms for each plane
       if(j == 0)      
 	hnumwiresU1->Fill(wirehitLast - wirehitFirst + 1);
