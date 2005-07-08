@@ -10,7 +10,6 @@
 #include "THaApparatus.h"
 #include "THaVertexModule.h"
 #include "THaTrackingModule.h"
-#include "TClonesArray.h"
 #include "TVector3.h"
 #include "TRotation.h"
 
@@ -19,6 +18,7 @@ class THaPidDetector;
 class THaTrack;
 class TList;
 class THaCut;
+class TClonesArray;
 
 class THaSpectrometer : public THaApparatus, public THaTrackingModule,
 			public THaVertexModule {

@@ -21,6 +21,7 @@
 #include "THaPidDetector.h"
 #include "THaPIDinfo.h"
 #include "THaTrack.h"
+#include "TClonesArray.h"
 #include "TClass.h"
 #include "TMath.h"
 #include "VarDef.h"
