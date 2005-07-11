@@ -9,6 +9,7 @@
 
 using namespace std;
 
+//-----------------------------------------------------------------------------
 THaVDCSimRun::THaVDCSimRun(const char* description) :
   THaRunBase(description), rootFile(0), tree(0), branch(0),
   event(0), nentries(0), entry(0)
@@ -16,6 +17,7 @@ THaVDCSimRun::THaVDCSimRun(const char* description) :
   // Constructor
 }
 
+//-----------------------------------------------------------------------------
 THaVDCSimRun::THaVDCSimRun(const THaVDCSimRun &run)
   : THaRunBase(run), nentries(0), entry(0)
 {
@@ -25,6 +27,7 @@ THaVDCSimRun::THaVDCSimRun(const THaVDCSimRun &run)
   branch = NULL;
 }
 
+//-----------------------------------------------------------------------------
 THaVDCSimRun &THaVDCSimRun::operator=(const THaVDCSimRun &rhs)
 {
   THaRunBase::operator=(rhs);
@@ -35,6 +38,7 @@ THaVDCSimRun &THaVDCSimRun::operator=(const THaVDCSimRun &rhs)
   return *this;
 }
 
+//-----------------------------------------------------------------------------
 Int_t THaVDCSimRun::Init()
 {
   // Use the date we're familiar with, so we can use those channel mappings
@@ -45,6 +49,7 @@ Int_t THaVDCSimRun::Init()
   return THaRunBase::Init();
 }
 
+//-----------------------------------------------------------------------------
 Int_t THaVDCSimRun::Open()
 {
   rootFile = new TFile("vdctracks.root", "READ", "VDC Tracks");
@@ -76,6 +81,7 @@ Int_t THaVDCSimRun::Open()
   return 0;
 }
 
+//-----------------------------------------------------------------------------
 Int_t THaVDCSimRun::Close() {
   if (rootFile) {
     rootFile->Close();
@@ -86,6 +92,7 @@ Int_t THaVDCSimRun::Close() {
   return 0;
 }
 
+//-----------------------------------------------------------------------------
 Int_t THaVDCSimRun::ReadEvent() {
   Int_t ret;
   if (!IsOpen()) {
@@ -93,6 +100,8 @@ Int_t THaVDCSimRun::ReadEvent() {
     if (ret) return ret;
   }
 
+  // Clear the event to get rid of anything still hanging around
+  event->Clear();
   ret = branch->GetEntry(entry++);
   if( ret > 0 )
     return S_SUCCESS;
@@ -101,15 +110,18 @@ Int_t THaVDCSimRun::ReadEvent() {
   return -128;  // CODA_ERR
 }
 
+//-----------------------------------------------------------------------------
 const Int_t *THaVDCSimRun::GetEvBuffer() const {
   if (!IsOpen()) return NULL;
 
   return reinterpret_cast<Int_t*>(event);
 }
 
+//-----------------------------------------------------------------------------
 THaVDCSimRun::~THaVDCSimRun() {
   if (IsOpen())
     Close();
 }
 
+//-----------------------------------------------------------------------------
 ClassImp(THaVDCSimRun)
