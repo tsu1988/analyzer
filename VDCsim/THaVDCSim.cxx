@@ -26,9 +26,9 @@ void THaVDCSimTrack::Print( const Option_t* opt ) const
   cout << "  Momentum  = (" << momentum.X() << ", " << momentum.Y() << ", " 
        << momentum.Z() << ")" << endl;
   cout << "  TRANSPORT = (" << ray[0] << ", " << ray[1] << ", " << ray[2] << ", "
-       << ray[3] << ", " << ray[4] << endl;
+       << ray[3] << ", " << ray[4] << ")" << endl;
   cout << "  #hits = " << hits[0].GetSize() << ", " << hits[1].GetSize() << ", "
-       << hits[2].GetSize() << ", " << hits[3].GetSize() << ", " << endl;
+       << hits[2].GetSize() << ", " << hits[3].GetSize() << endl;
 }
 
 THaVDCSimEvent::THaVDCSimEvent() {
