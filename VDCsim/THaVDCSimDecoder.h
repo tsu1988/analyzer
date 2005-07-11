@@ -8,24 +8,25 @@
 /////////////////////////////////////////////////////////////////////
 
 #include "THaEvData.h"
-#include "TObject.h"
-#include "TString.h"
-#include "THaSlotData.h"
-#include "TBits.h"
-#include "evio.h"
+#include "TClonesArray.h"
 
-class THaBenchmark;
 class THaCrateMap;
-class THaHelicity;
+class TList;
 
 class THaVDCSimDecoder : public THaEvData {
  public:
   THaVDCSimDecoder();
-  ~THaVDCSimDecoder();
+  virtual ~THaVDCSimDecoder();
 
-  int LoadEvent(const int*evbuffer, THaCrateMap* usermap);
+  Int_t LoadEvent( const int*evbuffer, THaCrateMap* usermap );
+
+  void Clear( Option_t* opt="" );
+  Int_t GetNTracks() const;
 
  protected:
+
+  TList*  fTracks;    // Monte Carlo tracks
+
 
   ClassDef(THaVDCSimDecoder,0) // Decoder for simulated VDC data
 };
