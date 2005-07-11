@@ -126,7 +126,6 @@ protected:
 			    const Double_t powers[][4]);
   Int_t ReadDatabase( const TDatime& date );
 
-  virtual void  Clear( Option_t* opt="" )  {}
   virtual Int_t ConstructTracks( TClonesArray * tracks = NULL, Int_t flag = 0 );
 
   void CorrectTimeOfFlight(TClonesArray& tracks);
