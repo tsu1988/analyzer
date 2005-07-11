@@ -1,5 +1,6 @@
 #include "THaVDCSim.h"
-
+#include "TSystem.h"
+#include "TMath.h"
 
 ClassImp(THaVDCSimWireHit);
 ClassImp(THaVDCSimEvent);
@@ -7,6 +8,7 @@ ClassImp(THaVDCSimConditions);
 ClassImp(THaVDCSimTrack);
 
 #include <iostream>
+#include <cstdio>
 using namespace std;
 
 void THaVDCSimTrack::Clear( const Option_t* opt ) {
@@ -14,12 +16,17 @@ void THaVDCSimTrack::Clear( const Option_t* opt ) {
     hits[i].Clear(opt);
 }
 
-void THaVDCSimTrack::Print( const Option_t* opt ) {
+void THaVDCSimTrack::Print( const Option_t* opt ) const
+{
   //TObject::Print(opt);
   cout << "Track number = " << track_num << ", type = " << type 
        << ", layer = " << layer << ", obj = " << hex << this << dec << endl;
-  cout << "  Origin   = (" << origin.X() << "," << origin.Y() << "," << origin.Z() << ")" << endl;
-  cout << "  Momentum = (" << momentum.X() << "," << momentum.Y() << "," << momentum.Z() << ")" << endl;
+  cout << "  Origin    = (" << origin.X() << ", " << origin.Y() << ", " 
+       << origin.Z() << ")" << endl;
+  cout << "  Momentum  = (" << momentum.X() << ", " << momentum.Y() << ", " 
+       << momentum.Z() << ")" << endl;
+  cout << "  TRANSPORT = (" << ray[0] << ", " << ray[1] << ", " << ray[2] << ", "
+       << ray[3] << ", " << ray[4] << endl;
   cout << "  #hits = " << hits[0].GetSize() << ", " << hits[1].GetSize() << ", "
        << hits[2].GetSize() << ", " << hits[3].GetSize() << ", " << endl;
 }
@@ -52,6 +59,38 @@ void THaVDCSimEvent::Clear( const Option_t* opt ) {
   tracks.Delete(opt);
 }
 
+THaVDCSimConditions::THaVDCSimConditions()
+ //set defaults conditions
+    : filename("vdctracks.root"), numTrials(10000), 
+      numWires(368), noiseSigma(4.5), noiseMean(0.0), wireEff(1.0), tdcTimeLimit(900.0), 
+      emissionRate(0.000002), probWireNoise(0.0), x1(-0.8), x2(0.9),ymean(0.0), 
+      ysigma(0.01), z0(-1.0), 
+      pthetamean(TMath::Pi()/4.0), pthetasigma(atan(1.1268) - TMath::Pi()/4.0), 
+      pphimean(0.0), pphisigma(atan(0.01846)), pmag0(1.0), tdcConvertFactor(2.0), 
+      cellWidth(0.00424), cellHeight(0.026), planeSpacing(0.335)
+{
+  // Constructor - determine the name of the database file
+
+  const char* dbDir       = gSystem->Getenv("DB_DIR");
+  const char* analyzerDir = gSystem->Getenv("ANALYZER");
+  if( dbDir ) {
+    databaseFile = dbDir;
+    databaseFile += "/";
+  }
+  else if( analyzerDir ) {
+    databaseFile = analyzerDir;
+    databaseFile += "/DB/";
+  }
+  else
+    databaseFile = "/u/home/orsborn/vdcsim/DB/";
+  databaseFile += "20030415/db_L.vdc.dat";
+}
+
+THaVDCSimConditions::~THaVDCSimConditions()
+{
+  // Destructor
+}
+
 void THaVDCSimConditions::set(Double_t *something,
 			      Double_t a, Double_t b, Double_t c, Double_t d) {
   something[0] = a;
@@ -60,18 +99,20 @@ void THaVDCSimConditions::set(Double_t *something,
   something[3] = d;
 }
 
-Int_t THaVDCSimConditions::ReadDatabase(int j, Double_t* timeOffsets, const int numWires)
-  {
-    //open the file as read only
-    FILE* file = fopen(databaseFile, "r");
-    if( !file ) return 1;
+Int_t THaVDCSimConditions::ReadDatabase(Double_t* timeOffsets)
+{
+  //open the file as read only
+  FILE* file = fopen(databaseFile, "r");
+  if( !file ) return 1;
 
 
-    // Use default values until ready to read from database
+  // Use default values until ready to read from database
 
-    const int LEN = 100;
-    char buff[LEN];
+  const int LEN = 100;
+  char buff[LEN];
   
+  for( int j = 0; j<4; j++ ) {
+    rewind(file);
     // Build the search tag and find it in the file. Search tags
     // are of form [ <prefix> ], e.g. [ R.vdc.u1 ].
     TString tag(Prefixes[j]); tag.Prepend("["); tag.Append("]"); 
@@ -86,7 +127,7 @@ Int_t THaVDCSimConditions::ReadDatabase(int j, Double_t* timeOffsets, const int 
       if( line.EndsWith("\n") ) line.Chop();  //delete trailing newline
       line.ToLower();
       if ( tag == line ) 
-      found = true;
+	found = true;
     }
     if( !found ) {
       fclose(file);
@@ -95,7 +136,7 @@ Int_t THaVDCSimConditions::ReadDatabase(int j, Double_t* timeOffsets, const int 
     
     for(int i = 0; i<5; i++)
       fgets(buff, LEN, file);  //skip 5 lines to get to drift velocity
-    
+
     //read in drift velocity
     Double_t driftVel = 0.0;
     fscanf(file, "%lf", &driftVel);
@@ -105,16 +146,16 @@ Int_t THaVDCSimConditions::ReadDatabase(int j, Double_t* timeOffsets, const int 
     fgets(buff, LEN, file); // Skip line
   
     //Found the offset entries for this plane, so read time offsets and wire numbers
-    int*   wire_nums    = new int[4*numWires];
 
     for (int i = j*numWires; i < (j+1)*numWires; i++) {
       int wnum = 0;
       Double_t offset = 0.0;
       fscanf(file, " %d %lf", &wnum, &offset);
-      wire_nums[i] = wnum-1; // Wire numbers in file start at 1
       timeOffsets[i] = offset;
     }
+  }
 
-    fclose(file);
-    return 0;
-    }
+  fclose(file);
+  return 0;
+}
+

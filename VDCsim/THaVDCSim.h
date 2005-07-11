@@ -11,18 +11,13 @@
 
 #include "TList.h"
 #include "TVector3.h"
+#include "TString.h"
 
 class THaVDCSimConditions : public TObject {
  public:
-  THaVDCSimConditions() //set defaults for conditions
-    : filename("vdctracks.root"), textFile("trackInfo.data()"), numTrials(10000), 
-    databaseFile("/u/home/orsborn/vdcsim/DB/20030415/db_L.vdc.dat"),
-    numWires(368), noiseSigma(4.5), noiseMean(0.0), wireEff(1.0), tdcTimeLimit(900.0), 
-    emissionRate(0.000002), probWireNoise(0.0), x1(-0.8), x2(0.9),ymean(0.0), ysigma(0.01), z0(-1.0), 
-    pthetamean(TMath::Pi()/4.0), pthetasigma(atan(1.1268) - TMath::Pi()/4.0), 
-    pphimean(0.0), pphisigma(atan(0.01846)), pmag0(1.0), tdcConvertFactor(2.0), cellWidth(0.00424), 
-    cellHeight(0.026), planeSpacing(0.335)  {}
-  
+  THaVDCSimConditions();
+  virtual ~THaVDCSimConditions();
+
   TString filename;           //name of output file
   TString textFile;           //name of output text file (holds track information)
   int numTrials;              //number of events generated in monte carlo
@@ -56,7 +51,7 @@ class THaVDCSimConditions : public TObject {
   void set(Double_t *something,
 	   Double_t a, Double_t b, Double_t c, Double_t d);
 
-  Int_t ReadDatabase(int j, Double_t* timeOffsets, const int numWires);
+  Int_t ReadDatabase(Double_t* timeOffsets);
  
  ClassDef (THaVDCSimConditions, 4) // Simulation Conditions
 };
@@ -102,8 +97,14 @@ class THaVDCSimTrack : public TObject {
   TVector3 momentum; // Momentum of track
   Double_t X() {return origin.X();}
   Double_t Y() {return origin.Y();}
-  Double_t Theta() {return tan(momentum.Theta());}
   Double_t ray[5];  //position on U1 plane in transport coordinates
+  // Functions needed for global variables - FIXME: remove when g.v. system improved
+  Double_t TX()     { return ray[0]; }
+  Double_t TY()     { return ray[1]; }
+  Double_t TTheta() { return ray[2]; }
+  Double_t TPhi()   { return ray[3]; }
+  Double_t P()      { return momentum.Mag(); }
+
   Double_t tanThetaPrime;    //tangent of angle of track
 
   Int_t type;   //type of track. 0 = trigger, 1 = coincident, 2 = delta ray, 3 = cosmic ray
@@ -114,9 +115,9 @@ class THaVDCSimTrack : public TObject {
   TList hits[4]; // Hits of this track only in each wire plane
 
   virtual void Clear( const Option_t* opt="" );
-  virtual void Print( const Option_t* opt="" );
+  virtual void Print( const Option_t* opt="" ) const;
   
-  ClassDef (THaVDCSimTrack, 2) // Simluated VDC track
+  ClassDef (THaVDCSimTrack, 3) // Simluated VDC track
 };
 
 #endif
