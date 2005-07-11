@@ -2,9 +2,6 @@
 // Ken Rossato 6/3/04
 // Modified by Amy Orsborn 6/7/05
 
-// @(#)root/test:$Name$:$Id$
-// Author: Rene Brun   19/08/96
-
 // UNITS: distances: m
 //        times: ns
 //        angles: tan angle
@@ -191,13 +188,13 @@ int vdcsimgen( THaVDCSimConditions* s )
   s->Prefixes[2] = "L.vdc.u2";
   s->Prefixes[3] = "L.vdc.v2";
 
-  Double_t timeOffsets[4*s->numWires];
+  Double_t* timeOffsets = new Double_t[4*s->numWires];
  
   //get time offsets and drift velocities from the file (default is 20030415/L.vdc.dat)
-  for(int j=0; j<4; j++){
-    Int_t getoffset = s->ReadDatabase(j, timeOffsets, s->numWires); 
-    if(getoffset == 1) 
-      cout << "Error Reading Database" << endl; 
+  Int_t getoffset = s->ReadDatabase(timeOffsets); 
+  if(getoffset == 1) {
+    cout << "Error Reading Database file: " << s->databaseFile << endl; 
+    exit(1);
   }
 
   //define correlation values for convertion from time to distance
@@ -241,20 +238,24 @@ int vdcsimgen( THaVDCSimConditions* s )
   TBranch *eventBranch = tree->Branch("event", "THaVDCSimEvent", &event);
 
   //open text file to put track info into
-  ofstream textFile(s->textFile, ios::out);
-  if(!textFile.is_open())
-    cout << "Error Opening Text File\n";
+  bool do_text = !(s->textFile.IsNull());
+  ofstream textFile;
+  if( do_text ) {
+    textFile.open(s->textFile, ios::out);
+    if(!textFile.is_open())
+      cout << "Error Opening Text File\n";
 
-  //write important sim conditions to text file
-  textFile << "******Simulation Conditions******\n"
-	   << "Output File Name = " << s->filename << endl
-	   << "Database File Read = " << s->databaseFile << endl
-	   << "Number of Trials = " << s->numTrials << endl
-	   << "Noise Sigma = " << s->noiseSigma << " ns\n"
-	   << "Wire Efficiency = " << s->wireEff << endl
-	   << "Emission Rate = " << s->emissionRate << " particle/ns\n"
-	   << "TDC Time Window = " << s->tdcTimeLimit << " ns\n"
-	   << "Probability of Random Wire Firing = " << s->probWireNoise << "\n\n";
+    //write important sim conditions to text file
+    textFile << "******Simulation Conditions******\n"
+	     << "Output File Name = " << s->filename << endl
+	     << "Database File Read = " << s->databaseFile << endl
+	     << "Number of Trials = " << s->numTrials << endl
+	     << "Noise Sigma = " << s->noiseSigma << " ns\n"
+	     << "Wire Efficiency = " << s->wireEff << endl
+	     << "Emission Rate = " << s->emissionRate << " particle/ns\n"
+	     << "TDC Time Window = " << s->tdcTimeLimit << " ns\n"
+	     << "Probability of Random Wire Firing = " << s->probWireNoise << "\n\n";
+  }
 
   //  Int_t numSecondTracks = 0, numThirdTracks = 0;
   Int_t numRandomWires = 0;
@@ -264,7 +265,9 @@ int vdcsimgen( THaVDCSimConditions* s )
     //set track type, track number, and event number each time loop executes
     Int_t tracktype = 0, tracknum = 0;
     event->event_num = i + 1;
-    textFile << "\nEvent: " << event->event_num << endl << "***************************************\n";
+    if( do_text )
+      textFile << "\nEvent: " << event->event_num << endl 
+	       << "***************************************\n";
 
   newtrk:
     THaVDCSimTrack *track = new THaVDCSimTrack(tracktype,tracknum);
@@ -278,11 +281,12 @@ int vdcsimgen( THaVDCSimConditions* s )
     }
 
     //write track info to text file
-    textFile << "\nTrack number = " << tracknum << ", type = " << tracktype << endl
-	     << "Origin = ( " << track->origin.X() << ", " << track->origin.Y() << ", " 
-	     << track->origin.Z() << " )" << endl
-	     << "Momentum = ( " << track->momentum.X() << ", " << track->momentum.Y() <<", "
-	     << track->momentum.Z() << " )\n";
+    if( do_text )
+      textFile << "Track number = " << tracknum << ", type = " << tracktype << endl
+	       << "Origin = ( " << track->origin.X() << ", " << track->origin.Y() << ", " 
+	       << track->origin.Z() << " )" << endl
+	       << "Momentum = ( " << track->momentum.X() << ", " 
+	       << track->momentum.Y() <<", " << track->momentum.Z() << " )\n";
 
     //Fill histogram with origin position
     horigin->Fill(track->X(), track->Y());
@@ -324,12 +328,14 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  track->ray[3] = 0.0;
 	}	
 	track->ray[4] = position.Z();  //should be zero or very very close! 
-	textFile << "Position (x, y, Theta, Phi, z) = \t( "
-		 << track->ray[0] << ",\t" << track->ray[1] << ",\t" 
-		 << track->ray[2] << ",\t" << track->ray[3] <<", \t" 
-		 << track->ray[4] << " )\n";
+	if( do_text )
+	  textFile << "Position (x, y, Theta, Phi, z) = \t( "
+		   << track->ray[0] << ",\t" << track->ray[1] << ",\t" 
+		   << track->ray[2] << ",\t" << track->ray[3] <<", \t" 
+		   << track->ray[4] << " )\n";
       }
-      textFile << "\nPlane: " << j << endl;
+      if( do_text )
+	textFile << "\nPlane: " << j << endl;
 
       //FOR TEST PURPOSES
       //Stick tanThetaPrime to 1 (i.e. thetaPrime = 45 degrees)
@@ -341,7 +347,6 @@ int vdcsimgen( THaVDCSimConditions* s )
       else{
 	track->tanThetaPrime = sqrt(2.0)/(track->ray[2] - track->ray[3]);
       }
-
 
       // Get position into (u,v,z) coordinates for u plane
       // (v,-u,z) coordinates for v plane
@@ -425,7 +430,11 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  textFile << noiseHitTDCs[n] << "\t\t";
       }
       
-      Int_t numwires = wirehitLast - wirehitFirst + 1;  
+      if( do_text )
+	textFile << "Plane " << j << ": \n";
+      
+      Int_t numwires = wirehitLast - wirehitFirst + 1;
+
       bool aWireFailed = false;
       bool hitOutOfBounds = false;
       bool negativeTDC = false;
@@ -473,12 +482,13 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  }
 	
 	hit->rawTime = d0/s->driftVelocities[j];
-	textFile << hit->rawTime << "\t\t";
-	
+	  
+	if( do_text )
+	  textFile << hit->rawTime << "\t\t";
+
 	//convert rawTime to tdctime
 	hit->rawTDCtime = static_cast<Int_t>( (timeOffsets[k+j*s->numWires] - 
 					       s->tdcConvertFactor*(hit->rawTime + track->timeOffset)) );
-	
 	// Correction for the velocity of the track
 	// This correction is negligible, because of high momentum
 	
@@ -498,10 +508,11 @@ int vdcsimgen( THaVDCSimConditions* s )
 	  }
 	*/
 	
-	hit->time =static_cast <Int_t>( hit->rawTDCtime + 
-					s->tdcConvertFactor*(gRandom->Gaus(s->noiseMean, s->noiseSigma)) ); 
 	//time with additional noise to account for random walk nature of ions
-	
+	hit->time =
+	  static_cast <Int_t>( hit->rawTDCtime + 
+			       s->tdcConvertFactor*(gRandom->Gaus(s->noiseMean, s->noiseSigma)) ); 
+
 	//check to assure hit is within bounds	
 	if (hit->wirenum < 0 || hit->wirenum > s->numWires - 1){
 	  delete hit;
@@ -556,27 +567,47 @@ int vdcsimgen( THaVDCSimConditions* s )
 
       } //closes loop going through each hit wire
 
-      //write tdc times and distances to text file
-      textFile << endl << "Raw TDC Times = \t";
-      for(int m = 0; m < numwires; m++)
-	textFile << times[m] << "\t\t";
-      textFile << endl << "Final TDC Times = \t";
-      for(int m = 0; m < numwires; m++)
-	textFile << noiseTimes[m] << "\t\t";
-      textFile << endl << "Drift Distances = \t";
-      for(int m = 0; m < numwires; m++){
-	textFile << distances[m] << "\t";
-	if(distances[m] == 0.0)
-	  textFile << "\t";
-      }
+      // Get number of good wires in this plane for this event
+      TList* hitlist = event->wirehits[j];
+      numwires = hitlist->GetSize();
 
-      textFile << endl;
-      if(hitOutOfBounds)
-	textFile << "\tHit(s) Out of Bounds\n";
-      if(negativeTDC)
-	textFile << "\tNegative TDC Time(s)\n";
-      if(aWireFailed)
-	textFile << "\tWire failure(s)\n";
+      // go through tlist and get data
+      if( do_text ) {
+	TIter next(hitlist);
+	THaVDCSimWireHit* hit;
+	textFile << "Wires Hit = \t\t";
+	while( (hit = (THaVDCSimWireHit*)next()) )
+	  textFile << hit->wirenum << "\t\t";
+	next.Reset();
+	textFile << endl << "Hit Times (ns) = \t";
+	while( (hit = (THaVDCSimWireHit*)next()) )
+	  textFile << hit->rawTime << "\t\t";
+	next.Reset();
+	textFile << endl << "Raw TDC Times = \t";
+	while( (hit = (THaVDCSimWireHit*)next()) )
+	  textFile << hit->rawTDCtime << "\t\t";
+	next.Reset();
+	textFile << endl << "Final TDC Times = \t";
+	while( (hit = (THaVDCSimWireHit*)next()) )
+	  textFile << hit->time << "\t\t";
+	next.Reset();
+	textFile << endl << "Drift Distances = \t";
+	while( (hit = (THaVDCSimWireHit*)next()) ) {
+	  textFile << hit->distance << "\t";
+	  if(hit->distance == 0.0)
+	    textFile << "\t";
+	}
+
+	// Print info about imperfect events
+	textFile << endl;
+	if(hitOutOfBounds)
+	  textFile << "\tHit(s) Out of Bounds\n";
+	if(negativeTDC)
+	  textFile << "\tNegative TDC Time(s)\n";
+	if(aWireFailed)
+	  textFile << "\tWire failure(s)\n";
+
+      }
 
       //set the number of wires that actually were hit 
       //(correcting for failed wires, out of bound hits, negative tdc time hits.)
@@ -596,16 +627,16 @@ int vdcsimgen( THaVDCSimConditions* s )
       // use 10^38 if a wire failed during the hit (since resolution would be completely lost!)
       if(aWireFailed){
 	if(numwires == 4){
-	  hdeltaTNoise4->Fill(100000000000000000000000000000000000000.0);
-	  hdeltaT4->Fill(100000000000000000000000000000000000000.0);
+	  hdeltaTNoise4->Fill(1e38);
+	  hdeltaT4->Fill(1e38);
 	}
 	else if(numwires == 5){
-	  hdeltaTNoise5->Fill(100000000000000000000000000000000000000.0);
-	  hdeltaT5->Fill(100000000000000000000000000000000000000.0);
+	  hdeltaTNoise5->Fill(1e38);
+	  hdeltaT5->Fill(1e38);
 	}
         else if(numwires == 6){
-	  hdeltaTNoise6->Fill(100000000000000000000000000000000000000.0);
-	  hdeltaT6->Fill(100000000000000000000000000000000000000.0);
+	  hdeltaTNoise6->Fill(1e38);
+	  hdeltaT6->Fill(1e38);
 	}
       }
        else{
@@ -670,9 +701,11 @@ int vdcsimgen( THaVDCSimConditions* s )
   cout << numRandomWires << " random wires fired\n";
 
   //close text file
-  textFile.close();
-  if(textFile.is_open())
-    cout << "Error Closing Text File\n";
+  if( do_text ) {
+    textFile.close();
+    if(textFile.is_open())
+      cout << "Error Closing Text File\n";
+  }
 
   // Save objects in this file
   tree->Write();
@@ -702,6 +735,7 @@ int vdcsimgen( THaVDCSimConditions* s )
  
   // Close the file.
   hfile.Close();
+  delete [] timeOffsets;
 
   return 0;
 }
