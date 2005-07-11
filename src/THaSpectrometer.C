@@ -21,7 +21,6 @@
 #include "THaPidDetector.h"
 #include "THaPIDinfo.h"
 #include "THaTrack.h"
-#include "TClonesArray.h"
 #include "TClass.h"
 #include "TMath.h"
 #include "VarDef.h"
@@ -144,7 +143,9 @@ void THaSpectrometer::Clear( Option_t* opt )
   // Clear the spectrometer data for next event.
 
   THaApparatus::Clear(opt);
-  fTracks->Clear("C"); 
+  // Clear the track array and also the track objects themselves since they
+  // need to deallocate memory
+  fTracks->Clear("C");
   TrkIfoClear();
   VertexClear();
   fGoldenTrack = NULL;
