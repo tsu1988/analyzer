@@ -12,9 +12,7 @@
 #include "THaVDCSim.h"
 #include "THaCrateMap.h"
 #include "THaBenchmark.h"
-#include "THaVarList.h"
-#include "THaGlobals.h"
-#include "TError.h"
+#include "VarDef.h"
 
 using namespace std;
 
@@ -26,36 +24,45 @@ THaVDCSimDecoder::THaVDCSimDecoder()
 {
   // Constructor
 
-  const char* const here = "THaVDCSimDecoder::THaVDCSimDecoder";
-
-  if( gHaVars ) {
-    RVarDef vars[] = {
-      { "tr.n",    "Number of tracks",             "GetNTracks()" },
-      { "tr.x",    "Track x coordinate (m)",       "fTracks.THaVDCSimTrack.TX()" },
-      { "tr.y",    "Track x coordinate (m)",       "fTracks.THaVDCSimTrack.TY()" },
-      { "tr.th",   "Tangent of track theta angle", "fTracks.THaVDCSimTrack.TTheta()" },
-      { "tr.ph",   "Tangent of track phi angle",   "fTracks.THaVDCSimTrack.TPhi()" },
-      { "tr.p",    "Track momentum (GeV)",         "fTracks.THaVDCSimTrack.P()" },
-      { "tr.type", "Track type",                   "fTracks.THaVDCSimTrack.type" },
-      { "tr.layer","Layer of track origin",        "fTracks.THaVDCSimTrack.layer" },
-      { "tr.no",   "Track number",                 "fTracks.THaVDCSimTrack.track_num" },
-      { "tr.t0",   "Track time offset",            "fTracks.THaVDCSimTrack.timeOffset" },
-      //FIXME: Add per-plane (hits, cluster) info
-      { 0 }
-    };
-    gHaVars->DefineVariables( vars, this, MC_PREFIX, here );
-  } else
-    Warning("THaVDCSimDecoder::THaVDCSimDecoder","No global variable list found. "
-	    "Variables not registered.");
-
+  DefineVariables();
 }
 
 //-----------------------------------------------------------------------------
 THaVDCSimDecoder::~THaVDCSimDecoder() {
 
-  if( gHaVars )
-    gHaVars->RemoveRegexp( MC_PREFIX "*" );
+  DefineVariables( THaAnalysisObject::kDelete );
+}
 
+//-----------------------------------------------------------------------------
+Int_t THaVDCSimDecoder::DefineVariables( THaAnalysisObject::EMode mode )
+{
+  const char* const here = "THaVDCSimDecoder::DefineVariables";
+
+  if( mode == THaAnalysisObject::kDefine && fIsSetup ) 
+    return THaAnalysisObject::kOK;
+  fIsSetup = ( mode == THaAnalysisObject::kDefine );
+
+  RVarDef vars[] = {
+    { "tr.n",    "Number of tracks",             "GetNTracks()" },
+    { "tr.x",    "Track x coordinate (m)",       "fTracks.THaVDCSimTrack.TX()" },
+    { "tr.y",    "Track x coordinate (m)",       "fTracks.THaVDCSimTrack.TY()" },
+    { "tr.th",   "Tangent of track theta angle", "fTracks.THaVDCSimTrack.TTheta()" },
+    { "tr.ph",   "Tangent of track phi angle",   "fTracks.THaVDCSimTrack.TPhi()" },
+    { "tr.p",    "Track momentum (GeV)",         "fTracks.THaVDCSimTrack.P()" },
+    { "tr.type", "Track type",                   "fTracks.THaVDCSimTrack.type" },
+    { "tr.layer","Layer of track origin",        "fTracks.THaVDCSimTrack.layer" },
+    { "tr.no",   "Track number",                 "fTracks.THaVDCSimTrack.track_num" },
+    { "tr.t0",   "Track time offset",            "fTracks.THaVDCSimTrack.timeOffset" },
+    //FIXME: Add per-plane (hits, cluster) info
+    { 0 }
+  };
+  
+  Int_t ret = 
+    THaAnalysisObject::DefineVarsFromList( vars, 
+					   THaAnalysisObject::kRVarDef, 
+					   mode, "", this, MC_PREFIX, here );
+
+  return ret;
 }
 
 //-----------------------------------------------------------------------------
@@ -63,17 +70,22 @@ void THaVDCSimDecoder::Clear( Option_t* opt )
 {
   // Clear track and plane data
 
+  THaEvData::Clear();
+  fTracks.Clear("nodelete");
 }
 
 //-----------------------------------------------------------------------------
 Int_t THaVDCSimDecoder::GetNTracks() const
 {
-  return fTracks->GetSize();
+  return fTracks.GetSize();
 }
 
 //-----------------------------------------------------------------------------
 int THaVDCSimDecoder::LoadEvent(const int*evbuffer, THaCrateMap* map) {
   //  int status = HED_OK;
+
+  Clear();
+
   fMap = map;
 
   // Local copy of evbuffer pointer - any good use for it?
@@ -131,15 +143,20 @@ int THaVDCSimDecoder::LoadEvent(const int*evbuffer, THaCrateMap* map) {
 
   // Extract MC track info, so we can access it via global variables
   // The list of tracks is already part of the event - no need to generate
-  // our own tracks here.
+  // our own tracks here. 
+  // FIXME: However, we have to copy the list because the global variable system 
+  // cannot handle variable pointers.
 
-  fTracks = &simEvent->tracks;
+  TIter nextTrack( &simEvent->tracks );
+  while( THaVDCSimTrack* track = (THaVDCSimTrack*)nextTrack() ) {
+    fTracks.Add( track );
+  }
 
   if( fDoBench ) fBench->Stop("physics_decode");
 
   // DEBUG:
   cout << "SimDecoder: nTracks = " << GetNTracks() << endl;
-  fTracks->Print();
+  fTracks.Print();
 
   return HED_OK;
 }
