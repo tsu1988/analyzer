@@ -22,7 +22,6 @@ class THaVDCSimConditions : public TObject {
   TString textFile;           //name of output text file (holds track information)
   int numTrials;              //number of events generated in monte carlo
   Double_t wireHeight[4];      // Height of each wire in Z coord
-  Double_t wireUVOffset[4];    // Wire Offset in the coord of its plane
   Double_t driftVelocities[4]; // Drift velocity in Z coord
   TString Prefixes[4];        //array of prefixes to use in reading database
   TString databaseFile;       //name of database file to read
@@ -46,14 +45,13 @@ class THaVDCSimConditions : public TObject {
   Double_t tdcConvertFactor;   //width of single time bin (in ns), used to convert from time to tdc values
   const Double_t cellWidth;    //width of cell (i.e. horizontal spacing between sense wires)
   const Double_t cellHeight;   //height of cell (i.e. vertical spacing between u and v wire planes)
-  const Double_t planeSpacing; //vertical separation between the two planes of sense wires
 
   void set(Double_t *something,
 	   Double_t a, Double_t b, Double_t c, Double_t d);
 
   Int_t ReadDatabase(Double_t* timeOffsets);
  
- ClassDef (THaVDCSimConditions, 4) // Simulation Conditions
+ ClassDef (THaVDCSimConditions, 5) // Simulation Conditions
 };
 
 class THaVDCSimWireHit : public TObject {
@@ -104,8 +102,6 @@ class THaVDCSimTrack : public TObject {
   Double_t TTheta() { return ray[2]; }
   Double_t TPhi()   { return ray[3]; }
   Double_t P()      { return momentum.Mag(); }
-
-  Double_t tanThetaPrime;    //tangent of angle of track
 
   Int_t type;   //type of track. 0 = trigger, 1 = coincident, 2 = delta ray, 3 = cosmic ray
   Int_t layer;  //layer of material track originated from. 0 = target, 1 = vacuum window, 2 = vdc frame etc.

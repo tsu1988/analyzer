@@ -63,11 +63,11 @@ THaVDCSimConditions::THaVDCSimConditions()
  //set defaults conditions
     : filename("vdctracks.root"), numTrials(10000), 
       numWires(368), noiseSigma(4.5), noiseMean(0.0), wireEff(1.0), tdcTimeLimit(900.0), 
-      emissionRate(0.000002), probWireNoise(0.0), x1(-0.8), x2(0.9),ymean(0.0), 
+      emissionRate(0.000002), probWireNoise(0.0), x1(-1.8), x2(-0.1),ymean(0.0), 
       ysigma(0.01), z0(-1.0), 
       pthetamean(TMath::Pi()/4.0), pthetasigma(atan(1.1268) - TMath::Pi()/4.0), 
       pphimean(0.0), pphisigma(atan(0.01846)), pmag0(1.0), tdcConvertFactor(2.0), 
-      cellWidth(0.00424), cellHeight(0.026), planeSpacing(0.335)
+      cellWidth(0.00424), cellHeight(0.026)
 {
   // Constructor - determine the name of the database file
 
