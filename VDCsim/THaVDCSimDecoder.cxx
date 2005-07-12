@@ -71,6 +71,9 @@ void THaVDCSimDecoder::Clear( Option_t* opt )
   // Clear track and plane data
 
   THaEvData::Clear();
+
+  // Never delete the tracks, only clear the list. The tracks are deleted
+  // in THaVDCSimRun::ReadEvent() by the call to event->Clear().
   fTracks.Clear("nodelete");
 }
 
@@ -155,8 +158,8 @@ int THaVDCSimDecoder::LoadEvent(const int*evbuffer, THaCrateMap* map) {
   if( fDoBench ) fBench->Stop("physics_decode");
 
   // DEBUG:
-  cout << "SimDecoder: nTracks = " << GetNTracks() << endl;
-  fTracks.Print();
+  //  cout << "SimDecoder: nTracks = " << GetNTracks() << endl;
+  //fTracks.Print();
 
   return HED_OK;
 }
