@@ -11,6 +11,14 @@ ClassImp(THaVDCSimTrack);
 #include <cstdio>
 using namespace std;
 
+void THaVDCSimWireHit::Print( const Option_t* opt ) const
+{
+  cout << "Hit: wire: " << wirenum << " TDC: " << time
+       << " time: " << rawTime << " pos: " << pos
+       << " dist: " << distance
+       << endl;
+}
+
 void THaVDCSimTrack::Clear( const Option_t* opt ) {
   for (int i = 0; i < 4; i++)
     hits[i].Clear(opt);
@@ -29,6 +37,15 @@ void THaVDCSimTrack::Print( const Option_t* opt ) const
        << ray[3] << ", " << ray[4] << ")" << endl;
   cout << "  #hits = " << hits[0].GetSize() << ", " << hits[1].GetSize() << ", "
        << hits[2].GetSize() << ", " << hits[3].GetSize() << endl;
+  cout << "  t0 = " << timeOffset << endl;
+  cout << "  intercepts =";
+  for( int i=0; i<4; i++ )
+    cout << " " << xover[i];
+  cout << endl;
+  cout << "  slopes     =";
+  for( int i=0; i<4; i++ )
+    cout << " " << slope[i];
+  cout << endl;
 }
 
 THaVDCSimEvent::THaVDCSimEvent() {
@@ -67,7 +84,7 @@ THaVDCSimConditions::THaVDCSimConditions()
       ysigma(0.01), z0(-1.0), 
       pthetamean(TMath::Pi()/4.0), pthetasigma(atan(1.1268) - TMath::Pi()/4.0), 
       pphimean(0.0), pphisigma(atan(0.01846)), pmag0(1.0), tdcConvertFactor(2.0), 
-      cellWidth(0.00424), cellHeight(0.026)
+      cellWidth(0.0042426), cellHeight(0.026)
 {
   // Constructor - determine the name of the database file
 
@@ -140,7 +157,7 @@ Int_t THaVDCSimConditions::ReadDatabase(Double_t* timeOffsets)
     //read in drift velocity
     Double_t driftVel = 0.0;
     fscanf(file, "%lf", &driftVel);
-    driftVelocities[j] = driftVel/1000000000.0;   //convert to m/ns
+    driftVelocities[j] = driftVel/1e9;   //convert to m/ns
 
     fgets(buff, LEN, file); // Read to end of line
     fgets(buff, LEN, file); // Skip line
