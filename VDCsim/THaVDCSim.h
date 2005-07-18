@@ -65,8 +65,11 @@ public:
   Int_t time;       //tdctime w/additional noise
   Double_t distance;   //drift distance 
   bool wireFail;      //set to true when the wire fails
+  Double_t pos;       //wire position (m) along u(v) coordinate
 
-  ClassDef (THaVDCSimWireHit, 3) // Simple Wirehit class
+  virtual void Print( const Option_t* opt="" ) const;
+
+  ClassDef (THaVDCSimWireHit, 4) // Simple Wirehit class
 };
 
 class THaVDCSimEvent : public TObject {
@@ -102,18 +105,29 @@ class THaVDCSimTrack : public TObject {
   Double_t TTheta() { return ray[2]; }
   Double_t TPhi()   { return ray[3]; }
   Double_t P()      { return momentum.Mag(); }
+  Double_t U1Slope(){ return slope[0]; }
+  Double_t V1Slope(){ return slope[1]; }
+  Double_t U2Slope(){ return slope[2]; }
+  Double_t V2Slope(){ return slope[3]; }
+  Double_t U1Pos()  { return xover[0]; }
+  Double_t V1Pos()  { return xover[1]; }
+  Double_t U2Pos()  { return xover[2]; }
+  Double_t V2Pos()  { return xover[3]; }
 
   Int_t type;   //type of track. 0 = trigger, 1 = coincident, 2 = delta ray, 3 = cosmic ray
-  Int_t layer;  //layer of material track originated from. 0 = target, 1 = vacuum window, 2 = vdc frame etc.
+  Int_t layer;  //layer of material track originated from. 0 = target, 1 = vacuum window, 
+                // 2 = vdc frame etc.
   Int_t track_num;  //track index
   Double_t timeOffset; //time offset of the track (0 if trigger, random otherwise)
+  Double_t slope[4];  //angle between z and projection into (wire axis)-z plane
+  Double_t xover[4]; // cross-over coordinate (intercept) at each wire plane
 
   TList hits[4]; // Hits of this track only in each wire plane
 
   virtual void Clear( const Option_t* opt="" );
   virtual void Print( const Option_t* opt="" ) const;
   
-  ClassDef (THaVDCSimTrack, 3) // Simluated VDC track
+  ClassDef (THaVDCSimTrack, 4) // Simluated VDC track
 };
 
 #endif
