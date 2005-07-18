@@ -53,7 +53,14 @@ Int_t THaVDCSimDecoder::DefineVariables( THaAnalysisObject::EMode mode )
     { "tr.layer","Layer of track origin",        "fTracks.THaVDCSimTrack.layer" },
     { "tr.no",   "Track number",                 "fTracks.THaVDCSimTrack.track_num" },
     { "tr.t0",   "Track time offset",            "fTracks.THaVDCSimTrack.timeOffset" },
-    //FIXME: Add per-plane (hits, cluster) info
+    { "vdc.u1.pos",  "U1 crossing point (m)",    "fTracks.THaVDCSimTrack.U1Pos()" },
+    { "vdc.v1.pos",  "V1 crossing point (m)",    "fTracks.THaVDCSimTrack.V1Pos()" },
+    { "vdc.u2.pos",  "U2 crossing point (m)",    "fTracks.THaVDCSimTrack.U2Pos()" },
+    { "vdc.v2.pos",  "V2 crossing point (m)",    "fTracks.THaVDCSimTrack.V2Pos()" },
+    { "vdc.u1.slope","U1 track slope",           "fTracks.THaVDCSimTrack.U1Slope()" },
+    { "vdc.v1.slope","V1 track slope",           "fTracks.THaVDCSimTrack.V1Slope()" },
+    { "vdc.u2.slope","U2 track slope",           "fTracks.THaVDCSimTrack.U2Slope()" },
+    { "vdc.v2.slope","V2 track slope",           "fTracks.THaVDCSimTrack.V2Slope()" },
     { 0 }
   };
   
