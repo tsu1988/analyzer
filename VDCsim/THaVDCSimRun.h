@@ -27,14 +27,14 @@ class THaVDCSimRun : public THaRunBase {
  protected:
   virtual Int_t ReadDatabase() {return 0;}
 
-  TString rootFileName;
-  TFile *rootFile;
-  TTree *tree;
-  TBranch *branch;
-  THaVDCSimEvent *event;
+  TString rootFileName;  //  Name of input file
+  TFile *rootFile;       //! Input ROOT file
+  TTree *tree;           //! Input Tree with simulation data
+  TBranch *branch;       //! Branch holding event objects
+  THaVDCSimEvent *event; //! Current event
 
-  Int_t nentries;
-  Int_t entry;
+  Int_t nentries;        //! Number of entries in tre e
+  Int_t entry;           //! Current entry number
 
   ClassDef(THaVDCSimRun, 1) // Run class for simulated VDC data
 };
