@@ -20,11 +20,21 @@ using namespace std;
 const Double_t THaVDCCluster::kBig = 1e38;  // Arbitrary large value
 
 //_____________________________________________________________________________
+THaVDCCluster::THaVDCCluster( THaVDCPlane* owner ) :
+  fSize(0), fPlane(owner), fSlope(kBig), fSigmaSlope(kBig), fInt(kBig),
+  fSigmaInt(kBig), fT0(0.0), fSigmaT0(kBig), fPivot(NULL), fTimeCorrection(0.0),
+  fFitOK(false), fLocalSlope(kBig)
+{
+  // Constructor
+}
+
+//_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( const THaVDCCluster& rhs ) :
   fSize(rhs.fSize), fPlane(rhs.fPlane), fSlope(rhs.fSlope), 
   fSigmaSlope(rhs.fSigmaSlope), fInt(rhs.fInt), fSigmaInt(rhs.fSigmaInt), 
-  fT0(rhs.fT0), fPivot(rhs.fPivot), fTimeCorrection(rhs.fTimeCorrection),
-  fFitOK(rhs.fFitOK)
+  fT0(rhs.fT0), fSigmaT0(rhs.fSigmaT0), fPivot(rhs.fPivot), 
+  fTimeCorrection(rhs.fTimeCorrection),
+  fFitOK(rhs.fFitOK), fLocalSlope(rhs.fLocalSlope)
 {
   // Copy constructor
 
@@ -46,13 +56,21 @@ THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
     fInt        = rhs.fInt;
     fSigmaInt   = rhs.fSigmaInt;
     fT0         = rhs.fT0;
+    fSigmaT0    = rhs.fSigmaT0;
     fPivot      = rhs.fPivot;
     fTimeCorrection = rhs.fTimeCorrection;
     fFitOK      = rhs.fFitOK;
+    fLocalSlope = rhs.fLocalSlope;
     for( int i = 0; i < fSize; i++ )
       fHits[i] = rhs.fHits[i];
   }
   return *this;
+}
+
+//_____________________________________________________________________________
+THaVDCCluster::~THaVDCCluster()
+{
+  // Destructor
 }
 
 //_____________________________________________________________________________
@@ -91,7 +109,9 @@ void THaVDCCluster::ClearFit()
   fInt        = kBig;
   fSigmaInt   = kBig;
   fT0         = 0.0;
+  fSigmaT0    = kBig;
   fFitOK      = false;
+  fLocalSlope = kBig;
 }
 
 //_____________________________________________________________________________
@@ -148,18 +168,18 @@ void THaVDCCluster::EstTrackParameters()
   } else
     fSlope = 1.0;
 
+  fLocalSlope = fSlope;
   fFitOK = true;
 }
 
 //_____________________________________________________________________________
 void THaVDCCluster::ConvertTimeToDist()
 {
-
   // Convert TDC Times in wires to drift distances
 
+  //Do conversion for each hit in cluster
   for (int i = 0; i < fSize; i++)
-    fHits[i]->ConvertTimeToDist(fSlope); //Do conversion for each hit in cluster
-  
+    fHits[i]->ConvertTimeToDist(fSlope);
 }
 
 //_____________________________________________________________________________
@@ -171,7 +191,7 @@ void THaVDCCluster::FitTrack( EMode mode )
   // kT0:      Fit t0, but ignore mulithits
   // kFull:    Analyze multihits and fit t0
   // 
-  // kT0 and kFull are not yet implemented. Identical to kSimple.
+  // FIXME: kT0 and kFull are not yet implemented. Identical to kSimple.
 
   FitSimpleTrack();
 }
@@ -262,6 +282,7 @@ void THaVDCCluster::FitSimpleTrack()
       fSigmaInt = sigmaB;
     }
   }
+  fLocalSlope = fSlope;
   fFitOK = true;
 
   delete[] xArr;
@@ -321,10 +342,11 @@ void THaVDCCluster::Print( Option_t* opt ) const
   }
   cout << endl;
 
-  cout << "Slope(err), Int(err), t0: " 
-       << fSlope << " (" << fSigmaSlope << "), "
+  cout << "Int(err), local Slope(err), global slope, t0(err): " 
        << fInt   << " (" << fSigmaInt   << "), "
-       << fT0    << " fit ok: " << fFitOK
+       << fLocalSlope << " (" << fSigmaSlope << "), "
+       << fSlope << ", "
+       << fT0    << " (" << fSigmaT0 << "), fit ok: " << fFitOK
        << endl;
 
 }
