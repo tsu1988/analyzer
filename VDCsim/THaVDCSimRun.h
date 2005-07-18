@@ -36,7 +36,7 @@ class THaVDCSimRun : public THaRunBase {
   Int_t nentries;
   Int_t entry;
 
-  ClassDef(THaVDCSimRun, 0) // Run class for simulated VDC data
+  ClassDef(THaVDCSimRun, 1) // Run class for simulated VDC data
 };
 
 #endif
