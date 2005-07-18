@@ -240,10 +240,13 @@ Int_t THaVDCPlane::DefineVariables( EMode mode )
     { "nclust", "Number of clusters",         "GetNClusters()" },
     { "clsiz",  "Cluster sizes",              "fClusters.THaVDCCluster.fSize" },
     { "clpivot","Cluster pivot wire num",     "fClusters.THaVDCCluster.GetPivotWireNum()" },
-    { "clpos",  "Cluster intercepts",         "fClusters.THaVDCCluster.fInt" },
-    { "slope",  "Cluster slopes",             "fClusters.THaVDCCluster.fSlope" },
-    { "sigsl",  "Cluster slope sigmas",       "fClusters.THaVDCCluster.fSigmaSlope" },
-    { "sigpos", "Cluster position sigmas",    "fClusters.THaVDCCluster.fSigmaInt" },
+    { "clpos",  "Cluster intercepts (m)",     "fClusters.THaVDCCluster.fInt" },
+    { "slope",  "Cluster best slope",         "fClusters.THaVDCCluster.fSlope" },
+    { "lslope", "Cluster local (fitted) slope","fClusters.THaVDCCluster.fLocalSlope" },
+    { "t0",     "Timing offset (s)",          "fClusters.THaVDCCluster.fT0" },
+    { "sigsl",  "Cluster slope error",        "fClusters.THaVDCCluster.fSigmaSlope" },
+    { "sigpos", "Cluster position error (m)", "fClusters.THaVDCCluster.fSigmaInt" },
+    { "sigt0",  "Timing offset error (s)",    "fClusters.THaVDCCluster.fSigmaT0" },
     { 0 }
   };
   return DefineVarsFromList( vars, mode );
@@ -328,7 +331,8 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData)
 	  if( data > max_data )
 	    max_data = data;
 	} else {
-	  Double_t time = fTDCRes * (wire->GetTOffset() - data);
+	  Double_t xdata = static_cast<Double_t>(data) + 0.5;
+	  Double_t time = fTDCRes * (wire->GetTOffset() - xdata);
 	  if( !no_negative || time > 0.0 )
 	    new( (*fHits)[nextHit++] )  THaVDCHit( wire, data, time );
 	}
@@ -336,7 +340,12 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData)
       } // End hit loop
 
       if( only_fastest_hit ) {
-	Double_t time = fTDCRes * (wire->GetTOffset() - max_data);
+	// Convert the TDC value to the drift time.
+	// Being perfectionist, we apply a 1/2 channel correction to the raw 
+	// TDC data to compensate for the fact that the TDC truncates, not
+	// rounds, the data.
+	Double_t xdata = static_cast<Double_t>(max_data) + 0.5;
+	Double_t time = fTDCRes * (wire->GetTOffset() - xdata);
 	// FIXME: This is tricky ... could be that the next slower hit was good
 	if( !no_negative || time > 0.0 )
 	  new( (*fHits)[nextHit++] ) 
