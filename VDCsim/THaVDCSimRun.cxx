@@ -10,17 +10,22 @@
 using namespace std;
 
 //-----------------------------------------------------------------------------
-THaVDCSimRun::THaVDCSimRun(const char* description) :
-  THaRunBase(description), rootFile(0), tree(0), branch(0),
-  event(0), nentries(0), entry(0)
+THaVDCSimRun::THaVDCSimRun(const char* filename, const char* description) :
+  THaRunBase(description), rootFileName(filename), rootFile(0), tree(0), 
+  branch(0), event(0), nentries(0), entry(0)
 {
   // Constructor
+
+  // Default file name if none given
+  if( rootFileName.IsNull() )
+    rootFileName = "vdctracks.root";
 }
 
 //-----------------------------------------------------------------------------
 THaVDCSimRun::THaVDCSimRun(const THaVDCSimRun &run)
   : THaRunBase(run), nentries(0), entry(0)
 {
+  rootFileName = run.rootFileName;
   rootFile = NULL;
   tree = NULL;
   event = NULL;
@@ -28,13 +33,16 @@ THaVDCSimRun::THaVDCSimRun(const THaVDCSimRun &run)
 }
 
 //-----------------------------------------------------------------------------
-THaVDCSimRun &THaVDCSimRun::operator=(const THaVDCSimRun &rhs)
+THaVDCSimRun& THaVDCSimRun::operator=(const THaRunBase& rhs)
 {
-  THaRunBase::operator=(rhs);
-  rootFile = NULL;
-  tree = NULL;
-  event = NULL;
-
+  if (this != &rhs) {
+    THaRunBase::operator=(rhs);
+    if( rhs.InheritsFrom("THaVDCSimRun") )
+      rootFileName = static_cast<const THaVDCSimRun&>(rhs).rootFileName;
+    rootFile = NULL;
+    tree = NULL;
+    event = NULL;
+  }
   return *this;
 }
 
@@ -52,7 +60,7 @@ Int_t THaVDCSimRun::Init()
 //-----------------------------------------------------------------------------
 Int_t THaVDCSimRun::Open()
 {
-  rootFile = new TFile("vdctracks.root", "READ", "VDC Tracks");
+  rootFile = new TFile(rootFileName, "READ", "VDC Tracks");
   if (!rootFile || rootFile->IsZombie()) {
     if (rootFile->IsOpen()) Close();
     return -1;
