@@ -86,7 +86,7 @@ public:
 
   virtual void Clear( const Option_t* opt="" );
 
-  ClassDef (THaVDCSimEvent, 2) // Simple simulated track class
+  ClassDef (THaVDCSimEvent, 3) // Simple simulated track class
 };
 
 class THaVDCSimTrack : public TObject {
