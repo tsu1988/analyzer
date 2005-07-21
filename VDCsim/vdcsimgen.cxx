@@ -19,10 +19,10 @@
 #include "TVector3.h"
 #include "TString.h"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include <fstream>
 
 using namespace std;
@@ -54,7 +54,7 @@ void usage()
   puts(" -f <Textfile Name> Must be of form name.data. Default is 'trackInfo.data'");
   puts(" -a <Number of trials> Controls number of events generated. Default is 10,000");
   puts(" -d <Database file name> Default is '/u/home/orsborn/vdcsim/DB/20030415/db_L.vdc.dat' ");
-  puts(" -n <Noise> Simulated noise sigma value (>0). Default is 4.5");
+  puts(" -n <Noise> Chamber drift time resolution (ns) (sigma). Default is 4.5");
   puts(" -e <Wire Efficiency> (In decimal form). Default is 0.999");
   puts(" -r <emission rate> Target's Emission Rate (IN kHz). Default is 2 kHz");
   puts(" -c <Chamber Noise> Probability of random wires firing within the chamber. Default is 0.0");
@@ -601,7 +601,7 @@ int vdcsimgen( THaVDCSimConditions* s )
 	}
 
 	//fill wirehit information
-	event->wirehits[j]->Add(hit);
+	event->wirehits[j].Add(hit);
 	track->hits[j].Add(hit);
 
       } //closes loop going through each hit wire
@@ -652,7 +652,7 @@ int vdcsimgen( THaVDCSimConditions* s )
 	    }
 	    
 	    //fill wirehit information
-	    event->wirehits[j]->Add(hit);
+	    event->wirehits[j].Add(hit);
 	    track->hits[j].Add(hit);
 	  }//closes if(random wire fires) loop
 	  
@@ -666,7 +666,7 @@ int vdcsimgen( THaVDCSimConditions* s )
       }
 
       // Get number of good wires in this plane for this event
-      TList* hitlist = event->wirehits[j];
+      TList* hitlist = &event->wirehits[j];
       numwires = hitlist->GetSize();
 
       if( verbose ) {

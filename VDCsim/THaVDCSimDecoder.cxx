@@ -135,7 +135,7 @@ int THaVDCSimDecoder::LoadEvent(const int*evbuffer, THaCrateMap* map) {
 
   // Decode the digitized data.  Populate crateslot array.
   for (int i = 0; i < 4; i++) { // for each plane
-    TIter nextHit( simEvent->wirehits[i] );
+    TIter nextHit( &simEvent->wirehits[i] );
     // iterate over hits
     while( THaVDCSimWireHit *hit = 
 	   static_cast<THaVDCSimWireHit*>( nextHit() )) {

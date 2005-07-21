@@ -81,8 +81,8 @@ public:
   Int_t event_num;
 
   // "Simulated" data
-  TList *wirehits[4]; //list of hits for each set of wires (u1,v1,u2,v2)
-  TList tracks;  //list of tracks for each plane
+  TList wirehits[4]; //list of hits for each set of wires (u1,v1,u2,v2)
+  TList tracks;      //list of tracks for each plane
 
   virtual void Clear( const Option_t* opt="" );
 

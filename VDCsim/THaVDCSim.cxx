@@ -49,20 +49,15 @@ void THaVDCSimTrack::Print( const Option_t* opt ) const
 }
 
 THaVDCSimEvent::THaVDCSimEvent() {
-  for (int i = 0; i < 4; i++){
-    wirehits[i] = new TList;
-  }
 }
 
 THaVDCSimEvent::~THaVDCSimEvent() {
   Clear();
-  for (int i = 0; i < 4; i++)
-    delete wirehits[i];
 }
 
 void THaVDCSimEvent::Clear( const Option_t* opt ) {
   for (Int_t i = 0; i < 4; i++)
-    wirehits[i]->Delete(opt);
+    wirehits[i].Delete(opt);
 
   // Debug
 #ifdef DEBUG
