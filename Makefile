@@ -88,7 +88,7 @@ CXXFLAGS     += -pg
 LDFLAGS      += -pg
 endif
 
-export ARCH
+export ARCH LIBDIR
 
 #------------------------------------------------------------------------------
 
@@ -109,7 +109,7 @@ SRC           = src/THaFormula.C src/THaVar.C src/THaVarList.C src/THaCut.C \
 		src/THaRasteredBeam.C src/THaRaster.C\
 		src/THaBeamDet.C src/THaBPM.C src/THaUnRasteredBeam.C\
 		src/THaTrack.C src/THaPIDinfo.C src/THaParticleInfo.C \
-		src/THaCluster.C src/THaMatrix.C src/THaArrayString.C \
+		src/THaCluster.C src/THaArrayString.C \
 		src/THaScintillator.C src/THaShower.C \
 		src/THaTotalShower.C src/THaCherenkov.C \
 		src/THaEvent.C src/THaRawEvent.C src/THaTrackID.C \
@@ -136,7 +136,8 @@ OBJS          = $(OBJ) haDict.o
 LIBHALLA      = $(LIBDIR)/libHallA.so
 PROGRAMS      = analyzer
 
-all:            subdirs $(PROGRAMS)
+all:            subdirs
+		set -e; for i in $(PROGRAMS); do $(MAKE) $$i; done
 
 src/ha_compiledata.h:
 		echo "#define HA_INCLUDEPATH \"$(INCDIRS)\"" > $@

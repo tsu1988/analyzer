@@ -5,7 +5,7 @@
 //
 // THaSpectrometerDetector
 //
-// Abstract base class for a generic Hall A spectrometer detector. 
+// Abstract base class for a generic spectrometer detector. 
 //
 // This is a specialized detector class that supports the concept of
 // "tracking" and "PID" detectors.
@@ -13,7 +13,6 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "THaDetector.h"
-#include "THaMatrix.h"
 #include "TGeometry.h"
 
 class THaTrack;
@@ -30,7 +29,7 @@ public:
           bool             CalcInterceptCoords( THaTrack* track, 
 						Double_t& x, Double_t& y);
           bool             CalcPathLen( THaTrack* track, Double_t& t );
-	  bool		   GetTrackDir( THaTrack* trach, TVector3* dir);		   
+	  bool		   GetTrackDir( THaTrack* track, TVector3* dir);		   
   virtual	  void		   Draw(TGeometry* geom,THaTrack* track, Double_t& t, const Option_t* opt = NULL);
   virtual	  void		   Draw(TGeometry* geom,const THaEvData& evdata,  const Option_t* opt = NULL);
   virtual	  void		   Draw(TGeometry* geom, const Option_t* opt = NULL);
@@ -38,12 +37,10 @@ public:
 
 protected:
 
-  // Extra Geometry for calculating intercepts
+  // Geometry data
   TVector3  fXax;                  // X axis of the detector plane
   TVector3  fYax;                  // Y axis of the detector plane
   TVector3  fZax;                  // Normal to the detector plane
-  THaMatrix fDenom;                // Denominator matrix for intercept calc
-  THaMatrix fNom;                  // Nominator matrix for intercept calc
   TList     fGraphics;		   // List of Graphic objects to be freed on destruction.
 
   virtual void  DefineAxes( Double_t rotation_angle );

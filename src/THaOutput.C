@@ -464,7 +464,7 @@ Int_t THaOutput::LoadFile( const char* filename )
   
   if( !filename || !strlen(filename) || strspn(filename," ") == 
       strlen(filename) ) {
-    ::Error( "THaOutput::LoadFile()", "invalid file name, "
+    ::Error( "THaOutput::LoadFile", "invalid file name, "
 	     "no output definition loaded" );
     return -1;
   }
@@ -606,7 +606,7 @@ THaString THaOutput::StripBracket(THaString& var) const
 // should not be fatal because your variable will 
 // still show up in the tree (e.g. L.s1.lt[4] will
 // show up together with L.s1.lt[0],... etc.).
-  UInt_t pos1,pos2;
+  string::size_type pos1,pos2;
   THaString open_brack = "[";
   THaString close_brack = "]";
   THaString result = "";
@@ -629,11 +629,11 @@ void THaOutput::ErrFile(Int_t iden, const THaString& sline) const
 {
   // Print error messages about the output definition file.
   if (iden == -1) {
-    cerr << "THaOutput::LoadFile ERROR: file " << sline;
+    cerr << "<THaOutput::LoadFile> WARNING: file " << sline;
     cerr << " does not exist." << endl;
-    cerr << "To use THaOutput, you must have an";
-    cerr << " output definition file ";
-    cerr << "(see ./examples/output.def)"<<endl;
+    cerr << "See $ANALYZER/examples/output.def for an example.\n";
+    cerr << "Output will only contain event objects "
+      "(this may be all you want).\n";
     return;
   }
   cerr << "THaOutput::ERROR: Syntax error in output definition file."<<endl;

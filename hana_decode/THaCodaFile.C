@@ -96,8 +96,8 @@ using namespace std;
   };
 
 
-  int THaCodaFile::codaWrite(int *evbuf) {
-// codaWrite: Writes data to file
+  int THaCodaFile::codaWrite(const int *evbuf) {
+// codaWrite: Writes data from 'evbuf' to file
      int status;
      if ( handle ) {
        status = evWrite(handle, evbuf);
@@ -291,7 +291,7 @@ void THaCodaFile::staterr(const TString& tried_to, int status) {
 	}
         break;
       default:
-        cout << "Error status  0x" << hex << status << endl;
+        cout << "Error status  0x" << hex << status << dec << endl;
       }
   };
 

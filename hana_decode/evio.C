@@ -16,6 +16,10 @@
  *
  * Revision History:
  *   $Log$
+ *   Revision 1.5.6.1  2007/04/09 19:18:09  ole
+ *   Patch for ROOT 4 and higher plus 64-bit support, using relevant updates from
+ *   trunk. Compiles now and starts up now, but runtime behavior not yet tested.
+ *
  *   Revision 1.5  2002/09/13 18:59:36  rom
  *   fix bug (apparently recent) in malloc for fn in evOpen
  *
@@ -82,11 +86,11 @@
  * Routines
  * --------
  *
- *	evOpen(const char *filename,const char *flags,int *descriptor)
- *	evWrite(int descriptor,int *data,int datalen)
- *	evRead(int descriptor,int *data,int *datalen)
- *	evClose(int descriptor)
- *	evIoctl(int descriptor,char *request, void *argp)
+ *	evOpen(const char *filename,const char *flags,void* *descriptor)
+ *	evWrite(void* descriptor,int *data,int datalen)
+ *	evRead(void* descriptor,int *data,int *datalen)
+ *	evClose(void* descriptor)
+ *	evIoctl(void* descriptor,char *request, void *argp)
  *
  * Modifications
  * -------------
@@ -170,7 +174,7 @@ extern "C" void swapped_intcpy(char* des, char* source, int nbytes);
 extern  void swapped_memcpy(char *buffer,char *source,int size);
 
 #ifndef VXWORKS
-int evopen_(const char *filename,const char *flags,int *handle,int fnlen,int flen)
+int evopen_(const char *filename,const char *flags,void** handle,int fnlen,int flen)
 {
   char *fn, *fl;
   int status;
@@ -187,7 +191,7 @@ int evopen_(const char *filename,const char *flags,int *handle,int fnlen,int fle
 }
 #endif
 
-int evOpen(const char *filename,const char *flags,int *handle)
+int evOpen(const char *filename,const char *flags,void* *handle)
 {
   EVFILE* a = evGetStructure(); /* allocate control structure or quit */
   if (!a) return(S_EVFILE_ALLOCFAIL);
@@ -275,7 +279,7 @@ int evOpen(const char *filename,const char *flags,int *handle)
     a->magic = EV_MAGIC;
     a->blksiz = a->buf[EV_HD_BLKSIZ];
     a->blknum = a->buf[EV_HD_BLKNUM];
-    *handle = (int) a;
+    *handle = (void*) a;
     return(S_SUCCESS);
   } else {
     free(a);
@@ -290,13 +294,13 @@ int evOpen(const char *filename,const char *flags,int *handle)
 }
 
 #ifndef VXWORKS
-int evread_(int *handle,int *buffer,int *buflen)
+int evread_(void* *handle,int *buffer,int *buflen)
 {
   return(evRead(*handle,buffer,*buflen));
 }
 #endif
 
-int evRead(int handle,int *buffer,int buflen)
+int evRead(void* handle,int *buffer,int buflen)
 {
   EVFILE *a;
   int nleft,ncopy,error,status;
@@ -382,13 +386,13 @@ int evGetNewBuffer(EVFILE *a) {
 }
 
 #ifndef VXWORKS
-int evwrite_(int *handle,int *buffer)
+int evwrite_(void* *handle,const int *buffer)
 {
   return(evWrite(*handle,buffer));
 }
 #endif
 
-int evWrite(int handle,int *buffer)
+int evWrite(void* handle,const int *buffer)
 {
   EVFILE *a;
   int nleft,ncopy,error;
@@ -442,7 +446,7 @@ int evFlush(EVFILE *a)
 }
 
 #ifndef VXWORKS
-int evioctl_(int *handle,char *request,void *argp,int reqlen)
+int evioctl_(void* *handle,char *request,void *argp,int reqlen)
 {
   char *req;
   int status;
@@ -455,7 +459,7 @@ int evioctl_(int *handle,char *request,void *argp,int reqlen)
 }
 #endif
 
-int evIoctl(int handle,char *request,void *argp)
+int evIoctl(void* handle,char *request,void *argp)
 {
   EVFILE *a;
   a = (EVFILE *)handle;
@@ -490,13 +494,13 @@ int evIoctl(int handle,char *request,void *argp)
 }
 
 #ifndef VXWORKS
-int evclose_(int *handle)
+int evclose_(long int *handle)
 {
-  return(evClose(*handle));
+  return(evClose((void*)*handle));
 }
 #endif
 
-int evClose(int handle)
+int evClose(void* handle)
 {
   EVFILE *a;
   int status = 0, status2;
@@ -514,12 +518,12 @@ int evClose(int handle)
 
 
 /******************************************************************
- *         int evOpenSearch(int, int *)                           *
+ *         int evOpenSearch(void*, void* *)                       *
  * Description:                                                   *
  *     Open for binary search on data blocks                      *
  *     return last physics event number                           *
  *****************************************************************/
-int evOpenSearch(int handle, int *b_handle)
+int evOpenSearch(void* handle, void* *b_handle)
 {
   EVFILE *a;
   EVBSEARCH *b;
@@ -557,7 +561,7 @@ int evOpenSearch(int handle, int *b_handle)
   b->found_bk = -1;
   b->found_evn = -1;
   b->last_evn = last_evn;
-  *b_handle = (int)b;
+  *b_handle = (void*)b;
   return last_evn;
 }
   
@@ -628,7 +632,7 @@ static int findLastEventWithinBlock(EVFILE *a)
 }
 
 /********************************************************************
- *      int evSearch(int, int, int, int *, int, int *)              *
+ *      int evSearch(void*, void*, int, int *, int, int *)          *
  * Description:                                                     *
  *    Doing binary search for event number evn, -1 failure          *
  *    Copy event to buffer with buffer length buflen                *
@@ -637,7 +641,7 @@ static int findLastEventWithinBlock(EVFILE *a)
  *    return -1: the event number bigger than largest ev number     *
  *    return 1:  cannot find the event number                       *
  *******************************************************************/
-int evSearch(int handle, int b_handle, int evn, int *buffer, int buflen, int *size)
+int evSearch(void* handle, void* b_handle, int evn, int *buffer, int buflen, int *size)
 {
   EVFILE    *a;
   EVBSEARCH *b;
@@ -977,7 +981,7 @@ static int copySingleEvent(EVFILE *a, int *buffer, int buflen, int ev_size)
  *     Close evSearch process, release memory                          *
  * bugbug - RWM: why return an int? nothing can fail.                  *
  **********************************************************************/
-int evCloseSearch(int b_handle)
+int evCloseSearch(void* b_handle)
 {
   EVBSEARCH *b;
 

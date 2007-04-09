@@ -50,7 +50,7 @@ const int THaEvData::HED_OK  =  1;
 const int THaEvData::HED_ERR = -1;
 
 static const int VERBOSE = 1;
-static const int DEBUG   = 0;
+static const int DEBUG   = 1;
 static const int BENCH   = 0;
 
 //_____________________________________________________________________________
@@ -322,7 +322,7 @@ int THaEvData::epics_decode(const int* evbuffer) {
      // Format string for line parsing
      static char fmt[16];
      static bool first = true;
-     if( first ) { sprintf(fmt,"%%%ds %%n",MAXEPV); first = false; }
+     if( first ) { sprintf(fmt,"%%%ds %%n",(int)MAXEPV); first = false; }
 
      size_t len = sizeof(int)*(evbuffer[0]+1);  
      size_t nlen = TMath::Min(len,MAX);
@@ -761,6 +761,26 @@ int THaEvData::loadFlag(const int* evbuffer) {
   return HED_OK;
 }
 
+// KCR: wow this function looks cool.  I want one =P
+void THaEvData::hexdump(const char* cbuff, size_t nlen)
+{
+  // Hexdump buffer 'cbuff' of length 'nlen'
+  const int NW = 16; const char* p = cbuff;
+  while( p<cbuff+nlen ) {
+    cout << dec << setw(4) << setfill('0') << (size_t)(p-cbuff) << " ";
+    int nelem = TMath::Min((Long_t)NW,(Long_t)(cbuff+nlen-p));
+    for(int i=0; i<NW; i++) {
+      UInt_t c = (i<nelem) ? *(const unsigned char*)(p+i) : 0;
+      cout << " " << hex << setfill('0') << setw(2) << c << dec;
+    } cout << setfill(' ') << "  ";
+    for(int i=0; i<NW; i++) {
+      char c = (i<nelem) ? *(p+i) : 0;
+      if(isgraph(c)||c==' ') cout << c; else cout << ".";
+    } cout << endl;
+    p += NW;
+  }
+}
+
 // To initialize the crate map member if it is to be used.
 int THaEvData::init_cmap()  {
   if (DEBUG) cout << "Init crate map " << endl;
@@ -815,24 +835,6 @@ int THaEvData::init_slotdata(const THaCrateMap* map)
   return HED_OK;
 }
 
-void THaEvData::hexdump(const char* cbuff, size_t nlen)
-{
-  // Hexdump buffer 'cbuff' of length 'nlen'
-  const int NW = 16; const char* p = cbuff;
-  while( p<cbuff+nlen ) {
-    cout << dec << setw(4) << setfill('0') << (size_t)(p-cbuff) << " ";
-    int nelem = TMath::Min(NW,cbuff+nlen-p);
-    for(int i=0; i<NW; i++) {
-      UInt_t c = (i<nelem) ? *(const unsigned char*)(p+i) : 0;
-      cout << " " << hex << setfill('0') << setw(2) << c << dec;
-    } cout << setfill(' ') << "  ";
-    for(int i=0; i<NW; i++) {
-      char c = (i<nelem) ? *(p+i) : 0;
-      if(isgraph(c)||c==' ') cout << c; else cout << ".";
-    } cout << endl;
-    p += NW;
-  }
-}
 
 ClassImp(THaEvData)
 

@@ -18,7 +18,12 @@ public:
 	  const THaVarList* vlst = gHaVars, const THaCutList* clst = gHaCuts );
   virtual ~THaCut() {}
 
+#if ROOT_VERSION_CODE >= 262144 // 4.00/00
+  virtual Int_t        DefinedVariable( TString& variable, Int_t& action );
+#else
+xk
   virtual Int_t        DefinedVariable( TString& variable );
+#endif
   virtual Bool_t       EvalCut();
           Bool_t       GetResult()    const { return fLastResult; }
           const char*  GetBlockname() const { return fBlockname.Data(); }

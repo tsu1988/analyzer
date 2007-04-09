@@ -63,7 +63,11 @@ THaCut::THaCut( const char* name, const char* expression, const char* block,
 }
 
 //_____________________________________________________________________________
+#if ROOT_VERSION_CODE >= ROOT_VERSION(4,0,0)
+Int_t THaCut::DefinedVariable(TString& name, Int_t& action)
+#else
 Int_t THaCut::DefinedVariable(TString& name)
+#endif
 {
   // Check if 'name' is in the list of existing cuts. 
   // If so, store pointer to the cut for use by DefinedValue().
@@ -72,13 +76,13 @@ Int_t THaCut::DefinedVariable(TString& name)
 
   //  Return codes:
   //  >=0  serial number of variable or cut found
-  //   -1  no list of variables defined
+  //   -1  variable not found
   //   -2  error parsing variable name
-  //   -3  variable name not defined
-  //   -4  array requested, but defined variable is no array
-  //   -5  array index out of bounds
-  //   -6  maximum number of variables exceeded
+  //   -3  error parsing variable name, error already printed
 
+#if ROOT_VERSION_CODE >= ROOT_VERSION(4,0,0)
+  action = kDefinedVariable;
+#endif
   Int_t k = DefinedCut( name );
   if( k>=0 ) return k;
   return DefinedGlobalVariable( name );

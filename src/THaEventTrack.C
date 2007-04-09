@@ -12,7 +12,7 @@
 #include "THaEventTrack.h"
 #include "TVector3.h"
 #include "THaSpectrometerDetector.h"
-#include <math.h>
+#include "TMath.h"
 #include "TBox.h"
 #include "THaTrack.h"
 #include "TRotMatrix.h"
@@ -22,6 +22,10 @@
 #include "THaVDC.h"
 #include "THaETVDCGrDetail.h"
 #include "THaETVDCDetail.h"
+
+#include <iostream>
+
+using namespace std;
 
 //----------------------------------------------------
 THaEventTrack::THaEventTrack(const char* name, THaApparatus* app): THaPhysicsModule(name,"EventTrack")

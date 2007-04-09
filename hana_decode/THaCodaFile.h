@@ -35,7 +35,7 @@ public:
   int codaOpen(const TString& filename, const TString& rw, int mode=1);
   int codaClose();
   int codaRead(); 
-  int codaWrite(int* evbuffer);
+  int codaWrite(const int* evbuffer);
   int *getEvBuffer();     
   int filterToFile(const TString& output_file); // filter to an output file
   void addEvTypeFilt(int evtype_to_filt);    // add an event type to list
@@ -50,7 +50,8 @@ private:
   void initFilter();
   void staterr(const TString& tried_to, int status);  // Can cause job to exit(0)
   int ffirst;
-  int max_to_filt,handle;
+  int max_to_filt;
+  void *handle;
   int maxflist,maxftype;
   TArrayI evlist, evtypes;
 

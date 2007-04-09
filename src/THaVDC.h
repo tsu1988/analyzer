@@ -89,8 +89,6 @@ protected:
 
   TList    fDetGraphs;     // Array to hold pointers to graphic objects
 
-  virtual void DefineAxes(Double_t rotation_angle);
-  
   // declarations for target vertex reconstruction
   enum ECoordTypes { kTransport, kRotatingTransport };
   enum EFPMatrixElemTags { T000 = 0, Y000, P000 };
