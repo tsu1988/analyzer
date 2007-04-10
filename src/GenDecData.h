@@ -47,7 +47,7 @@ public:
    Int_t NumHits() { return ndata; }
    UInt_t Get(Int_t i=0) { 
      return (0 <= i && i < ndata) ? rdata[i] : 0; }
-   Bool_t ThisIs(const char* aname) { return (strstr(name.c_str(),aname) != 0);}
+   Bool_t ThisIs(const char* aname) { return name==aname;}
    ~BdataLoc2() {}
 
    Int_t  crate, slot, chan;   // where to look in crates
