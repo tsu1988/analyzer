@@ -1,0 +1,78 @@
+# -*- mode: Text -*-
+#-----------------------------------------------------------
+#  Database for Hall A Polarized he3 target for RHRS DAQ
+#
+#  Note that you can set validity time periods in the
+#  usual way by starting sections with time stamps like
+#  [ 2005-06-20 14:30:35 ]
+#-----------------------------------------------------------
+
+
+###############################################
+# Setting for He3 target 
+###############################################
+he3R.ADCSpinList = radc1
+
+###############################################
+# Setting for THaADCHe3Spin detectors 
+###############################################
+
+### gloabal settings
+# Max permissible count of continuous events, 
+# which do not contain target signal reading.
+# This setting apply to any THaADCHe3Spin and
+# THaBitHe3Spin unless overwritten
+he3R.PermInvalidEvt = 0
+
+### Setting for he3R.ladc1
+he3R.radc1.SpinUpChan		= 4 21 48
+he3R.radc1.SpinDownChan		= 4 21 49
+he3R.radc1.ADCLogic1Window   = 16300 16500
+he3R.radc1.ADCLogic0Window   = 0 1000
+he3R.radc1.PermInvalidEvt	= 3
+
+
+
+
+###############################################
+# examples ,just for reference 
+###############################################
+
+### Setting for he3.ladc1
+he3.ladc1.SpinUpChan		= 4 21 48
+he3.ladc1.SpinDownChan		= 4 21 49
+he3.ladc1.ADCLogic1Window   = 16300 16500
+he3.ladc1.ADCLogic0Window   = 0 1000
+he3.ladc1.PermInvalidEvt	= 3
+
+### Setting for he3.ladc2
+he3.ladc2.SpinUpChan		= 4 21 54
+he3.ladc2.SpinDownChan		= 4 21 55
+he3.ladc2.ADCLogic1Window   = 16300 16500
+he3.ladc2.ADCLogic0Window   = 0 1000
+he3.ladc2.PermInvalidEvt	= 3
+
+### Setting for he3.bbadc
+he3.bbadc.SpinUpChan		= 5 16 8
+he3.bbadc.SpinDownChan		= 5 16 9
+he3.bbadc.ADCLogic1Window   = 3500 4500
+he3.bbadc.ADCLogic0Window   = 0 300
+he3.bbadc.PermInvalidEvt	= 1
+
+### Setting for he3.bbbit
+# spin up\down signal = 
+#   (databuffer[HeaderWord position + SpinWordOffSet] ^ SpinWordXorConverter) 
+#   & SpinUpMask\SpinDownMask
+# roc number
+he3.bbbit.ROC				= 5
+# header word for data section containing spin info
+he3.bbbit.SpinWordHeader	= 0xb0b04444
+# off set of the word containing spin info relative the header word
+he3.bbbit.SpinWordOffSet	= 1
+# masks & converters
+he3.bbbit.SpinWordXorConverter = 0x00000003
+he3.bbbit.SpinUpMask		= 0x00000001
+he3.bbbit.SpinDownMask		= 0x00000002
+
+
+###### examples ,just for reference ######

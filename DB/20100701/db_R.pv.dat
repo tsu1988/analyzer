@@ -1,0 +1,97 @@
+######################## RIGHT HRS PVDISHit ############################
+#Number of Right PVDIS TDC channels in the FASTBUS -----------------------
+       80
+#     Crate,  Slot,   1st chan, Last chan,  Beg TDC chan, model 
+       2      11      0         15          1             1877   - TDCs  1-16 
+       2      11      16        31          17            1877   - TDCs  17-32
+       2      11      32        47          33            1877   - TDCs  33-48
+       2      11      48        63          49            1877   - TDCs  49-64
+       2      12      32        47          65            1877   - TDCs  65-80
+# The code requires equal lines of TDC and ADC in this part of the
+# database. Since we have 5 TDC lines above, we need these 5 commented
+# lines to mimic the ADC part.
+# 
+#
+      -1       0       0        0           0
+#-------TDC time offsets of TDC channels. The number 500 is just random. ------
+# The offsets must be written as one offset in one line in the following.
+ 500.0 # first  channel of first NIM-ECL module (top ribbon cable in Fastbus)
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0 # last channel of the first ribbon cable
+ 500.0 # first channel of 2nd ribbon cable (2nd NIM-ECL module)
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0 # last channel of the 2nd ribbon cable
+ 500.0 # first channel of 3rd ribbon cable (3rd NIM-ECL module)
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0  # last channel of the 3rd ribbon cable
+ 500.0    # first channel of 4th ribbon cable (4th NIM-ECL module)
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0  # last channel of the 4th ribbon cable
+ 500.0    # first channel of 5th ribbon cable (5th NIM-ECL module)
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0
+ 500.0  # last channel of the 5th ribbon cable

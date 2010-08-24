@@ -1,0 +1,176 @@
+# Basic ideas of follows convention of Hall A Tech Notes JLAB-TN-02-012:
+# http://hallaweb.jlab.org/publications/Technotes/files/2002/02-012.pdf
+
+#########################################################
+# Common Section for THaOptics
+#########################################################
+
+# source of beam information.
+# this item could be overwriten by
+#   1. parameter in the constructor function
+#   2. any call of function THaOptics::SetBeamName
+BeamDetectorName    =   B
+
+# OLD INPUTS:
+# shift of target coordinate system origin, in the hall coordinate system
+# rotation of the whole spectrometer will be read out from db_run.dat
+# target_x    =   0.0
+# target_y    =   0.0
+# target_z    =   0.0
+
+# the shift of Transport Coordinate System Origin in Target Coordinate System
+trans_x     =   -0.32269
+trans_y     =    0.0
+trans_z     =    2.10201
+
+
+# the rotation for a vector expressed in Transport Coordinate System 
+# to be translate into Target Coordinate System
+#
+# The rotation is described by a series of angles ( unit is degree ) as below.
+#
+# The rotation take the order of x -> y-> z
+trans_rot_x =   -0.0
+trans_rot_y =   -25.0
+trans_rot_z =   0.0
+
+#0st order corection
+ThShift     = -0.04945
+PhShift     =  0.0
+PShift      =  0.0
+PathLenShift=  0.0
+
+
+#########################################################
+# Additional Section for THaOpticsAGen
+#########################################################
+
+# description of this part could be found at
+# http://hallaweb.jlab.org/experiment/E02-013/offline/BBdatabase.txt
+
+effbendplanetheta = 10.0
+effbendz = 1.85
+effbendx = 0.0
+effbendy = 0.0
+
+ciDef = 0.283
+ciDefXbend = 0.126
+cThetaTarg = 0.0
+cY = 0.10
+cPhi = 0.0
+ca = 0.0
+
+cV = 1.0
+cVX = 0.012
+cVXp = 0.0
+cVY = 0.05
+cVYp = 0.0
+
+#########################################################
+# Additional Section for THaOpticsHRS
+#########################################################
+# format is described in 
+# http://hallaweb.jlab.org/publications/Technotes/files/2002/02-012.pdf
+
+[matrix]
+t 0 0 0 -1.0046E+00 -3.3492E-01 -4.0787E-02  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+y 0 0 0 -5.1574E-03  2.6424E-04  2.2346E-03  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+p 0 0 0 -7.4355E-04 -2.1302E-03  1.1950E-03  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 0 0 0  0.0000E+00  8.3213E-02  1.2361E-02  1.5953E-03 -3.9872E-03  0.0000E+00   0.0000E+00
+D 1 0 0 -1.9043E-02  2.5641E-01  2.1779E-02  1.3072E-01  0.0000E+00  0.0000E+00   0.0000E+00
+D 2 0 0 -1.0864E+00  8.8496E-01 -1.9431E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 0 0 2  1.9538E-02  3.0371E-01 -1.2155E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 0 2 0  2.8829E-01 -2.9092E-01 -3.1134E-01  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 0 1 1  4.5943E-01 -7.4564E-02  8.9922E-01  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 3 0 0  5.0960E-01  9.7778E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 1 2 0 -8.2555E+00  2.0051E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 1 0 2 -1.2167E+01 -1.3129E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+D 1 1 1 -3.1099E+01 -4.5123E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 1 0 0 -2.3551E+00  5.6775E-01 -4.4475E-02 -1.3842E-01  0.0000E+00  0.0000E+00   0.0000E+00
+T 2 0 0 -4.2266E+00  1.0975E+00  3.2612E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 0 0 2  6.3757E-01  9.3859E-01 -6.0328E-01  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 0 2 0  6.8616E-01 -2.2501E+00 -3.3522E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 1 2 0 -1.7294E+01 -1.3187E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 3 0 0  2.0535E+02 -1.2510E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 2 0 2 -1.2799E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+T 4 0 0 -1.0844E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 0 0 1 -6.1757E-01 -1.9659E-01  2.0069E-01  7.5009E-02  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 0 0 -1.7992E-02 -7.0981E-03  4.1751E-02  6.6100E-02  0.0000E+00  0.0000E+00   0.0000E+00
+P 0 1 0 -3.7403E-01  3.4111E-01 -6.9323E-02 -1.0191E-01  0.0000E+00  0.0000E+00   0.0000E+00
+P 0 1 2  2.7226E+01 -5.9994E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 1 0  3.2109E+00 -3.7806E-01  2.9162E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 0 1  5.0843E+00  5.6184E-01 -2.3362E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 0 0 3  5.5608E+00  1.5148E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 2 0 1 -1.6784E+01 -6.9989E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 2 1 0 -8.2871E+01 -9.5480E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 0 2 1 -6.6350E+00  9.9351E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 0 3 0 -2.9771E+00 -4.1981E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 0 3 -1.9833E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 3 0  1.5373E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 3 0 1 -3.5260E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 3 1 0 -2.0890E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 1 2  1.4738E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+P 1 2 1 -2.2600E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 0 0 1  7.7008E-01 -1.1589E+00 -5.1395E-01  9.0376E-02  0.0000E+00  0.0000E+00   0.0000E+00
+Y 0 1 0 -1.1900E+00 -8.2703E-01  4.4801E-02  3.7573E-01  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 0 0  5.5759E-02 -1.5466E-02 -2.0478E-02 -1.3026E-01  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 0 1 -8.8422E-01 -6.8824E+00 -2.4681E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 1 0 -1.5262E+01 -8.1789E-01 -7.0008E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 1 2  1.8638E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 2 1 -2.4127E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 0 3 -4.8588E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 1 3 0  2.8977E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 0 0 3  2.0750E+01  3.1933E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 2 1 0  3.2760E+02 -3.2782E+01  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 0 3 0  7.8142E+01 -6.1781E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 2 0 1  3.5838E+02  1.6117E+02  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 3 0 1  3.0626E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+Y 3 1 0  5.9710E+03  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00  0.0000E+00   0.0000E+00
+
+
+#########################################################
+# Additional Section for THaOpticsAnalytical
+#########################################################
+
+# P=q*B*R=K*I*R, in which,
+#  P is calculated momentum
+#  q is charge of the incoming particle
+#  B is the magnetic field
+#  R is bending radius
+#  K is an constant related to the magnetic
+#  I is the current in coil
+#
+# there are two method of scaling bending radius to momentum:
+# 1. given current I and constant K
+# 2. given radius of central momentum
+# this class will try both of above method.
+#  Priority of method 1 is higher
+#  K<=0 will a push this class to use method 2
+
+# setup the constant K here, as discussed above
+# units: GeV/A/m/c
+K=7.96996e-4
+
+
+# The radius of curve for a particle with central momentum to move in the average magnetic field.
+# CurveRadiusOfCentralMomentum>0 in meter to be valid.
+# in case CurveRadiusOfCentralMomentum<=0, code will be automatically calculated one according to definition.
+CurveRadiusOfCentralMomentum=   -1  
+
+
+# see http://www.jlab.org/~jinhuang/BigBiteDoc/THaOpticsAnalytical.html for reference
+# no need to change if old parameters working fine
+
+# model defined fitted parameters
+MagneticFieldFrontShift     =   -.04
+MagneticFieldTopCrossing    =   1.773
+MagneticFieldRearSlopeAngle =   20
+ 
+
+#########################################################
+# Additional Section for THaOpticsNoFeild
+#########################################################
+
+
+
+

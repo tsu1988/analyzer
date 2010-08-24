@@ -1,0 +1,166 @@
+# Decoder data used by THaDecData class
+# R. Michaels, March 2002
+# Comments start with '#'
+#
+# Here is where to search for the variables of this class.
+# Syntax depends on whether crate/word = "crate" or "word".
+# If "crate", we are looking into crates by slot and channel.
+# if "word", we are looking at a position relative to a header.
+# Hence, either:
+# name     "crate"   crate-number    slot    channel
+# or:
+# name     "word"    crate-number    header  num-to-skip
+# For the latter case, if one specifies crate-number = 0, then the
+# entire event is searched for 'header' (which in this case must be unique).
+# If crate-number > 0, then only that crate is searched.
+#
+# If this file is not existing, THaDecData will use its own internal DefaultMap().
+
+# synch checking adcs
+synchadc1    crate     1       25      16
+synchadc2    crate     2       24      48
+synchadc3    crate     3       22       0
+synchadc4    crate     4       17      48
+synchadc14   crate    14        1       5
+
+# time stamps
+timestamp    word      0    fca56000   2
+timeroc1     word      1    fabc0006   6
+b            word      1    fabc0006   6
+timeroc2     word      2    fabc0006   6
+timeroc3     word      3    fabc0006   6
+timeroc4     word      4    fabc0008   8
+timeroc11    word      4    faaa0001   6
+timeroc11b   word      4    faaa0001   10
+timeroc11c   word      4    faaa0001   11
+timeroc10    word      2    faaa0001   6
+
+# roc event type
+evtyperoc1     word      1    fabc0006   5
+evtyperoc2     word      2    fabc0006   5
+evtyperoc3     word      3    fabc0006   5
+evtyperoc4     word      4    fabc0008   5
+evtyperoc11    word      4    faaa0001   4
+evtyperoc10    word      2    faaa0001   4
+
+# private counter
+evtroc1     word      1    fabc0006   1
+evtroc2     word      2    fabc0006   1
+evtroc3     word      3    fabc0006   1
+evtroc4     word      4    fabc0008   3
+evtroc11    word      4    faaa0001   7
+evtroc10    word      2    faaa0001   7
+
+# coda evt
+coevtroc1     word      1    fabc0006   2
+coevtroc2     word      2    fabc0006   2
+coevtroc3     word      3    fabc0006   7
+coevtroc4     word      4    fabc0008   4
+coevtroc11    word     11    cafe0000   1
+
+#helicity adc ROCs
+helroc1    crate     1	  23    48
+helroc2    crate     2    23    48
+helroc3    crate     3	  23    48
+helroc4    crate     4    21    48
+
+
+# vxclock
+vxroc1     word      1    fabc0006   4
+vxroc2     word      2    fabc0006   4
+vxroc3     word      3    fabc0006   4
+vxroc4     word      4    fabc0008   7
+
+
+# trigger bit pattern
+bit1       crate      2    12      64
+bit2       crate      2    12      65
+bit3       crate      2    12      66
+bit4       crate      2    12      67
+bit5       crate      2    12      68
+bit6       crate      2    12      69
+bit7       crate      2    12      70
+bit8       crate      2    12      71
+bit9       crate      4    13      72
+bit10      crate      4    13      73
+bit11      crate      4    13      74
+bit12      crate      4    13      75
+bit13      crate      4    13      76
+
+# trigger bit pattern
+Rbit1       crate      2    12      64
+Rbit2       crate      2    12      65
+Rbit3       crate      2    12      66
+Rbit4       crate      2    12      67
+Rbit5       crate      2    12      68
+Rbit6       crate      2    12      69
+Rbit7       crate      2    12      70
+Rbit8       crate      2    12      71
+
+# EDTM pulser
+pulser     crate      4    13      48
+edtpl      crate      4    13      48
+TrigT1L     crate      4    13      49
+TrigT3L    crate      4    13      50
+TrigT5L    crate      4    13      51
+edtpr      crate      2    12      48
+righte     crate      2    12       0
+TrigT1R     crate      2    12      1 
+TrigT3R     crate      1    15       0
+TrigT5R     crate      1    15       1
+ 
+# coincidence timing (1875)
+ctimel     crate      4    25      49
+ctimer     crate      2    16      32
+LRtl     crate      4    13      95
+LRtr     crate      1    15      16
+
+# prescaled RF time (1875)
+rftime1     crate      4    25      63
+rftime2     crate      4    25      62
+
+# TDC
+tdc48     crate      4    25      48
+
+
+# TDC Cer
+cer1     crate      4    13      80
+cer2     crate      4    13      81
+cer3     crate      4    13      82
+cer4     crate      4    13      83
+cer5     crate      4    13      84
+cer6     crate      4    13      85
+cer7     crate      4    13      86
+cer8     crate      4    13      87
+cer9     crate      4    13      88
+cer10     crate     4    13      89
+
+# ADC slot 23 Cavity Monitors
+bcmucav      crate      2    23     32
+bpmucavx     crate      2    23     33
+bpmucavy     crate      2    23     34
+bcmdcav      crate      2    23     35
+bpmdcavx     crate      2    23     36
+bpmdcavy     crate      2    23     37
+bpmaraw1     crate      2    23     0
+bpmaraw2     crate      2    23     1
+bpmaraw3     crate      2    23     2
+bpmaraw4     crate      2    23     3
+
+# ADC slot 25
+adc0     crate      1    25      0
+adc1     crate      1    25      1
+adc2     crate      1    25      2
+adc3     crate      1    25      3
+adc4     crate      1    25      4
+adc5     crate      1    25      5
+adc6     crate      1    25      6
+adc7     crate      1    25      7
+adc8     crate      1    25      8
+adc9     crate      1    25      9
+adc10     crate     1    25      10
+adc11    crate      1    25      11
+adc12    crate      1    25      12
+adc13    crate      1    25      13
+adc14     crate     1    25      14
+adc15     crate     1    25      15

@@ -1,0 +1,51 @@
+# add new entries here
+
+
+
+
+
+#######################################################
+#old database for AGen MWDC supporting
+#######################################################
+
+# Big Bite Database File
+BB.target_z=0.0
+BB.target_y=0.0
+BB.target_x=0.0
+BB.target_length = 0.40
+
+BB.det_x=-0.1672
+BB.det_y= 0.0235
+BB.det_z= 2.6546
+BB.det_rot_x=-0.3
+BB.det_rot_y=-10.05
+BB.det_rot_z=0.2
+
+# BB.useshowercuts = 1
+
+BB.effbendplanetheta = 10.0
+BB.effbendz = 1.85
+# BB.ciDef = 0.283
+# BB.ciDefXbend = 0.126
+# BB.cThetaTarg = 0.0
+# BB.cY = 0.10
+# BB.cPhi = 0.0
+
+# BB.cV = 1.0
+# BB.cVX = 0.012
+# BB.cVXp = 0.0
+# BB.cVY = 0.05
+# BB.cVYp = 0.0
+
+# BB.maxgroups = 30000
+# BB.hardmaxgroups = 50000
+# BB.maxcall = 1000000
+# BB.minimumplanes = 13
+BB.showerxext = 0.1
+BB.showeryext = 0.1
+BB.targetxext = 0.15
+BB.targetyext = 0.2
+BB.targetwindowxoffset = 0.30
+# BB.3rdchamxext = 0.1
+# BB.3rdchamyext = 0.1
+# BB.3rdchamminz = 0.50

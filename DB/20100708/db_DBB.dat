@@ -1,0 +1,264 @@
+# Decoder data used by THaDecData class
+# R. Michaels, March 2002
+# Comments start with '#'
+#
+# Here is where to search for the variables of this class.
+# Syntax depends on whether crate/word = "crate" or "word".
+# If "crate", we are looking into crates by slot and channel.
+# if "word", we are looking at a position relative to a header.
+# Hence, either:
+# name     "crate"   crate-number    slot    channel
+# or:
+# name     "word"    crate-number    header  num-to-skip
+# For the latter case, if one specifies crate-number = 0, then the
+# entire event is searched for 'header' (which in this case must be unique).
+# If crate-number > 0, then only that crate is searched.
+#
+# If this file is not existing, THaDecData will use its own internal DefaultMap().
+
+# time stamps
+timestamp    word      0    fca56000   2
+timeroc5     word      5    fabc0008   8
+timeroc8     word      8    fabc0008   8
+timeroc9     word      9    fabc0008   8
+timeroc10    word     10    fabc0008   8
+
+# event number
+evtroc5     word      5    fabc0008   4
+evtroc8     word      8    fabc0008   4
+evtroc9     word      9    fabc0008   4
+evtroc10    word     10    fabc0008   4
+
+# event type
+evtyperoc5     word      5    fabc0008   5
+evtyperoc8     word      8    fabc0008   5
+evtyperoc9     word      9    fabc0008   5
+evtyperoc10    word     10    fabc0008   5
+
+# event count
+evtcntroc5     word      5    fabc0008   6
+evtcntroc8     word      8    fabc0008   6
+evtcntroc9     word      9    fabc0008   6
+evtcntroc10    word     10    fabc0008   6
+
+# vxclock
+vxroc5     word      5    fabc0008   7
+vxroc8     word      8    fabc0008   7
+vxroc9     word      9    fabc0008   7
+vxroc10    word     10    fabc0008   7
+
+# syncclock
+syncroc5     word      5    fabc0008   8
+syncroc8     word      8    fabc0008   8
+syncroc9     word      9    fabc0008   8
+syncroc10    word     10    fabc0008   8
+syncroc12    word     12    cafe0000   -2     
+
+# BCM and triggers for every event
+fclk     word      12    cafe0000   -2     
+u3c      word      12    cafe0000   1     
+d3c      word      12    cafe0000   2     
+u3ppc    word      12    cafe0000   3     
+d3ppc    word      12    cafe0000   4     
+u3mpc    word      12    cafe0000   5     
+d3mpc    word      12    cafe0000   6     
+u3pmc    word      12    cafe0000   7     
+d3pmc    word      12    cafe0000   8     
+u3mmc    word      12    cafe0000   9     
+d3mmc    word      12    cafe0000   10
+t1c      word      12    cafe0000   11     
+t3c      word      12    cafe0000   12          
+t5c      word      12    cafe0000   13          
+t6c      word      12    cafe0000   14          
+
+
+# L-HRS & BigBite trigger bit pattern(prescaled)
+bit1       crate      9    24       0
+bit2       crate      9    24       1
+bit3       crate      9    24       2
+bit4       crate      9    24       3
+bit5       crate      9    24       4
+bit6       crate      9    24       5
+bit7       crate      9    24       6
+bit8       crate      9    24       7
+bit9       crate      9    24       8
+bit10      crate      9    24       9
+bit11      crate      9    24       10
+bit12      crate      9    24       11
+bit13      crate      9    24       12
+
+# L-HRS & BigBite trigger latch pattern
+lbit1       crate      9    24       13
+lbit2       crate      9    24       14
+lbit3       crate      9    24       15
+lbit4       crate      9    25       0
+lbit5       crate      9    25       1
+lbit6       crate      9    25       2
+lbit7       crate      9    25       3
+lbit8       crate      9    25       4
+lbit9       crate      9    25       5
+lbit10      crate      9    25       6
+lbit11      crate      9    25       7
+lbit12      crate      9    25       8
+
+# L-HRS & BigBite trigger input (unprescaled) 
+t1          crate      9     23      0
+t2          crate      9     23      1
+t3          crate      9     23      2
+t4          crate      9     23      3
+t5          crate      9     23      4
+t6          crate      9     23      5
+t7          crate      9     23      6
+t8          crate      9     23      7
+l1a         crate      9     23      8
+
+# another trigger input in F1TDC
+f1t1        crate      5     11      16
+f1t2        crate      5     11      17
+f1t3        crate      5     11      18
+f1t4        crate      5     11      19
+f1t5        crate      5     11      20
+f1t6        crate      5     11      21
+f1t7        crate      5     11      22
+f1t8        crate      5     11      23
+f1l1a       crate      5     11      24
+f1edtp      crate      5     11      26
+f1rftime1      crate      5     11      28
+f1rftime2      crate      5     6      20
+
+# F1TDC Reference
+f1s5ref0      crate      5     5      16
+f1s5ref1      crate      5     5      17
+f1s6ref0      crate      5     6      17
+# f1s6ref1      crate      5     6      20 
+f1s8ref0      crate      5     8      17
+f1s9ref0      crate      5     9      17
+f1s11ref0     crate      5    11      24
+f1trigtime  word       5     f1daffff   1
+
+# F1 Slot 5 channels
+f1s5ch0       crate      5    5      0
+f1s5ch1       crate      5    5      1
+f1s5ch2       crate      5    5      2
+f1s5ch3       crate      5    5      3
+f1s5ch4       crate      5    5      4
+f1s5ch5       crate      5    5      5
+f1s5ch6       crate      5    5      6
+f1s5ch7       crate      5    5      7
+f1s5ch8       crate      5    5      8
+f1s5ch9       crate      5    5      9
+f1s5ch10       crate      5    5      10
+f1s5ch11       crate      5    5      11
+f1s5ch12       crate      5    5      12
+f1s5ch13       crate      5    5      13
+f1s5ch14       crate      5    5      14
+f1s5ch15       crate      5    5      15
+
+# coincidence timing
+ctimebT3     crate      8    17       18
+
+# EDTM pulser
+edtpbb     crate      8    17      10 
+
+# BPM and raster in BigBite(for d2n expt)
+bpma1        crate     8     8       0
+bpma2        crate     8     8       1
+bpma3        crate     8     8       2
+bpma4        crate     8     8       3
+bpmb1        crate     8     8       4
+bpmb2        crate     8     8       5
+bpmb3        crate     8     8       6
+bpmb4        crate     8     8       7
+rasterx        crate     8     8       8
+rastery        crate     8     8       9
+
+# Helicity and MPS in BB ADCs
+bbHel_1881       crate      8     3   31
+bbMPS_1881       crate      8     3   30
+bbHel_792       crate      5     16   2
+bbMPS_792       crate      5     16   0
+rasterx_792	crate	   5	 16   4
+
+# BB Cerenkov data
+# name     "crate"   crate-number   slot    channel
+BBcerA01       crate    8           9           32
+BBcerA02       crate    8           9           33
+BBcerA03       crate    8           9           34
+BBcerA04       crate    8           9           35
+BBcerA05       crate    8           9           36
+BBcerA06       crate    8           9           37
+BBcerA07       crate    8           9           38
+BBcerA08       crate    8           9           39
+BBcerA09       crate    8           9           40
+BBcerA10       crate    8           9           41
+BBcerA11       crate    8           9           42
+BBcerA12       crate    8           9           43
+BBcerA13       crate    8           9           44
+BBcerA14       crate    8           9           45
+BBcerA15       crate    8           9           46
+BBcerA16       crate    8           9           47
+BBcerA17       crate    8           9           48
+BBcerA18       crate    8           9           49
+BBcerA19       crate    8           9           50
+BBcerA20       crate    8           9           51
+BBcerA21       crate    8           9           52
+BBcerA22       crate    8           9           53
+BBcerA23       crate    8           9           54
+BBcerA24       crate    8           9           55
+BBcerA25       crate    8           9           56
+BBcerA26       crate    8           9           57
+BBcerA27       crate    8           9           58
+BBcerA28       crate    8           9           59
+BBcerA29       crate    8           9           60
+BBcerA30       crate    8           9           61
+BBcerA31       crate    8           9           62
+BBcerA32       crate    8           9           63
+                                               
+BBcerTg01      crate    8           16            0
+BBcerTg02      crate    8           16            1
+BBcerTg03      crate    8           16            2
+BBcerTg04      crate    8           16            3
+BBcerTg05      crate    8           16            4
+BBcerTg06      crate    8           16            5
+BBcerTg07      crate    8           16            6
+BBcerTg08      crate    8           16            7
+BBcerTg09      crate    8           16            8
+                              
+BBcerT01       crate    8           16            9 
+BBcerT02       crate    8           16            10
+BBcerT03       crate    8           16            11
+BBcerT04       crate    8           16            12
+BBcerT05       crate    8           16            13
+BBcerT06       crate    8           16            14
+BBcerT07       crate    8           16            15
+BBcerT08       crate    8           16            16
+BBcerT09       crate    8           16            17
+BBcerT10       crate    8           16            18
+BBcerT11       crate    8           16            19
+BBcerT12       crate    8           16            20
+BBcerT13       crate    8           16            21
+BBcerT14       crate    8           16            22
+BBcerT15       crate    8           16            23
+BBcerT16       crate    8           16            24
+BBcerT17       crate    8           16            25
+BBcerT18       crate    8           16            26
+BBcerT19       crate    8           16            27
+BBcerT20       crate    8           16            28
+BBcerTEDTM     crate    8           16            29
+
+BBcerTsg01     crate    8           16            32
+BBcerTsg02     crate    8           16            33
+BBcerTsg03     crate    8           16            34
+BBcerTsg04     crate    8           16            35
+BBcerTsg05     crate    8           16            36
+BBcerTsg06     crate    8           16            37
+BBcerTsg07     crate    8           16            38
+BBcerTsg08     crate    8           16            39
+BBcerTsg09     crate    8           16            40
+
+BBcerTTcer     crate    8           16            46
+BBcerTTsg      crate    8           16            47
+
+# Cosmics Scintillation Paddle TDC
+CosmicsPaddleTDCUp       crate    9           22            0 
+CosmicsPaddleTDCDown     crate    9           22            1

@@ -1,0 +1,131 @@
+# Decoder data used by THaDecData class
+# R. Michaels, March 2002
+# Comments start with '#'
+#
+# Here is where to search for the variables of this class.
+# Syntax depends on whether crate/word = "crate" or "word".
+# If "crate", we are looking into crates by slot and channel.
+# if "word", we are looking at a position relative to a header.
+# Hence, either:
+# name     "crate"   crate-number    slot    channel
+# or:
+# name     "word"    crate-number    header  num-to-skip
+# For the latter case, if one specifies crate-number = 0, then the
+# entire event is searched for 'header' (which in this case must be unique).
+# If crate-number > 0, then only that crate is searched.
+#
+# If this file is not existing, THaDecData will use its own internal DefaultMap().
+
+# synch checking adcs
+synchadc1    crate     1       25      16
+synchadc2    crate     2       24      48
+synchadc3    crate     3       22       0
+synchadc4    crate     4       17      48
+synchadc14   crate    14        1       5
+
+# time stamps
+timestamp    word      0    fca56000   2
+timeroc1     word      1    fabc0006   6
+timeroc2     word      2    fabc0006   6
+timeroc3     word      3    fabc0006   6
+timeroc4     word      4    fabc0008   8
+timeroc5     word      5    fabc0008   8
+timeroc6     word      6    fabc0008   8
+timeroc7     word      7    fabc0008   8
+timeroc8     word      8    fabc0008   8
+timeroc9     word      9    fabc0008   8
+timeroc10    word     10    fabc0008   8
+
+# private counter
+evtroc1     word      1    fabc0006   1
+evtroc2     word      2    fabc0006   1
+evtroc3     word      3    fabc0006   1
+evtroc4     word      4    fabc0008   4
+evtroc5     word      5    fabc0008   4
+evtroc6     word      6    fabc0008   4
+evtroc7     word      7    fabc0008   4
+evtroc8     word      8    fabc0008   4
+evtroc9     word      9    fabc0008   4
+evtroc10    word     10    fabc0008   4
+
+# vxclock
+vxroc1     word      1    fabc0006   4
+vxroc2     word      2    fabc0006   4
+vxroc3     word      3    fabc0008   7
+vxroc4     word      4    fabc0008   7
+vxroc5     word      5    fabc0008   7
+vxroc6     word      6    fabc0008   7
+vxroc7     word      7    fabc0008   7
+vxroc8     word      8    fabc0008   7
+vxroc9     word      9    fabc0008   7
+vxroc10    word     10    fabc0008   7
+
+# syncclock
+syncroc1     word      1    fabc0006   4
+syncroc2     word      2    fabc0006   4
+syncroc3     word      3    fabc0008   8
+syncroc4     word      4    fabc0008   8
+syncroc5     word      5    fabc0008   8
+syncroc6     word      6    fabc0008   8
+syncroc7     word      7    fabc0008   8
+syncroc8     word      8    fabc0008   8
+syncroc9     word      9    fabc0008   8
+syncroc10    word     10    fabc0008   8
+
+
+
+# trigger bit pattern
+bit1       crate      10    21       32
+bit2       crate      10    21       33
+bit3       crate      10    21       34
+bit4       crate      10    21       35
+bit5       crate      10    21       36
+bit6       crate      10    21       37
+bit7       crate      10    21       38
+bit8       crate      10    21       39
+bit9       crate      10    21       40
+bit10      crate      10    21       41
+bit11      crate      10    21       42
+bit12      crate      10    21       43
+bit13      crate      10    21       44
+
+# another trigger input
+t1          crate      10     21      16
+t2          crate      10     21      17
+t3          crate      10     21      18
+t4          crate      10     21      19
+t5          crate      10     21      20
+t6          crate      10     21      21
+t7          crate      10     21      22
+t8          crate      10     21      23
+l1a         crate      10     21      24
+
+# F1TDC Reference
+f1ref       crate      5     5      32
+f1ref2      crate      5     9      32
+f1trigtime  word       5     f1daffff   1
+f1s5ch0     crate      5     5       0
+
+# coincidence timing
+
+ctimebT3     crate      10    21       18
+ctimebT7     crate      10    21       22
+
+
+# EDTM pulser
+edtpl      crate      4    13      48
+TrigT3     crate      4    13      49
+TrigT3L    crate      4    13      50
+FastT3L    crate      4    13      51
+edtpr      crate      2    12       0
+TrigT1     crate      2    12       1
+ 
+# coincidence timing
+ctimel     crate      4    21      48
+ctimer     crate      2    16      32
+
+# helicity info from ADC
+helicity1       crate      3    23      48
+helicity2       crate      3    23      49
+MPS             crate      3    23      50
+QRT             crate      3    23      51

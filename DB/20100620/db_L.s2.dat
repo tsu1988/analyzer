@@ -1,0 +1,27 @@
+######################### LEFT SCINTILLATOR PLANE 2 ############################
+#Number of Left Scintillator 2 paddles ------------------------------------------
+       6
+#Crate,Slot,1st,Last ADC chans,Beg S2 chan --------------------------------------
+       3      25      22      27       1             - ADCs pads 1-6  (right)
+       3      25      16      21       7             - ADCs pads 7-12 (left)
+       4      25      24      29       1             - TDCs pads 1-6  (right)
+       4      25      16      21       7             - TDCs pads 7-12 (left)
+      -1       0       0       0       0
+#X,Y,Z coords (in cm) of S2 front plane in spectrom cs --------------------------
+   -0.22     0.0  3.1415                             - Meters
+#Half of X, half of Y, full Z sizes (in cm) of S2 -------------------------------
+   1.11   0.32     0.005                             - Meters
+#Rotation angle of the S2 plane -------------------------------------------------
+     0.0                                             - Degrees
+#TDC time offsets of S in TDC channels -------------------
+ 751.7    516.1    522.4  567.0  694.7  663.3      - Right Paddles
+ 635.7    554.0    672.2  753.0  524.7  572.4      - Left Paddles
+#Pedestal values of S2 ADC channels ---------------------------------------------
+  299   280   249   260   432   465    - Left Paddles
+  415   450   315   291   251   260    - Right Paddles
+#Amplitude transformation coefficients of S2 ADC channels -----------------------
+  0.522   0.372   0.397   0.409   0.603   0.432      - Right Paddles
+  0.476   0.482   0.432   0.503   0.471   0.455      - Left Paddles
+# time-conversion for the TDC (seconds/channel)
+   0.050e-9
+################################################################################

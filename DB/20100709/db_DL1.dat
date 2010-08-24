@@ -1,0 +1,9 @@
+#Special database 
+# using a THaADCHe3Spin for hacking out t3[0]
+
+DL1.t3.PermInvalidEvt	= 1000
+DL1.t3.SpinUpChan	= 8 17 2
+DL1.t3.SpinDownChan	= 19 17 2
+DL1.t3.ADCLogic1Window  = 0 200000
+DL1.t3.ADCLogic0Window  =  200001 1e38
+

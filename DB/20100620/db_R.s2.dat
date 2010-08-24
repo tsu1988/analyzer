@@ -1,0 +1,37 @@
+######################## RIGHT SCINTILLATOR PLANE 2 ############################
+Number of Right Scintillator 2 paddles -----------------------------------------
+       6
+Crate,Slot,1st,Last ADC chans,Beg S2 chan, model -------------------------------
+       1      24      48      53       7      1881    - ADCs pads 1-6 (left)
+       1      24      54      59       1      1881    - ADCs pads 1-6 (right)
+       2      16      16      21       7      1875    - TDCs pads 1-6 (left)
+       2      16      24      29       1      1875    - TDCs pads 1-6 (right)
+      -1       0       0       0       0
+X,Y,Z coords (in cm) of S2 front plane in spectrom cs --------------------------
+     0.0     0.0  3.3144                             - Meters
+Half of X, half of Y, full Z sizes (in cm) of S2 -------------------------------
+   1.110    0.32     0.005                           - Meters
+Rotation angle of the S2 plane -------------------------------------------------
+     0.0                                             - Degrees
+TDC time offsets of S2 TDC channels --------------------------------------------
+ -206.72 -213.59 -161.87 -133.44 -141.55 -208.55 - Left Paddles
+ 164.29 70.18 50.22 133.44 -4.22 401.64 - Right Paddles
+Pedestal values of S2 ADC channels ---------------------------------------------  
+  479.0   403.0   390.0   521.0   600.0   550.0  - Left paddles
+  540.0   640.0   510.0   305.0   280.0   461.0  - Right paddles
+Amplitude transformation coefficients of S2 ADC channels -----------------------
+  0.735   0.860   1.137   0.843   0.941   0.880   - Left paddles
+  0.930   1.049   0.914   0.859   0.888   1.032   - Right paddles 
+TDC setting sec/channel --------------------------------------------------------
+  0.050e-9
+Speed of light in the scintillator ---------------------------------------------
+  1.42014e+08
+Attenuation length in inverse meters (carried over) ----------------------------
+  0.7
+Timewalk parameters -- ADC above pedestal for MIP ------------------------------
+  1.e+10
+Timewalk polynomial factors ----------------------------------------------------
+  2.45153e-09 2.45153e-09 2.45153e-09 2.45153e-09
+  2.45153e-09 2.45153e-09 2.45153e-09 2.45153e-09
+  2.45153e-09 2.45153e-09 2.45153e-09 2.45153e-09
+################################################################################

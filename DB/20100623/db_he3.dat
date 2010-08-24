@@ -1,0 +1,147 @@
+# -*- mode: Text -*-
+#-----------------------------------------------------------
+#  Database for Hall A Polarized he3 target
+#
+#  Note that you can set validity time periods in the
+#  usual way by starting sections with time stamps like
+#  [ 2005-06-20 14:30:35 ]
+#-----------------------------------------------------------
+
+
+###############################################
+# Setting for He3 target 
+###############################################
+# he3.ADCSpinList = bbadc ladc2
+[ 2008-02-11 19:00:35 ]
+# Trick to disable target before 2008-11-06
+he3.ADCSpinList = ladc2
+
+[ 2009-02-13 17:30:35 ]
+# Spin flip is re-enabled at 2009-02-13
+he3.ADCSpinList = ladc1 ladc2
+# he3.BitSpinList = bbbit
+
+[ 2009-02-26 12:00:35 ]
+# disable primary copy of spin siganl
+he3.ADCSpinList = ladc2
+
+[ 2009-04-20 12:00:35 ]
+# re-enable ladc1 for Ay
+he3.ADCSpinList = ladc1 ladc2
+
+
+# do not remove
+[ 2005-06-20 14:30:35 ]
+
+###############################################
+# Setting for THaADCHe3Spin detectors 
+###############################################
+
+### gloabal settings
+# Max permissible count of continuous events, 
+# which do not contain target signal reading.
+# This setting apply to any THaADCHe3Spin and
+# THaBitHe3Spin unless overwritten
+he3.PermInvalidEvt = 3
+
+### Setting for he3.ladc1
+he3.ladc1.SpinUpChan		= 4 21 49
+he3.ladc1.SpinDownChan		= 4 21 48
+he3.ladc1.ADCLogic1Window   = 16300 16500
+he3.ladc1.ADCLogic0Window   = 0 1000
+he3.ladc1.PermInvalidEvt	= 3
+
+### Setting for he3.ladc2
+he3.ladc2.SpinUpChan		= 4 21 54
+he3.ladc2.SpinDownChan		= 4 21 55
+he3.ladc2.ADCLogic1Window   = 16300 16500
+he3.ladc2.ADCLogic0Window   = 0 1000
+he3.ladc2.PermInvalidEvt	= 3
+
+### Setting for he3.bbadc
+he3.bbadc.SpinUpChan		= 5 16 8
+he3.bbadc.SpinDownChan		= 5 16 9
+he3.bbadc.ADCLogic1Window   = 3500 4500
+he3.bbadc.ADCLogic0Window   = 0 300
+he3.bbadc.PermInvalidEvt	= 1
+
+### Setting for he3.bbbit
+# spin up\down signal = 
+#   (databuffer[HeaderWord position + SpinWordOffSet] ^ SpinWordXorConverter) 
+#   & SpinUpMask\SpinDownMask
+# roc number
+he3.bbbit.ROC				= 5
+# header word for data section containing spin info
+he3.bbbit.SpinWordHeader	= 0xb0b04444
+# off set of the word containing spin info relative the header word
+he3.bbbit.SpinWordOffSet	= 1
+# masks & converters
+he3.bbbit.SpinWordXorConverter = 0x00000003
+he3.bbbit.SpinUpMask		= 0x00000001
+he3.bbbit.SpinDownMask		= 0x00000002
+
+
+[ 2008-10-25 16:10:35 ]
+### New Setting for he3.bbadc
+### Spin adc changed due to 
+he3.bbadc.SpinUpChan		= 8 3 14
+he3.bbadc.SpinDownChan		= 8 3 15
+he3.bbadc.ADCLogic1Window   = 15000 20000
+he3.bbadc.ADCLogic0Window   = 0 800
+he3.bbadc.PermInvalidEvt	= 1
+
+
+
+
+###############################################
+# examples ,just for reference 
+###############################################
+
+#---- Overall helicity sign (from Moller)
+
+helicity_sign = 1
+
+#---- Helicity ADCs
+#
+adchel.R.helchan   = 1 25 14
+adchel.R.gatechan  = 1 25 15
+adchel.L.helchan   = 3 23 49
+#adchel.L.gatechan  = 3 23 51
+adchel.L.gatechan  = 3 23 50
+adchel2.L.helchan  = 3 23 48
+#adchel2.L.gatechan = 3 23 51
+adchel2.L.gatechan = 3 23 50
+adchel.threshold   = 4000.0
+adchel2.threshold  = 4000.0
+#adchel.L.ignore_gate = 1
+
+#---- G0 helicity
+#
+# The "roc"s used to be set with:
+#
+#    SetROC( arm, roc1, hel_header, hel_index, time_header, time_index )
+#    SetRTimeROC( arm, roc2, t2header, t2index, roc3, t3header, t3index )
+#
+# "arm" is now implied in the name of the G0 helicity module
+# Note that it is now possible to read helicity and time from different rocs.
+#
+# These parameters apply to all "g0hel" detectors unless a more specialized
+# key such as "g0hel.R.delay" exists
+
+g0hel.L.helroc   = 11 0 3   # roc1, hel_header, hel_index
+g0hel.L.timeroc  = 11 0 4   # roc1, time_header, time_index
+g0hel.R.helroc   = 10 0 3   # roc1, hel_header, hel_index
+g0hel.R.timeroc  = 10 0 4   # roc1, time_header, time_index
+# g0hel.time2roc = ? ? ?        # redundant time t2
+# g0hel.time3roc = ? ? ?        # redundant time t3
+
+g0hel.delay = 0
+g0hel.tdavg = 14050
+g0hel.ttol  = 40
+g0hel.missqrt = 30
+
+[ 2008-03-01 00:00:00 ]
+g0hel.L.delay = 0
+
+
+###### examples ,just for reference ######

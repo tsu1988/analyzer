@@ -1,0 +1,22 @@
+######################### LEFT SCINTILLATOR PLANE 0 ## High Res TDCs ###########
+Number of Left Scintillator 0 paddles ------------------------------------------
+       1
+Crate,Slot,1st,Last ADC chans,Beg S0 chan, Model -------------------------------
+       3      23     32     33       1    1881      - ADCs A and B
+       4      25     32     33       1    1875      - TDCs A and B 
+      -1       0       0     0       0
+X,Y,Z coords (in m) of S0 front plane in spectrom cs: guessing 40cm after S1 ---
+    0.0       0.0   1.7                             - Meters
+Half of X, half of Y, full Z sizes (in m) of S0 --------------------------------
+    0.88    0.18     0.005                           - Meters
+Rotation angle of the S0 plane -- pmts are top and bottom, but in plane --------
+    0.0                                              - Degrees
+TDC time offsets of S0 TDC channels --------------------------------------------
+   260.  260.
+Pedestal values of S0 ADC channels ---------------------------------------------
+   509   534
+Amplitude transformation coefficients of S0 ADC channels -----------------------
+   1.02  0.87
+TDC setting in sec/channel -----------------------------------------------------
+  0.050e-9
+################################################################################

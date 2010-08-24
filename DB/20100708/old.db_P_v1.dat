@@ -1,0 +1,44 @@
+# Parity Data
+# R. Michaels, July 2009
+# Comments start with '#'
+#
+# Here is where to search for the variables of this class.
+# Syntax depends on whether crate/word = "crate" or "word".
+# If "crate", we are looking into crates by slot and channel.
+# if "word", we are looking at a position relative to a header.
+# Hence, either:
+# name     "crate"   crate-number    slot    channel
+# or:
+# name     "word"    crate-number    header  num-to-skip
+# For the latter case, if one specifies crate-number = 0, then the
+# entire event is searched for 'header' (which in this case must be unique).
+# If crate-number > 0, then only that crate is searched.
+#
+# If this file is not existing, THaDecData will use its own internal DefaultMap().
+
+hapa1      crate       1     25     32
+hapa2      crate       1     25     33
+hapa3      crate       1     25     34
+hapa4      crate       1     25     35
+hapa5      crate       1     25     36
+
+hapt1      crate       1     14     80
+hapt2      crate       1     14     81
+hapt3      crate       1     14     82
+hapt4      crate       1     14     83
+hapt5      crate       1     14     84
+
+# ADC slot 23 Cavity Monitors
+qcav4a       crate      2    23     32
+xcav4a       crate      2    23     33
+ycav4a       crate      2    23     34
+qcav4b       crate      2    23     35
+xcav4b       crate      2    23     36
+ycav4b       crate      2    23     37
+
+# Not sure what this is
+bpmaraw1     crate      2    23     0
+bpmaraw2     crate      2    23     1
+bpmaraw3     crate      2    23     2
+bpmaraw4     crate      2    23     3
+

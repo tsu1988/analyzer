@@ -1,0 +1,272 @@
+# Decoder data used by THaDecData class
+# R. Michaels, March 2002
+# Comments start with '#'
+#
+# Here is where to search for the variables of this class.
+# Syntax depends on whether crate/word = "crate" or "word".
+# If "crate", we are looking into crates by slot and channel.
+# if "word", we are looking at a position relative to a header.
+# Hence, either:
+# name     "crate"   crate-number    slot    channel
+# or:
+# name     "word"    crate-number    header  num-to-skip
+# For the latter case, if one specifies crate-number = 0, then the
+# entire event is searched for 'header' (which in this case must be unique).
+# If crate-number > 0, then only that crate is searched.
+#
+# If this file is not existing, THaDecData will use its own internal DefaultMap().
+
+# synch checking adcs
+synchadc1    crate     1       25      16
+synchadc2    crate     2       24      48
+synchadc3    crate     3       22       0
+synchadc4    crate     4       17      48
+synchadc14   crate    14        1       5
+
+# time stamps
+timestamp    word      0    fca56000   2
+timeroc1     word      1    fabc0006   6
+timeroc2     word      2    fabc0006   6
+timeroc3     word      3    fabc0008   8
+timeroc4     word      4    fabc0008   8
+timeroc5     word      5    fabc0008   8
+timeroc6     word      6    fabc0008   8
+timeroc7     word      7    fabc0008   8
+timeroc8     word      8    fabc0008   8
+timeroc9     word      9    fabc0008   8
+timeroc10    word     10    fabc0008   8
+timeroc14    word     14    fabc0008   8
+timeroc15    word     15    fabc0008   8
+troc14    word     14       abc00000   1
+troc15    word     15       abc00000   1
+
+# Track and hold for ROC 14 and 15
+th14    word     14       0da00000   1
+th15    word     15       0da00000   1
+
+# event number
+evtroc1     word      1    fabc0006   1
+evtroc2     word      2    fabc0006   1
+evtroc3     word      3    fabc0008   4
+evtroc4     word      4    fabc0008   4
+evtroc5     word      5    fabc0008   4
+evtroc8     word      8    fabc0008   4
+evtroc9     word      9    fabc0008   4
+evtroc10    word     10    fabc0008   4
+
+# event type
+evtyperoc3     word      3    fabc0008   5
+evtyperoc4     word      4    fabc0008   5
+evtyperoc5     word      5    fabc0008   5
+evtyperoc8     word      8    fabc0008   5
+evtyperoc9     word      9    fabc0008   5
+evtyperoc10    word     10    fabc0008   5
+
+# event count
+evtcntroc3     word      3    fabc0008   6
+evtcntroc4     word      4    fabc0008   6
+evtcntroc5     word      5    fabc0008   6
+evtcntroc8     word      8    fabc0008   6
+evtcntroc9     word      9    fabc0008   6
+evtcntroc10    word     10    fabc0008   6
+
+# vxclock
+vxroc1     word      1    fabc0006   4
+vxroc2     word      2    fabc0006   4
+vxroc3     word      3    fabc0008   7
+vxroc4     word      4    fabc0008   7
+vxroc5     word      5    fabc0008   7
+vxroc8     word      8    fabc0008   7
+vxroc9     word      9    fabc0008   7
+vxroc10    word     10    fabc0008   7
+
+# syncclock
+syncroc1     word      1    fabc0006   4
+syncroc2     word      2    fabc0006   4
+syncroc3     word      3    fabc0008   8
+syncroc4     word      4    fabc0008   8
+syncroc5     word      5    fabc0008   8
+syncroc8     word      8    fabc0008   8
+syncroc9     word      9    fabc0008   8
+syncroc10    word     10    fabc0008   8
+syncroc12    word     12    cafe0000   -2     
+
+# BCM and triggers for every event
+fclk     word      12    cafe0000   -2     
+u3c      word      12    cafe0000   1     
+d3c      word      12    cafe0000   2     
+u3ppc    word      12    cafe0000   3     
+d3ppc    word      12    cafe0000   4     
+u3mpc    word      12    cafe0000   5     
+d3mpc    word      12    cafe0000   6     
+u3pmc    word      12    cafe0000   7     
+d3pmc    word      12    cafe0000   8     
+u3mmc    word      12    cafe0000   9     
+d3mmc    word      12    cafe0000   10
+t1c      word      12    cafe0000   11     
+t3c      word      12    cafe0000   12          
+t5c      word      12    cafe0000   13          
+t6c      word      12    cafe0000   14          
+
+# L-HRS & BigBite trigger bit pattern(prescaled)
+bit1       crate      10    25       16
+bit2       crate      10    25       17
+bit3       crate      10    25       18
+bit4       crate      10    25       19
+bit5       crate      10    25       20
+bit6       crate      10    25       21
+bit7       crate      10    25       22
+bit8       crate      10    25       23
+bit9       crate      10    25       24
+bit10      crate      10    25       25
+bit11      crate      10    25       26
+bit12      crate      10    25       27
+bit13      crate      10    25       28
+
+# L-HRS & BigBite trigger latch pattern
+lbit1       crate      10    25       29
+lbit2       crate      10    25       30
+lbit3       crate      10    25       31
+lbit4       crate      10    25       32
+lbit5       crate      10    25       33
+lbit6       crate      10    25       34
+lbit7       crate      10    25       35
+lbit8       crate      10    25       36
+lbit9       crate      10    25       37
+lbit10      crate      10    25       38
+lbit11      crate      10    25       39
+lbit12      crate      10    25       40
+
+# L-HRS & BigBite trigger input (unprescaled) 
+t1          crate      10     25      0
+t2          crate      10     25      1
+t3          crate      10     25      2
+t4          crate      10     25      3
+t5          crate      10     25      4
+t6          crate      10     25      5
+t7          crate      10     25      6
+t8          crate      10     25      7
+l1a         crate      10     25      8
+bbretime	crate      10     25      9
+f1trig		crate      10     25      10
+bbrftime1	crate      10     25      11
+l1adelayed  crate      10     25      12
+bbrftime2	crate      10     25      13
+fastclock	crate      10     25      14
+edtmbb		crate      10     25      15
+
+# another trigger input in F1TDC
+f1t1          crate      5     11      16
+f1t2          crate      5     11      17
+f1t3          crate      5     11      18
+f1t4          crate      5     11      19
+f1t5          crate      5     11      20
+f1t6          crate      5     11      21
+f1t7          crate      5     11      22
+f1t8          crate      5     11      23
+f1l1a         crate      5     11      24
+f1bbretime	  crate      5     11      25
+f1f1trig      crate      5     11      26
+f1bbrftime1	  crate      5     11      27
+f1l1adelayed  crate      5     11      28
+f1bbrftime2	  crate      5     11      29
+f1fastclock	  crate      5     11      30
+f1edtmbb	  crate      5     11      31
+
+# F1TDC Reference
+f1s5ref0      crate      5     5      16
+f1s5ref1      crate      5     5      17
+f1s6ref0      crate      5     6      17
+# f1s6ref1      crate      5     6      20 
+f1s8ref0      crate      5     8      17
+f1s9ref0      crate      5     9      17
+f1s11ref0     crate      5    11      24
+f1trigtime  word       5     f1daffff   1
+
+# F1 Slot 5 channels
+f1s5ch0       crate      5    5      0
+f1s5ch1       crate      5    5      1
+f1s5ch2       crate      5    5      2
+f1s5ch3       crate      5    5      3
+f1s5ch4       crate      5    5      4
+f1s5ch5       crate      5    5      5
+f1s5ch6       crate      5    5      6
+f1s5ch7       crate      5    5      7
+f1s5ch8       crate      5    5      8
+f1s5ch9       crate      5    5      9
+f1s5ch10       crate      5    5      10
+f1s5ch11       crate      5    5      11
+f1s5ch12       crate      5    5      12
+f1s5ch13       crate      5    5      13
+f1s5ch14       crate      5    5      14
+f1s5ch15       crate      5    5      15
+
+# coincidence timing
+ctimebT3     crate      8    17       18
+
+# EDTM pulser
+edtpbb     crate      8    17      10 
+edtpl      crate      4    13      78
+edtpr      crate      2    12       0
+# TrigT1     crate      2    12       1
+
+# trigger input LHRS copy in 1877
+LT1        crate      4     9      48
+LT2        crate      4     9      49
+LT3        crate      4     9      50
+LT4        crate      4     9      51
+LT5        crate      4     9      52
+LT6        crate      4     9      53
+LT7        crate      4     9      54
+LT8        crate      4     9      55
+L_l1a      crate      4     9      62
+strobe     crate      4    13      76
+
+# trigger input LHRS copy in 1875
+Trigl1a2    crate      4    18      51
+# TrigT1     crate      4    18      56
+TrigT3     crate      4    18      54
+Trigl1a     crate      4    18      52
+ 
+# coincidence timing
+ctimel     crate      4    21      48
+# ctimer     crate      2    16      32
+
+# helicity info from ADC(LHRS)
+tgspinup        crate      4    21      48
+tgspindn        crate      4    21      49
+MPS             crate      4    21      50
+QRT             crate      4    21      51
+helicity1       crate      4    21      52
+helicity2       crate      4    21      53
+tgspinup2       crate      4    21      54
+tgspindn2       crate      4    21      55
+
+# prescaled RF time (1877)
+rftime1     crate      4    9      80
+rftime2     crate      4    9      81
+
+# BPM and raster in BigBite(for d2n expt)
+# bpma1        crate     8     8       0
+# bpma2        crate     8     8       1
+# bpma3        crate     8     8       2
+# bpma4        crate     8     8       3
+# bpmb1        crate     8     8       4
+# bpmb2        crate     8     8       5
+# bpmb3        crate     8     8       6
+# bpmb4        crate     8     8       7
+# rasterx        crate     8     8       8
+# rastery        crate     8     8       9
+
+# Helicity and MPS in BB ADCs
+# bbHel_1881       crate      8     3   31
+# bbMPS_1881       crate      8     3   30
+# bbHel_792       crate      5     16   2
+# bbMPS_792       crate      5     16   0
+
+
+# Cosmics Scintillation Paddle TDC
+CosmicsPaddleTDCUp       crate    9           22            0 
+CosmicsPaddleTDCDown     crate    9           22            1
+
+

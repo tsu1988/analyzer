@@ -1,0 +1,28 @@
+######################### LEFT SCINTILLATOR PLANE 1 ############################
+#Number of Left Scintillator 1 paddles ------------------------------------------
+       6
+#Crate,Slot,1st,Last ADC chans,Beg S1 chan --------------------------------------
+       3      23      22       27      1             - ADCs pads 1-6  (right)
+       3      23      16       21      7             - ADCs pads 7-12 (left)
+       4      25       8       13      1             - TDCs pads 1-6  (right)
+       4      25       0       5       7             - TDCs pads 7-12 (left)
+      -1       0       0       0       0
+#X,Y,Z coords (in m) of S1 front plane in spectrom cs ---------------------------
+   -0.129     0.0   1.2873                           - Meters
+#Half of X, half of Y, full Z sizes (in m) of S1 --------------------------------
+    0.88    0.18     0.005                           - Meters
+#Rotation angle of the S1 plane -------------------------------------------------
+     0.0                                             - Degrees
+#TDC time offsets of S in TDC channels -------------------
+   378.60   235.10   10.89  -448.88  177.35  345.97  - Right Paddles
+   262.64   390.84  448.41   448.88  515.30  548.58  - Left Paddles
+#Pedestal values of S1 ADC channels ---------------------------------------------
+   475   492   332   336  634   491                  - Left Paddles
+   618   563   483   347  306   360                  - Right Paddles  
+#Amplitude transformation coefficients of S1 ADC channels -------
+----------------
+   0.499   0.394   0.514   0.449   0.577   0.466     - Right Paddles
+   0.417   0.474   0.467   0.450   0.438   0.462     - Left Paddles
+# time-conversion for the TDC (seconds/channel)
+   0.050e-9
+################################################################################

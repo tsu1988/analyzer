@@ -1,0 +1,28 @@
+####################### LEFT AEROGEL CHERENKOV A2 ##############################
+Number of Cherenkov PMTs   -----------------------------------------------------
+      26
+----- Crate, Slot,    1st,Last chans, Beg Cher chan ----------------------------
+       1      25      32      44       1   1881   - ADC
+       1      25      48      60      14   1881   - ADC
+       1      14      80      92       1   1877   - TDC
+       1      14      80      92      14   1877   - TDC
+      -1       0       0       0       0          - end of readout marker
+X,Y,Z coords (in meters) of Cherenkov front plane in spectrometer cs -----------
+     0.0     0.0   2.49                           - Meters
+Half of X, half of Y, full Z sizes (in meters) of Aerogel Cherenkov ------------
+    1.00    0.40   0.30                           - Meters
+Rotation angle of the Aerogel Cherenkov plane in spectrometer cs ---------------
+     0.0                                          - Degrees
+TDC time offsets of Aerogel Cherenkov channels ---------------------------------
+     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0
+     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0
+     0.0     0.0     0.0     0.0     0.0     0.0     
+Pedestal values of Aerogel Cherenkov channels -----------------------------------
+    508    436    301    306    438    539    412    433    477    546
+    457    313    536    330    232    392    412    419    552    453
+    619    321    425    250    409    497
+Amplitude transformation coefficients of Aerogel ADC channels ------------------
+0.898419  0.988835  1.02806  1.59289  1.76536  0.748694  1.01841  1.27627  1.21616  1.05095
+0.973958  0.762034  1.11173  0.590493  0.840684  1.10948  1.21711  0.958405  0.638693  0.671824  
+0.676407  0.785813  0.752032  0.365423  1  1.11946
+################################################################################

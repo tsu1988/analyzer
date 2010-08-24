@@ -1,0 +1,160 @@
+# -*- mode: Text -*-
+#-----------------------------------------------------------
+#  Chamber configuration
+#-----------------------------------------------------------
+
+# Plane configuration. One string of the all plane names.
+
+L.gem.planeconfig = x1 y1 u1 v1 x2 y2 u2 v2 x3 y3 u3 v3
+
+# Wire angles. Specify the angle of the _normal_ to the wires, pointing
+# along the direction of increasing wire number. Positive angles mean 
+# rotation from x towards y (so the y-axis is at +90deg).
+L.gem.x.angle = 0.0
+L.gem.y.angle = 90.0
+L.gem.u.angle = 45.0
+L.gem.v.angle = -45.0
+
+# "Crate map". Specifies DAQ module configuration.
+# Since usually a range of slots is filled with identical modules, we define
+# slot ranges. If individual modules within a range are different, append 
+# their definition at the end; they will override earlier definitions.
+#
+# Each row is:   crate slot_lo slot_hi model# nchan
+#
+L.gem.cratemap =  6     1         20   550    480
+
+# Dummy detector maps
+L.gem.x1.detmap = 6  1  479 240
+L.gem.y1.detmap = 6  1  0 239
+L.gem.u1.detmap = 6  2  479  240
+L.gem.v1.detmap = 6  2  0 239
+L.gem.x3.detmap = 6  1  0   239
+L.gem.y3.detmap = 6  1  240 479
+L.gem.u3.detmap = 6  1  0   239
+L.gem.v3.detmap = 6  1  240 479
+
+#  The #2 plane is a dummy for now
+L.gem.x2.detmap = 6  3  479 240
+L.gem.y2.detmap = 6  3  0 239
+L.gem.u2.detmap = 6  4  479 240
+L.gem.v2.detmap = 6  4  0  239
+
+# Use the channel mapping for the INFN GEM->Gassiplex adapters
+# provided by Guido
+L.gem.mapping = gassiplex-adapter
+
+#-----------------------------------------------------------
+# Feature configuration
+#-----------------------------------------------------------
+
+L.gem.search_depth = 6
+
+# Maximum number of threads to run
+L.gem.maxthreads = 1
+
+# Support for event display
+L.gem.event_display = 0
+
+# Disable tracking for checkout
+L.gem.disable_tracking = 1
+
+#-----------------------------------------------------------
+#  Global reconstruction parameters
+#-----------------------------------------------------------
+
+L.gem.do_adc_cut = 1
+
+# 3D track cuts
+L.gem.3d_chi2_conflevel = 1e-6
+L.gem.3d_maxmiss = 6
+
+
+#-----------------------------------------------------------
+#  Global projection parameters
+#    - can be overridden for individual projections
+#-----------------------------------------------------------
+
+L.gem.maxmiss = 0
+L.gem.chi2_conflevel = 1e-4
+L.gem.maxpat  = 500
+L.gem.maxslope = 0.5
+
+#-----------------------------------------------------------
+#  Global plane parameters
+#    - can be overridden for individual planes
+#-----------------------------------------------------------
+
+L.gem.nstrips      = 240
+L.gem.strip.pitch  = 4e-4
+L.gem.xp.res       = 2e-4
+L.gem.maxclustsiz  = 5
+L.gem.adc.min      = 1
+L.gem.split.frac   = 0.1
+L.gem.maxhits      = 30
+
+#-----------------------------------------------------------
+#   Plane-specific data
+#   Detector maps are above
+#-----------------------------------------------------------
+L.gem.x1.description = X1 plane
+L.gem.x1.position  = 0.0 0.0 0.0
+L.gem.x1.size      = 0.1 0.1 0.0
+L.gem.x1.strip.pos = -0.048
+L.gem.x1.do_histos = 1
+
+L.gem.y1.description = Y1 plane
+L.gem.y1.position  = 0.0 0.0 0.00001
+L.gem.y1.size      = 0.1 0.1 0.0
+L.gem.y1.strip.pos = -0.048
+
+L.gem.u1.description = U1 plane
+L.gem.u1.position  = 0.0 0.0 0.045
+L.gem.u1.size      = 0.1 0.1 0.0
+L.gem.u1.strip.pos = -0.048
+
+L.gem.v1.description = V1 plane
+L.gem.v1.position  = 0.0 0.0 0.04501
+L.gem.v1.size      = 0.1 0.1 0.0
+L.gem.v1.strip.pos = -0.048
+
+L.gem.x2.description = X2 plane
+L.gem.x2.position  = 0.0 0.0 0.125
+L.gem.x2.size      = 0.1 0.1 0.0
+L.gem.x2.strip.pos = -0.048
+
+L.gem.y2.description = Y2 plane
+L.gem.y2.position  = 0.0 0.0 0.12501
+L.gem.y2.size      = 0.1 0.1 0.0
+L.gem.y2.strip.pos = -0.048
+
+L.gem.u2.description = U2 plane
+L.gem.u2.position  = 0.0 0.0 0.17
+L.gem.u2.size      = 0.1 0.1 0.0
+L.gem.u2.strip.pos = -0.048
+
+L.gem.v2.description = V2 plane
+L.gem.v2.position  = 0.0 0.0 0.17001
+L.gem.v2.size      = 0.1 0.1 0.0
+L.gem.v2.strip.pos = -0.048
+
+L.gem.x3.description = X3 plane
+L.gem.x3.position  = 0.0 0.0 0.25
+L.gem.x3.size      = 0.1 0.1 0.0
+L.gem.x3.strip.pos = -0.048
+
+L.gem.y3.description = Y3 plane
+L.gem.y3.position  = 0.0 0.0 0.25001
+L.gem.y3.size      = 0.1 0.1 0.0
+L.gem.y3.strip.pos = -0.048
+
+L.gem.u3.description = U3 plane
+L.gem.u3.position  = 0.0 0.0 0.295
+L.gem.u3.size      = 0.1 0.1 0.0
+L.gem.u3.strip.pos = -0.048
+
+L.gem.v3.description = V3 plane
+L.gem.v3.position  = 0.0 0.0 0.29501
+L.gem.v3.size      = 0.1 0.1 0.0
+L.gem.v3.strip.pos = -0.048
+

@@ -1,0 +1,37 @@
+######################### LEFT SCINTILLATOR PLANE 1 ############################
+#Number of Left Scintillator 1 paddles ------------------------------------------
+       6
+#Crate,Slot,1st,Last ADC chans,Beg S1 chan --------------------------------------
+       3      23      22       27      1             - ADCs pads 1-6  (right)
+       3      23      16       16      7             - ADCs pads 7-12 (left)
+       4       9       8       13      1             - TDCs pads 1-6  (right)
+       4       9       0       5       7             - TDCs pads 7-12 (left)
+      -1       0       0       0       0
+#X,Y,Z coords (in m) of S1 front plane in spectrom cs ---------------------------
+   -0.129     0.0   1.2873                           - Meters
+#Half of X, half of Y, full Z sizes (in m) of S1 --------------------------------
+    0.88    0.18     0.005                           - Meters
+#Rotation angle of the S1 plane -------------------------------------------------
+     0.0                                             - Degrees
+#TDC time offsets of S1 in TDC channels -------------------
+   386.58 195.12 37.16 -453.06 249.23 290.26 - Left Paddles
+   276.20 298.86 462.14 459.74 485.07 537.38 - Right Paddles
+#Pedestal values of S1 ADC channels ---------------------------------------------
+   466   485   321   327  626   479                  - Left Paddles
+   605   546   479   335  295   351                  - Right Paddles  
+#Amplitude transformation coefficients of S1 ADC channels -------
+----------------
+   0.979   1.007   0.989   0.986   1.007   0.948     - Left Paddles
+   1.045   1.003   0.965   1.015   0.989   0.942     - Right Paddles
+# time-conversion for the TDC (seconds/channel)
+   0.050e-9
+Speed of light in the scintillator ---------------------------------------------
+     1.49859e+08
+Attenuation length in inverse meters (carried over) ----------------------------
+  0.7
+Timewalk parameters -- ADC above pedestal for MIP ------------------------------
+  1295.7
+Timewalk polynomial factors ----------------------------------------------------
+         1.166e-07 1.1189e-07 6.446e-08 8.819e-8 8.874e-08 2.163e-08
+	 8.139e-08 5.469e-08 1.493e-08 5.918e-08 2.692e-08 2.094e-08
+################################################################################
