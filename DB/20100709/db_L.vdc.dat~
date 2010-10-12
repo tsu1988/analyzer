@@ -218,9 +218,9 @@ TDC Offset Values    --- calibrated 27-Jun-10 0:05 joh
 361  1119.8  362  1119.8  363  1119.8  364  1119.8  365  1119.8  366  1119.8  367  1119.8  368  1119.8  
 
 ##### Analysis control parameters #####
-#[ L.extra_param ]
+[ L.extra_param ]
 5.0e-10   4.0e-8             TDC scale (ns/chan), t0 resolution (ns)
-4  7  0  400  1400 50e-9 200.0e-9  min_clust_size, max_clust_span, max_gap, min_time, max_time, mindiff time (ns), maxdiff time (ns)
+3  7  1  400  1400 35e-9 250.0e-9  min_clust_size, max_clust_span, max_gap, min_time, max_time, mindiff time (ns), maxdiff time (ns)
 2.12e-3 0.0 0.0 0.0 -4.2e-4 1.3e-3 1.06e-4 0.0 4e-9    AnalyticTTD parameters
 2.118  0.288    VDC size parameters (height width)
 
