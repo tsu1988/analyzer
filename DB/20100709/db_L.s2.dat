@@ -21,7 +21,6 @@ TDC time offsets of S2 TDC channels --------------------------------------------
 Pedestal values of S2 ADC channels ---------------------------------------------
     467 499 463 439 403 502 626 446 463 568 557 453 645 549 462 480    -Left Paddles
     478 495 340 386 620 480 619 530 483 345 312 377 618 586 564 483    -Right Paddles
-
 Amplitude transformation coefficients of S2 ADC channels -----------------------
   0.96   0.98   1.05   1.52   0.94   1.03   0.99   1.03 
   1.15   1.05   0.99   1.05   0.94   0.98   1.01   1.06 

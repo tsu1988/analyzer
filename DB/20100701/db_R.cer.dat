@@ -15,7 +15,7 @@ Rotation angle of the Gas Cherenkov plane --------------------------------------
 TDC time offsets of Gas Cherenkov channels -------------------------------------
      0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0     0.0
 Pedestal values of Gas Cherenkov channels --------------------------------------
-   423   443   506   465   556   534   460   452   425   425
+498   472  402  432    568    605    607    566    462    460
 Amplitude transformation coefficients of Gas Cherenkov channels ----------------
   1.566    1.756   1.499   0.939   0.652   0.850   0.594   0.871   1.155   1.016
 ################################################################################

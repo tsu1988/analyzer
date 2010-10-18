@@ -9,6 +9,214 @@
 # near the end of that web page).
 #
 
+# ------ Jun 18, 2010
+
+DATE 18 6 2010
+
+# Setup for APEX.  Two HRS spectrometers.
+# No helicity-gated scalers.
+
+# directives for Left HRS
+
+xscaler-tabs Left 0:Spare 1:Norm 2:S2m 3:Spare 4:GasC  
+xscaler-layout Left 0:4x4 1:8x4 2:8x4 3:8x4 4:8x4 
+xscaler-pageslot Left 0:slot0 1:slot1 2:slot2 3:slot3 4:slot4 
+xscaler-pagename Left 0:'L-HRS LeCroy Scaler'
+xscaler-pagename Left 1:'L-HRS Normalization'
+xscaler-pagename Left 2:'S2m Left (1 to 16) S2m Right (17 to 32) '
+xscaler-pagename Left 3:'Empty at the moment'
+xscaler-pagename Left 4:'Gas Cerenkov + S0'
+xscaler-server Left IP:129.57.192.30 port:5022
+xscaler-clock Left slot:1 chan:23 rate:1024
+
+#
+# directives for Right HRS
+
+xscaler-tabs Right 0:norm 1:Spare 2:S2m 3:GasC 4:S0 5:Spare 6:Spare 7:Spare:
+xscaler-layout Right 0:8x4 1:8x4 2:8x4 3:4x4 4:4x4 5:4x4 6:4x4 7:4x4 
+xscaler-pageslot Right 0:slot0 1:slot1 2:slot2 3:slot3 4:slot4 5:slot5 6:slot6 7:slot7 
+xscaler-pagename Right 0:'R-HRS Normalization Scaler'
+xscaler-pagename Right 1:'R-HRS Spare Scaler with NIM inputs'
+xscaler-pagename Right 2:'R-HRS S2m PMTs'
+xscaler-pagename Right 3:'R-HRS Gas Cerenkov PMTs'
+xscaler-pagename Right 4:'R-HRS S0 Scintillator PMTs'
+xscaler-pagename Right 5:'R-HRS Spare LeCroy Scaler'
+xscaler-pagename Right 6:'R-HRS Spare CAEN Scaler 1'
+xscaler-pagename Right 7:'R-HRS Spare CAEN Scaler 2'
+xscaler-server Right IP:129.57.192.28 port:5021
+xscaler-clock Right slot:0 chan:7 rate:1024
+
+
+# Left HRS:  
+# desc  hel crate slot start nchan  long-description
+T1       0    8   1     0    1   trigger 1 on Left Arm
+T2       0    8   1     1    1   trigger 2 on Left Arm
+T3 0    8   1     2    1   trigger 3 on Left Arm
+T4 0    8   1     3    1   trigger 4 on Left Arm
+T5 0    8   1     4    1   trigger 5 on Left Arm
+T6 0    8   1     5    1   trigger 6 on Left Arm
+T7 0    8   1     6    1   trigger 7 on Left Arm
+clock    0   8   1   23   1
+TS-accept  0   8   1   12   1
+T8_clock     0    8   1     23    1   1024 Hz clock (T8)
+trigger-8 0    8   1     7    1   1024 Hz pulser trigger 8
+#
+bcm_u10   0    8   1    16    1   Beam current, upstream cavity, gain = 10
+empty	  0    8   1     9    1   unused
+bcm_d3    0    8   1    20    1   Beam current, downstream cavity, gain = 3
+bcm_d10   0    8   1    19    1   Beam current, downstream cavity, gain = 10
+L1A	  0    8   1    12    1   Trigger Supervisor accepted triggers
+bcm_u1    0    8   1    18    1   Beam current, upstream cavity, gain = 1
+unser     0    8   1    14    1   Unser monitor
+bcm_d1    0    8   1    21    1   Beam current, downstream cavity, gain = 1
+bcm_u3    0    8   1    17    1   Beam current, upstream cavity, gain = 3
+empty	  0    8   1    10    1   unused
+edtm      0    8   1    11    1   Edtm pulser
+strobe    0    8   1    12    1   Strobe for S-ray trigger
+empty     0    8   1    13    1   
+T1_copy   0    8   1    15    1 
+empty     0    8   1    22    1   Left HRS
+empty     0    8   1    23    1   
+empty     0    8   1    24    1   
+empty     0    8   1    25    1   
+empty     0    8   1    26    1   
+empty     0    8   1    27    1
+clk104k   0    8   1    28    1   103.7 kHz clock
+empty     0    8   1    29    1  
+empty     0    8   1    30    1 
+empty     0    8   1    31    1
+
+S2m-0      0    8   2     0    1
+S2m-1      0    8   2     1    1
+S2m-2      0    8   2     2    1
+S2m-3      0    8   2     3    1
+S2m-4      0    8   2     4    1
+S2m-5      0    8   2     5    1
+S2m-6      0    8   2     6    1
+S2m-7      0    8   2     7    1
+S2m-8      0    8   2     8    1
+S2m-9      0    8   2     9    1
+S2m-10     0    8   2    10    1
+S2m-11     0    8   2    11    1  Left HRS
+S2m-12     0    8   2    12    1
+S2m-13     0    8   2    13    1
+S2m-14     0    8   2    14    1
+S2m-15     0    8   2    15    1
+S2m-16     0    8   2    16    1
+S2m-17     0    8   2    17    1
+S2m-18     0    8   2    18    1
+S2m-19     0    8   2    19    1
+S2m-20     0    8   2    20    1
+S2m-21     0    8   2    21    1
+S2m-22     0    8   2    22    1
+S2m-23     0    8   2    23    1
+S2m-24     0    8   2    24    1
+S2m-25     0    8   2    25    1
+S2m-26     0    8   2    26    1
+S2m-27     0    8   2    27    1
+S2m-28     0    8   2    28    1
+S2m-29     0    8   2    29    1
+S2m-30     0    8   2    30    1
+S2m-31     0    8   2    31    1
+
+Cer0      0    8   4     0    1   1st chan of cerenkov
+Cer1      0    8   4     1    1
+Cer2      0    8   4     2    1   Left HRS
+Cer3      0    8   4     3    1
+Cer4      0    8   4     4    1
+Cer5      0    8   4     5    1
+Cer6      0    8   4     6    1
+Cer7      0    8   4     7    1
+Cer8      0    8   4     8    1
+Cer9      0    8   4     9    1
+
+CerSum    0    8   4     10   1   Left HRS
+
+S0A       0    8   4     16   1   Left HRS
+S0B       0    8   4     17   1 
+
+
+
+
+# Right HRS:
+T1        0    7   0     0    1   trigger 1 on Right Arm
+T2        0    7   0     1    1   trigger 2 on Right Arm
+T3        0    7   0     2    1   trigger 3 on Right Arm
+T4        0    7   0     3    1   trigger 4 on Right Arm
+T5        0    7   0     4    1   trigger 5 on Right Arm
+T6        0    7   0     5    1   trigger 6 on Right Arm
+T7        0    7   0     6    1   trigger 7 on Right Arm
+T8_clock  0    7   0     7    1   1024 Hz clock (T8)
+clock     0   7   0   7   1
+trigger-8 0    7   0     7    1   1024 Hz trigger 8
+empty     0    7   0     8    1   1024 Hz trigger 8
+bcm_d3    0    7   0     9    1   Beam current, downstream cavity, gain = 3
+bcm_d10   0    7   0    10    1   Beam current, downstream cavity, gain = 10
+bcm_u3    0    7   0    11    1   trigger 7 on Right Arm
+TS-accept 0    7   0    12    1   Trigger Supervisor accepted triggers 
+bcm_u1    0    7   0    13    1   Beam current, upstream cavity, gain = 1
+bcm_u10   0    7   0    14    1   Beam current, upstream cavity, gain = 10
+bcm_d1    0    7   0    15    1   Beam current, downstream cavity, gain = 1
+Empty     0    7   0    16    1   Place for Edtm pulser
+hel       0    7   0    17    1   Helicity
+QRT       0    7   0    18    1   QRT
+MPS       0    7   0    19    1   MPS
+empty     0    7   0    20    1   empty
+clk104k   0    7   0    21    1   103.7 kHz clock
+unser     0    7   0    22    1   Unser Monitor
+strobe    0    7   0    29    1   Strobe for S-ray trigger 
+
+S2m-0      0    7    2    0    1    S2m scintillator on R-HRS
+S2m-1      0    7    2    1    1    S2m scintillator on R-HRS
+S2m-2      0    7    2    2    1    S2m scintillator on R-HRS
+S2m-3      0    7    2    3    1    S2m scintillator on R-HRS
+S2m-4      0    7    2    4    1    S2m scintillator on R-HRS
+S2m-5      0    7    2    5    1    S2m scintillator on R-HRS
+S2m-6      0    7    2    6    1    S2m scintillator on R-HRS
+S2m-7      0    7    2    7    1    S2m scintillator on R-HRS
+S2m-8      0    7    2    8    1    S2m scintillator on R-HRS
+S2m-9      0    7    2    9    1    S2m scintillator on R-HRS
+S2m-10     0    7    2   10    1    S2m scintillator on R-HRS
+S2m-11     0    7    2   11    1    S2m scintillator on R-HRS
+S2m-12     0    7    2   12    1    S2m scintillator on R-HRS
+S2m-13     0    7    2   13    1    S2m scintillator on R-HRS
+S2m-14     0    7    2   14    1    S2m scintillator on R-HRS
+S2m-15     0    7    2   15    1    S2m scintillator on R-HRS
+S2m-16     0    7    2   16    1    S2m scintillator on R-HRS
+S2m-17     0    7    2   17    1    S2m scintillator on R-HRS
+S2m-18     0    7    2   18    1    S2m scintillator on R-HRS
+S2m-19     0    7    2   19    1    S2m scintillator on R-HRS
+S2m-20     0    7    2   20    1    S2m scintillator on R-HRS
+S2m-21     0    7    2   21    1    S2m scintillator on R-HRS
+S2m-22     0    7    2   22    1    S2m scintillator on R-HRS
+S2m-23     0    7    2   23    1    S2m scintillator on R-HRS
+S2m-24     0    7    2   24    1    S2m scintillator on R-HRS
+S2m-25     0    7    2   25    1    S2m scintillator on R-HRS
+S2m-26     0    7    2   26    1    S2m scintillator on R-HRS
+S2m-27     0    7    2   27    1    S2m scintillator on R-HRS
+S2m-28     0    7    2   28    1    S2m scintillator on R-HRS
+S2m-29     0    7    2   29    1    S2m scintillator on R-HRS
+S2m-30     0    7    2   30    1    S2m scintillator on R-HRS
+S2m-31     0    7    2   31    1    S2m scintillator on R-HRS
+
+Cer0      0    7    3     0    1   1st chan of cerenkov
+Cer1      0    7    3     1    1
+Cer2      0    7    3     2    1   Right HRS
+Cer3      0    7    3     3    1
+Cer4      0    7    3     6    1
+Cer5      0    7    3     7    1
+Cer6      0    7    3     8    1
+Cer7      0    7    3     9    1
+Cer8      0    7    3    10    1
+Cer9      0    7    3    11    1
+CerSum      0    7    3   12    1    Right HRS
+
+S0A       0    7    4     0    1    Right HRS
+S0B       0    7    4     1    1
+
+
+
+
 # ------ Feb 2, 2010
 DATE 2 2 2010
 # Simplified setup for PREX.  Two HRS spectrometers.
@@ -52,14 +260,13 @@ T4 0    8   1     3    1   trigger 4 on Left Arm
 T5 0    8   1     4    1   trigger 5 on Left Arm
 T6 0    8   1     5    1   trigger 6 on Left Arm
 T7 0    8   1     6    1   trigger 7 on Left Arm
-clock     0    8   1     7    1   1024 Hz clock (T8)
+T8_clock     0    8   1     7    1   1024 Hz clock (T8)
 trigger-8 0    8   1     7    1   1024 Hz pulser trigger 8
 bcm_u10   0    8   1     8    1   Beam current, upstream cavity, gain = 10
 empty	  0    8   1     9    1   unused
 bcm_d3    0    8   1    10    1   Beam current, downstream cavity, gain = 3
 bcm_d10   0    8   1    11    1   Beam current, downstream cavity, gain = 10
 L1A	  0    8   1    12    1   Trigger Supervisor accepted triggers
-TS-accept 0    8   1    12    1   Trigger Supervisor accepted triggers 
 bcm_u1    0    8   1    13    1   Beam current, upstream cavity, gain = 1
 unser     0    8   1    14    1   Unser monitor
 bcm_d1    0    8   1    15    1   Beam current, downstream cavity, gain = 1
@@ -89,7 +296,7 @@ T4        0    7   0     3    1   trigger 4 on Right Arm
 T5        0    7   0     4    1   trigger 5 on Right Arm
 T6        0    7   0     5    1   trigger 6 on Right Arm
 T7        0    7   0     6    1   trigger 7 on Right Arm
-clock  0    7   0     7    1   1024 Hz clock (T8)
+T8_clock  0    7   0     7    1   1024 Hz clock (T8)
 trigger-8 0    7   0     7    1   1024 Hz trigger 8
 empty     0    7   0     8    1   1024 Hz trigger 8
 bcm_d3    0    7   0     9    1   Beam current, downstream cavity, gain = 3
