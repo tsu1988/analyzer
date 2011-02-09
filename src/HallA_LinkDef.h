@@ -116,6 +116,9 @@
 #pragma link C++ class THaPhotoReaction+;
 #pragma link C++ class THaSAProtonEP+;
 #pragma link C++ class THaTextvars+;
+#pragma link C++ class THaBendedBeam+;
+
+
 
 #ifdef ONLINE_ET
 #pragma link C++ class THaOnlRun+;

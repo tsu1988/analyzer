@@ -8,10 +8,10 @@ R.theta   = -4.910
 L.pcentral= 1.063
 R.pcentral= 1.063
 
-
-# for tune B
-#L.vdc.config = prex-alt
-#R.vdc.config = prex-alt
+beambend_x = .0
+beambend_y = .0
+beambend_dx = .0
+beambend_dy = .0
 
 --------[ 2010-06-22 01:00:00 ]
 
@@ -31,6 +31,13 @@ L.pcentral= 1.1615
 R.pcentral= 1.1615
 
 
+--------[ 2010-07-1 15:00:00 ]
+
+beambend_x = -3.4e-3
+beambend_y = .0
+beambend_dx = -4.4e-3
+beambend_dy = .0
+
 --------[ 2010-07-4 15:00:00 ]
 
 ebeam     = 2.262
@@ -38,3 +45,18 @@ L.theta   = 5
 R.theta   = -5
 L.pcentral= 1.131
 R.pcentral= 1.131
+
+--------[ 2010-07-8 20:00:00 ]
+
+ebeam     = 1.162
+L.theta   = 5
+R.theta   = -5
+L.pcentral= 1.1615
+R.pcentral= 1.1615
+
+beambend_x = 8.8e-3
+beambend_y = .0
+beambend_dx = 10.7e-3
+beambend_dy = .0
+
+
