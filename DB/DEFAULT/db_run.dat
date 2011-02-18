@@ -54,7 +54,7 @@ R.theta   = -5
 L.pcentral= 1.1615
 R.pcentral= 1.1615
 
-beambend_x = 8.8e-3
+beambend_x = 9.00482e-3
 beambend_y = .0
 beambend_dx = 10.7e-3
 beambend_dy = .0
