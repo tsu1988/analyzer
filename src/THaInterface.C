@@ -23,7 +23,7 @@
 #include "CodaDecoder.h"
 #include "THaGlobals.h"
 #include "THaAnalyzer.h"
-//#include "THaFileDB.h"
+#include "THaFileDB.h"
 #include "THaTextvars.h"
 #include "ha_compiledata.h"
 
@@ -76,7 +76,7 @@ THaInterface::THaInterface( const char* appClassName, int* argc, char** argv,
   // Use the standard CODA file decoder by default
   gHaDecoder = Decoder::CodaDecoder::Class();
   // File-based database by default
-  //  gHaDB      = new THaFileDB();
+  gHaDB      = new THaFileDB();
   gHaTextvars = new THaTextvars;
 
   // Set the maximum size for a file written by Podd contained by the TTree
@@ -148,7 +148,7 @@ THaInterface::~THaInterface()
     delete THaAnalyzer::GetInstance();
     // Delete all global lists and objects contained in them
     delete gHaTextvars; gHaTextvars=0;
-    //    delete gHaDB;           gHaDB = 0;
+    delete gHaDB;           gHaDB = 0;
     delete gHaPhysics;   gHaPhysics=0;
     delete gHaEvtHandlers;  gHaEvtHandlers=0;
     delete gHaApps;         gHaApps=0;
