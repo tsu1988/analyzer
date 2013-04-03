@@ -10,7 +10,6 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "THaFileDB.h"
-#include "VarDef.h"
 
 using namespace std;
 
@@ -35,50 +34,8 @@ Int_t THaFileDB::Close()
 }
 
 //_____________________________________________________________________________
-Int_t THaFileDB::Open() 
+Int_t THaFileDB::LoadValue( const char* key, string& text, const TDatime& date )
 {
-  // Open the database connection
-
-  return 0;
-}
-
-//_____________________________________________________________________________
-Int_t THaFileDB::LoadValue( const char* key, Double_t& value,
-			    const TDatime& date )
-{
-
-  return 0;
-}
-
-//_____________________________________________________________________________
-Int_t THaFileDB::LoadValue( const char* key, Int_t& value,
-			    const TDatime& date )
-{
-
-  return 0;
-}
-
-//_____________________________________________________________________________
-Int_t THaFileDB::LoadValue( const char* key, std::string& text,
-			    const TDatime& date )
-{
-
-  return 0;
-}
-
-//_____________________________________________________________________________
-Int_t THaFileDB::LoadValue( const char* key, TString& text,
-			    const TDatime& date )
-{
-
-  return 0;
-}
-
-//_____________________________________________________________________________
-Int_t THaFileDB::Load( const DBRequest* request, const char* prefix,
-		       const TDatime& date, Int_t search )
-{
-
 
   return 0;
 }
