@@ -132,6 +132,8 @@
 #pragma link C++ class THaEvtTypeHandler+;
 #pragma link C++ class THaScalerEvtHandler+;
 #pragma link C++ class THaEpicsEvtHandler+;
+#pragma link C++ class THaDB+;
+#pragma link C++ class THaFileDB+;
 
 #ifdef ONLINE_ET
 #pragma link C++ class THaOnlRun+;
