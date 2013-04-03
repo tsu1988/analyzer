@@ -1,93 +1,87 @@
-// a class to handle event filtering
-// Each filter has an associated global 'cut' variable
-// to test against
+//*-- Author :    Ole Hansen   03-Apr-13
 
-#include <iostream>
+//////////////////////////////////////////////////////////////////////////
+//
+// THaFileDB
+//
+// Backend for Hall A-style database files, stored in time-stamped
+// directories.
+//
+//////////////////////////////////////////////////////////////////////////
 
-#include "THaFilter.h"
-#include "THaCodaFile.h"
-#include "TError.h"
-#include "TString.h"
-#include "THaCutList.h"
-#include "THaCut.h"
-#include "THaRunBase.h"
+#include "THaFileDB.h"
+#include "VarDef.h"
 
 using namespace std;
 
 //_____________________________________________________________________________
-THaFilter::THaFilter( const char *cutexpr, const char* filename ) :
-  fCutExpr(cutexpr), fFileName(filename), fCodaOut(NULL), fCut(NULL)
+THaFileDB::THaFileDB( const char* DB_DIR ) : THaDB(DB_DIR)
 {
   // Constructor
 }
 
 //_____________________________________________________________________________
-THaFilter::~THaFilter()
+THaFileDB::~THaFileDB()
 {
-  // Destructor. Calls virtual Close(). NB: any derived class
-  // that overrides Close() must implement its own destructor and call its 
-  // own Close() from there.
-
-  Close();
-  delete fCut;
-  delete fCodaOut;
+  // Destructor
 }
 
 //_____________________________________________________________________________
-Int_t THaFilter::Close() 
+Int_t THaFileDB::Close() 
 {
-  // Close this filter. Closes output file if open.
+  // Close the database connection
 
-  if( !fCodaOut ) return 0;
-  cout << "Flushing and Closing " << fFileName << endl;
-  return fCodaOut->codaClose();
-}
-
-//_____________________________________________________________________________
-Int_t THaFilter::Init(const TDatime& )
-{
-  // Init the filter
-
-  if (fIsInit)
-    return 0;
-
-  fCodaOut = new THaCodaFile;
-  if (!fCodaOut) {
-    Error("Init","Cannot create CODA output file object. "
-	  "Something is very wrong." );
-    return -2;
-  }
-  if ( fCodaOut->codaOpen(fFileName, "w", 1) ) {
-    Error("Init","Cannot open CODA file %s for writing.",fFileName.Data());
-    return -3;
-  }      
-
-  // Set up our cut
-  fCut = new THaCut( "Filter_Test", fCutExpr, "PostProcess" );
-  // Expression error?
-  if( !fCut || fCut->IsZombie()) {
-    delete fCut; fCut = NULL;
-    Warning("Init","Illegal cut expression: %s.\nFilter is inactive.",
-	    fCutExpr.Data());
-  } else {
-    fIsInit = 1;
-  }
   return 0;
 }
 
 //_____________________________________________________________________________
-Int_t THaFilter::Process( const THaEvData* /* evdata */, const THaRunBase* run,
-			  Int_t /* code */ ) 
+Int_t THaFileDB::Open() 
 {
-  // Process event. Write the event to output CODA file if and only if
-  // the event passes the filter cut.
+  // Open the database connection
 
-  if (!fIsInit || !fCut->EvalCut()) 
-    return 0;
-  
-  // write out the event
-  return  fCodaOut->codaWrite(run->GetEvBuffer());
+  return 0;
 }
 
 //_____________________________________________________________________________
-ClassImp(THaFilter)
+Int_t THaFileDB::LoadValue( const char* key, Double_t& value,
+			    const TDatime& date )
+{
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t THaFileDB::LoadValue( const char* key, Int_t& value,
+			    const TDatime& date )
+{
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t THaFileDB::LoadValue( const char* key, std::string& text,
+			    const TDatime& date )
+{
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t THaFileDB::LoadValue( const char* key, TString& text,
+			    const TDatime& date )
+{
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t THaFileDB::Load( const DBRequest* request, const char* prefix,
+		       const TDatime& date, Int_t search )
+{
+
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+ClassImp(THaFileDB)

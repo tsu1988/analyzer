@@ -119,6 +119,8 @@
 #pragma link C++ class THaQWEAKHelicity+;
 #pragma link C++ class THaQWEAKHelicityReader+;
 #pragma link C++ class THaQWEAKHelicityReader::ROCinfo+;
+#pragma link C++ class THaDB+;
+#pragma link C++ class THaFileDB+;
 
 #ifdef ONLINE_ET
 #pragma link C++ class THaOnlRun+;
