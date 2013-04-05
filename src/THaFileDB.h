@@ -41,10 +41,17 @@ class THaFileDB : public THaDB {
 
   // Structures for storing time-dependent keys and string values
   struct Value_t {
+    Value_t() {}
+    Value_t( UInt_t id, const std::string& s ) : range_id(id), value(s) {}
     UInt_t       range_id;
     std::string  value;
   };
   struct TimeRange_t {
+    TimeRange_t() {}
+    TimeRange_t( time_t s, time_t e ) : start_time(s), end_time(e) {}
+    bool operator==( const TimeRange_t& rhs ) const {
+      return (start_time == rhs.start_time && end_time == rhs.end_time);
+    }
     time_t       start_time;
     time_t       end_time;
   };
@@ -52,6 +59,17 @@ class THaFileDB : public THaDB {
   typedef std::map<std::string,UInt_t>   StringMap_t;
   typedef std::multimap<UInt_t,Value_t>  ValueMap_t;
   typedef std::map<UInt_t,TimeRange_t>   TimeRangeMap_t;
+
+  class RangeEquals : 
+    public std::unary_function< TimeRangeMap_t::value_type, bool > {
+  public:
+    RangeEquals( const TimeRange_t& tr ) : range_to_find(tr) {}
+    bool operator() ( const TimeRangeMap_t::value_type& elem ) const {
+      return ( range_to_find == elem.second );
+    }
+  private:
+    const TimeRange_t& range_to_find;
+  };
 
   StringMap_t    fKeys;         // Unique keys -> key IDs (1-to-1)
   ValueMap_t     fValues;       // key IDs -> ranges/values (1-to-many)
@@ -64,7 +82,7 @@ class THaFileDB : public THaDB {
 #else
     VisitedFile_t( const struct stat& s, time_t timet )
 #endif
-    : dev(s.st_dev), inode(s.st_ino), time(timet) {}
+      : dev(s.st_dev), inode(s.st_ino), time(timet) {}
     dev_t    dev;
     ino_t    inode;
     time_t   time;
