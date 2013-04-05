@@ -17,11 +17,16 @@
 #include <errno.h>
 #include <cassert>
 #include <cstring>
+#include <limits>
+#include <utility>
+#include <algorithm>
 
 using namespace std;
 
 typedef string::size_type ssiz_t;
 typedef vector<string>::iterator vsiter_t;
+
+#define ALL(c) (c).begin(), (c).end()
 
 //_____________________________________________________________________________
 THaFileDB::THaFileDB( const char* DB_DIR ) : THaDB(DB_DIR)
@@ -81,12 +86,12 @@ Int_t THaFileDB::LookupKey( const char* key, string& text, time_t timet )
 
   // Check if any of the value's time ranges matches the requested time
   for( valiter_t it = range.first; it != range.second; ++it ) {
-    const Value_t& theValue = (*it).second;
+    const Value_t& theValue = it->second;
     TimeRangeMap_t::iterator ir = fTimeRanges.find( theValue.range_id );
     assert( ir != fTimeRanges.end() );
     // The time ranges are unique by construction, so we only need to check
     // for a single match
-    const TimeRange_t& theRange = (*ir).second;
+    const TimeRange_t& theRange = ir->second;
     if( theRange.start_time <= timet && timet < theRange.end_time ) {
       text = theValue.value;
       return 0;
@@ -248,6 +253,11 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
   // No prefix is prepended to any keys found.
 
   static const char* const here = "THaFileDB::LoadFile";
+  static const time_t max_timet = numeric_limits<time_t>::max();
+  static const size_t bufsiz = 128;
+
+  typedef ValueMap_t::iterator valiter_t;
+  typedef pair<valiter_t,valiter_t> value_range_t;
 
   if( !file ) return -1;
 
@@ -274,11 +284,11 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
   fErrtxt.Clear();
   rewind(file);
 
-  static const size_t bufsiz = 128;
   char buf[bufsiz];
   string dbline, key, text;
   vector<string> lines;
   TDatime keydate(date);
+  TimeRange_t theRange(keydate.Convert(), max_timet), prevRange(theRange);
   while( ReadDBline(file, buf, bufsiz, dbline) != EOF ) {
     if( dbline.empty() ) continue;
     // Replace text variables in this database line, if any. Multi-valued
@@ -291,7 +301,38 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
       if( (status = ParseDBline( line, key, text )) != 0 ) {
 	if( status > 0 ) {
 	  // Found a key
-	  
+	  UInt_t timerange_id, key_id;
+	  TimeRangeMap_t::iterator itr = find_if( ALL(fTimeRanges),
+						  RangeEquals(theRange) );
+	  if( itr == fTimeRanges.end() ) {
+	    timerange_id = fTimeRanges.size();
+	    fTimeRanges[timerange_id] = theRange;
+	  } else {
+	    timerange_id = itr->first;
+	  }	    
+	  StringMap_t::iterator ik = fKeys.find( key );
+	  if( ik == fKeys.end() ) {
+	    // New key
+	    key_id = fKeys.size();
+	    fKeys[key] = key_id;
+	    fValues.insert( make_pair(key_id, Value_t(timerange_id, text)) );
+	  } else {
+	    // Existing key: replace value
+	    key_id = ik->second;
+	    // Find the value corresponding to this key ID
+	    value_range_t range = fValues.equal_range( key_id );
+	    assert( range.first != fValues.end() );  // Value must exist
+	    for( valiter_t iv = range.first; iv != range.second; ++iv ) {
+	      Value_t& theValue = iv->second;
+	      itr = fTimeRanges.find( theValue.range_id );
+	      assert( itr != fTimeRanges.end() );
+	      if( itr->second == theRange ) {
+		
+	      }
+	    }
+	  }
+
+
 	} else {
 	  // Empty LHS
 	  Warning( here, "Missing key in database line \"%s\"... Ignored.",
