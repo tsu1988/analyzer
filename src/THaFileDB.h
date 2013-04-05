@@ -14,6 +14,8 @@
 #include <set>
 #include <cstdio>
 #include <ctime>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 class THaFileDB : public THaDB {
  public:
@@ -23,6 +25,7 @@ class THaFileDB : public THaDB {
   // Prevent hiding of the overloaded LoadValue instances
   using THaDB::LoadValue;
 
+  virtual Int_t Open();
   virtual Int_t Close();
   virtual Int_t LoadValue( const char* key, std::string& text,
 			   const TDatime& date = TDatime() );
@@ -36,7 +39,7 @@ class THaFileDB : public THaDB {
 
  protected:
 
-
+  // Structures for storing time-dependent keys and string values
   struct Value_t {
     UInt_t       range_id;
     std::string  value;
@@ -53,6 +56,30 @@ class THaFileDB : public THaDB {
   StringMap_t    fKeys;         // Unique keys -> key IDs (1-to-1)
   ValueMap_t     fValues;       // key IDs -> ranges/values (1-to-many)
   TimeRangeMap_t fTimeRanges;   // Range IDs -> time periods (1-to-1)
+
+  // Structures for keeping track of input files read
+  struct VisitedFile_t {
+#if defined(R__SEEK64)
+    VisitedFile_t( const struct stat64& s, time_t timet )
+#else
+    VisitedFile_t( const struct stat& s, time_t timet )
+#endif
+    : dev(s.st_dev), inode(s.st_ino), time(timet) {}
+    dev_t    dev;
+    ino_t    inode;
+    time_t   time;
+
+    bool operator<( const VisitedFile_t& rhs ) const {
+      if( dev != rhs.dev ) return ( dev < rhs.dev );
+      if( inode != rhs.inode ) return ( inode < rhs.inode );
+      return ( time < rhs.time );
+    }
+  };
+
+  typedef std::set<VisitedFile_t> FileSet_t;
+
+  FileSet_t    fVisitedFiles;   // Files visited and loaded
+
 
   ClassDef(THaFileDB,0)   // Hall A-style file-based database backend
 };
