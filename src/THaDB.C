@@ -65,8 +65,11 @@ Int_t THaDB::LoadValue( const char* key, Double_t& dval, const TDatime& date )
 
   string text;
   Int_t err = LoadValue( key, text, date );
-  if( err == 0 )
-    dval = atof(text.c_str());
+  if( err == 0 ) {
+    text += " ";
+    ISSTREAM inp(text);
+    inp >> dval;
+  }
   return err;
 }
 
@@ -77,8 +80,11 @@ Int_t THaDB::LoadValue( const char* key, Int_t& ival, const TDatime& date )
 
   string text;
   Int_t err = LoadValue( key, text, date );
-  if( err == 0 )
-    ival = atoi(text.c_str());
+  if( err == 0 ) {
+    text += " ";
+    ISSTREAM inp(text);
+    inp >> ival;
+  }
   return err;
 }
 
