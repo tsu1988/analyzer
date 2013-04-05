@@ -69,6 +69,8 @@ Int_t THaDB::LoadValue( const char* key, Double_t& dval, const TDatime& date )
     text += " ";
     ISSTREAM inp(text);
     inp >> dval;
+    if( !inp )
+      err = -1;
   }
   return err;
 }
@@ -84,6 +86,8 @@ Int_t THaDB::LoadValue( const char* key, Int_t& ival, const TDatime& date )
     text += " ";
     ISSTREAM inp(text);
     inp >> ival;
+    if( !inp )
+      err = -1;
   }
   return err;
 }
@@ -117,6 +121,8 @@ _LoadArray( string& line, vector<T>& values, const TDatime& date )
     inp >> val;
     if( inp.good() )
       values.push_back(val);
+    else if( values.empty() )
+      return -1;
     else
       break;
   }
