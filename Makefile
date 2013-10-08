@@ -89,8 +89,9 @@ ifdef DEBUG
   DEFINES    :=
 else
 #  CXXFLG     := -O2 -march=pentium4
-  CXXFLG     := -O
-  LDFLAGS    := -O
+  CXXFLG     := -O2 -g -march=core2 -mfpmath=sse
+#  CXXFLG     := -O -march=core2 -mfpmath=sse
+  LDFLAGS    := -O -g
   DEFINES    := -DNDEBUG
 endif
 DEFINES      += -DLINUXVERS
