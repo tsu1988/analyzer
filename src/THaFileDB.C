@@ -295,6 +295,7 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
     // variables are supported here, although they are only sensible on the LHS
     lines.assign( 1, dbline );
     gHaTextvars->Substitute( lines );
+    // FIXME: don't enter anything if textvar not found, i.e. don't take it literally
     for( vsiter_t it = lines.begin(); it != lines.end(); ++it ) {
       string& line = *it;
       Int_t status;
@@ -319,16 +320,21 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
 	  } else {
 	    // Existing key: replace value
 	    key_id = ik->second;
-	    // Find the value corresponding to this key ID
+	    // Find the value corresponding to this key ID & time range
 	    value_range_t range = fValues.equal_range( key_id );
-	    assert( range.first != fValues.end() );  // Value must exist
-	    for( valiter_t iv = range.first; iv != range.second; ++iv ) {
+	    assert( range.first != fValues.end() );  // Some value must exist
+	    valiter_t iv = range.first;
+	    for( ; iv != range.second; ++iv ) {
 	      Value_t& theValue = iv->second;
-	      itr = fTimeRanges.find( theValue.range_id );
-	      assert( itr != fTimeRanges.end() );
-	      if( itr->second == theRange ) {
-		
+	      if( theValue.range_id == timerange_id ) {
+		// Found: replace value
+		theValue.value = text;
+		break;
 	      }
+	    }
+	    if( iv == range.second ) {
+	      // No such timerange yet: make new value entry
+	      fValues.insert( make_pair(key_id, Value_t(timerange_id, text)) );
 	    }
 	  }
 
@@ -340,7 +346,18 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
 	}
       } else if( IsDBdate( line, keydate ) != 0 )  {
 	// Found a date
+	UInt_t timerange_id;
+	TimeRangeMap_t::iterator itr = find_if( ALL(fTimeRanges),
+						RangeEquals(theRange) );
+	if( itr == fTimeRanges.end() ) {
+	  timerange_id = fTimeRanges.size();
+	  fTimeRanges[timerange_id] = theRange;
+	} else {
+	  timerange_id = itr->first;
+	}	    
 	
+	
+
       } else {
 	// No '=' and also no '[...]' -> unrecognized format
 	Warning( here, "Unrecognized database line \"%s\"... Ignored.",
