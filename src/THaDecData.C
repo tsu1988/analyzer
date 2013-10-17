@@ -566,7 +566,11 @@ THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time )
   if( IsZombie() )
     return fStatus;
     
-  MakePrefix();
+  // Standard analysis object init, calls MakePrefix(), ReadDatabase()
+  // and DefineVariables(), and Clear("I")
+  if( (fStatus = THaAnalysisObject::Init( run_time )) != kOK )
+    return fStatus;
+
   cnt1 = 0;
   // Let VdcEff reassociate its global variable pointers upon re-init
   if( fgVdcEffFirst == 0 )
