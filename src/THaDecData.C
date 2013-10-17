@@ -568,7 +568,8 @@ THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time )
     
   // Standard analysis object init, calls MakePrefix(), ReadDatabase()
   // and DefineVariables(), and Clear("I")
-  if( (fStatus = THaAnalysisObject::Init( run_time )) != kOK )
+  THaAnalysisObject::Init( run_time );
+  if( fStatus != kOK )
     return fStatus;
 
   cnt1 = 0;
