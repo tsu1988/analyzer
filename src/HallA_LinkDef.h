@@ -31,6 +31,7 @@
 #pragma link C++ class THaSpectrometer+;
 #pragma link C++ class THaHRS+;
 #pragma link C++ class THaDecData+;
+#pragma link C++ class BdataLoc+;
 #pragma link C++ class THaAnalysisObject+;
 #pragma link C++ class THaDetectorBase+;
 #pragma link C++ class THaPhysicsModule+;

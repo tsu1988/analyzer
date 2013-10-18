@@ -9,10 +9,8 @@
 
 #include "THaApparatus.h"
 #include "TBits.h"
-//#include "TH1.h"
-//#include "TH2.h"
 #include <vector>
-#include "THashTable.h"
+//#include "THashTable.h"
 
 class TH1F;
 class BdataLoc;
@@ -68,11 +66,3 @@ private:
 };
 
 #endif
-
-
-
-
-
-
-
-
