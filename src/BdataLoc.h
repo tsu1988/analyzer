@@ -5,79 +5,147 @@
 //
 // BdataLoc
 //
-// Utility class for THaDecData generic raw data decoder
-//
 //////////////////////////////////////////////////////////////////////////
 
 #include "TNamed.h"
+#include <vector>
 
-//FIXME: make this a nice OO hierarchy for different derived classes for
-// the different data type (crate, header, etc.)
+class THaEvData;
+
 //FIXME: let this class handle its associated global analyzer variable
-//FIXME: add "roclen" data type
+
+//___________________________________________________________________________
 class BdataLoc : public TNamed {
   // Utility class used by THaDecData.
   // Data location, either in (crates, slots, channel), or
   // relative to a unique header in a crate or in an event.
-  static const Int_t MxHits=16;
+public:
+  // Base class constructor
+  BdataLoc( const char* name, Int_t cra )
+    : TNamed(name,name), crate(cra), data(kBig) { }
+  BdataLoc() {}  // For ROOT RTTI only
+  virtual ~BdataLoc() {}
+
+  // Main function: extract the defined data from the event
+  virtual void    Load( const THaEvData& evt ) = 0;
+
+  virtual void    Clear( const Option_t* ="" )  { data = kBig; }
+  virtual Bool_t  DidLoad() const               { return (data != kBig); }
+  virtual UInt_t  NumHits()                     { return 1; }
+  virtual UInt_t  Get( Int_t i = 0 ) const      { return data; }
+
+  Bool_t operator==( const char* aname ) const  { return fName == aname; }
+  // operator== and != compare the hardware definitions of two BdataLoc's
+  // virtual Bool_t operator==( const BdataLoc& rhs ) const
+  // { return (crate == rhs.crate); }
+  // Bool_t operator!=( const BdataLoc& rhs ) const { return !(*this==rhs); }
+   
+  static const Double_t kBig;  // default invalid value
+
+protected:
+  Int_t   crate;   // Crate where these data originate
+  UInt_t  data;    // raw data word
+
+  ClassDef(BdataLoc,0)  
+};
+
+//___________________________________________________________________________
+class CrateLoc : public BdataLoc {
 public:
   // c'tor for (crate,slot,channel) selection
-  BdataLoc ( const char* nm, Int_t cra, Int_t slo, Int_t cha ) :
-    TNamed(nm,nm), crate(cra), slot(slo), chan(cha), header(0), ntoskip(0), 
-    search_choice(0) { Clear(); }
-  // c'tor for header search (note, the only diff to above is 3rd arg is UInt_t)
-  //FIXME: this kind of overloading (Int/UInt) is asking for trouble...
-  BdataLoc ( const char* nm, Int_t cra, UInt_t head, Int_t skip ) :
-    TNamed(nm,nm), crate(cra), slot(0), chan(0), header(head), ntoskip(skip),
-    search_choice(1) { Clear(); }
+  CrateLoc( const char* nm, Int_t cra, Int_t slo, Int_t cha )
+    : BdataLoc(nm,cra), slot(slo), chan(cha) { }
+  virtual ~CrateLoc() {}
+
+  virtual void   Load( const THaEvData& evt );
+
+  // virtual Bool_t operator==( const BdataLoc& rhs ) const
+  // { return (crate == rhs.crate && slot == rhs.slot && chan == rhs.chan); }
+
+protected:
+  Int_t slot, chan;    // Data location
+
+  ClassDef(CrateLoc,0)  
+};
+
+//___________________________________________________________________________
+class CrateLocMulti : public CrateLoc {
+public:
+  // (crate,slot,channel) allowing for multiple hits per channel
+  CrateLocMulti( const char* nm, Int_t cra, Int_t slo, Int_t cha )
+    : CrateLoc(nm,cra,slo,cha) { }
+  virtual ~CrateLocMulti() {}
+
+  virtual void    Load( const THaEvData& evt );
+
+  virtual void    Clear( const Option_t* ="" )  { rdata.clear(); }
+  virtual Bool_t  DidLoad() const               { return !rdata.empty(); }
+  virtual UInt_t  NumHits()                     { return rdata.size(); }
+  virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
+
+protected:
+  std::vector<UInt_t> rdata;     // raw data
+
+  ClassDef(CrateLocMulti,0)  
+};
+
+//___________________________________________________________________________
+class WordLoc : public BdataLoc {
+public:
+  // c'tor for header search 
+  WordLoc( const char* nm, Int_t cra, UInt_t head, Int_t skip )
+    : BdataLoc(nm,cra), header(head), ntoskip(skip) { }
+  virtual ~WordLoc() {}
+
+  virtual void   Load( const THaEvData& evt );
+
+  // virtual Bool_t operator==( const BdataLoc& rhs ) const
+  // { return (crate == rhs.crate &&
+  // 	    header == rhs.header && ntoskip == rhs.ntoskip); }
+
+protected:
+  UInt_t header;              // header (unique either in data or in crate)
+  Int_t  ntoskip;             // how far to skip beyond header
+   
+  ClassDef(WordLoc,0)  
+};
+
+//___________________________________________________________________________
+class RoclenLoc : public BdataLoc {
+public:
+  // Event length of a crate
+  RoclenLoc( const char* nm, Int_t cra ) : BdataLoc(nm,cra) { }
+  virtual ~RoclenLoc() {}
+
+  virtual void   Load( const THaEvData& evt );
+
+  ClassDef(RoclenLoc,0)  
+};
+
+//======== OLD ===========
+#if 0
   Bool_t IsSlot() { return (search_choice == 0); }
-  void Clear( const Option_t* ="" ) { ndata=0;  loaded_once = kFALSE; }
-  void Load(UInt_t data) {
-    if (ndata<MxHits) rdata[ndata++]=data;
-    loaded_once = kTRUE;
-  }
-  Bool_t DidLoad() { return loaded_once; }
-  Int_t NumHits() { return ndata; }
-  //FIXME: not really needed if the global analyzer variable is right in here
-  UInt_t Get(Int_t i=0) { 
-    return (i >= 0 && ndata > i) ? rdata[i] : 0; }
-  Bool_t operator==( const char* aname ) { return fName==aname; }
-  // operator== and != compare the hardware definitions of two BdataLoc's
-  Bool_t operator==( const BdataLoc& rhs ) const {
-    return ( search_choice == rhs.search_choice && crate == rhs.crate &&
-	     ( (search_choice == 0 && slot == rhs.slot && chan == rhs.chan) ||
-	       (search_choice == 1 && header == rhs.header && 
-		ntoskip == rhs.ntoskip)
-	       )  
-	     );
-  }
-  Bool_t operator!=( const BdataLoc& rhs ) const { return !(*this == rhs ); }
-  //FIXME: Set functions not needed if we put the database line parser in here
   void SetSlot( Int_t cr, Int_t sl, Int_t ch ) {
     crate = cr; slot = sl; chan = ch; header = ntoskip = search_choice = 0;
   }
   void SetHeader( Int_t cr, UInt_t hd, Int_t sk ) {
     crate = cr; header = hd; ntoskip = sk; slot = chan = 0; search_choice = 1;
   }
-  ~BdataLoc() {}
-   
-  Int_t  crate, slot, chan;   // where to look in crates
-  UInt_t header;              // header (unique either in data or in crate)
-  Int_t ntoskip;              // how far to skip beyond header
-   
-  //FIXME: each subclass of BdataLoc should support its own data type here.
-  // Not all hardware is/needs multihit capability. Should support single-value
-  // data as well.
-  UInt_t rdata[MxHits];       //[ndata] raw data (to accom. multihit chanl)
-  Int_t  ndata;               // number of relevant entries
-private:
-  Int_t  search_choice;       // whether to search in crates or rel. to header
-  Bool_t loaded_once;
-  BdataLoc();
-  BdataLoc(const BdataLoc& dataloc);
-  BdataLoc& operator=(const BdataLoc& dataloc);
 
-  ClassDef(BdataLoc,0)  
-};
+void    Load( UInt_t data)            { rdata.push_back(data); }
+
+( search_choice == rhs.search_choice && crate == rhs.crate &&
+	     ( (search_choice == 0 && slot == rhs.slot && chan == rhs.chan) ||
+	       (search_choice == 1 && header == rhs.header && 
+		ntoskip == rhs.ntoskip)
+	       )  
+	     );
+  }
+
+
+  Int_t  search_choice;       // whether to search in crates or rel. to header
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
 
 #endif

@@ -55,7 +55,6 @@
 #include "THaVarList.h"
 #include "THaVar.h"
 #include "THaGlobals.h"
-#include "THaEvData.h"
 #include "THaDetMap.h"
 #include "TDatime.h"
 #include "TH1.h"
