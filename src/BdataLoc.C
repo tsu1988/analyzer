@@ -15,12 +15,10 @@
 
 using namespace std;
 
-const Double_t BdataLoc::kBig = 1.e38;
-
 //_____________________________________________________________________________
 void CrateLoc::Load( const THaEvData& evdata )
 {
-  // Load decoded data from crate/slot/chan address
+  // Load one data word from crate/slot/chan address
 
   if( evdata.GetNumHits(crate,slot,chan) > 0 ) {
     data = evdata.GetData(crate,slot,chan,0);
@@ -32,8 +30,30 @@ void CrateLocMulti::Load( const THaEvData& evdata )
 {
   // Load all decoded hits from crate/slot/chan address
 
+  data = 0;
   for (Int_t i = 0; i < evdata.GetNumHits(crate,slot,chan); ++i) {
     rdata.push_back( evdata.GetData(crate,slot,chan,i) );
+  }
+}
+
+//FIXME: This goes into the Hall A library
+//_____________________________________________________________________________
+void TrigBitLoc::Load( const THaEvData& evdata )
+{
+  // Test hit(s) in our TDC channel for a valid trigger bit and set results
+
+  // Read hit(s) from defined multihit TDC channel
+  CrateLocMulti::Load( evdata );
+
+  // Figure out which triggers got a hit.  These are multihit TDCs, so we
+  // need to sort out which hit we want to take by applying cuts.
+  for( UInt_t ihit = 0; ihit < NumHits(); ++ihit ) {
+    if( Get(ihit) > cutlo && Get(ihit) < cuthi ) {
+      data = 1;
+      if( bitloc )
+	*bitloc |= BIT(bitnum);
+      break;
+    }
   }
 }
 
@@ -51,7 +71,10 @@ void WordLoc::Load( const THaEvData& evdata )
   assert(cratebuf);  // Must exist if roclen > 0
 
   // Accelerated search for the header word. Coded explicitly because there
-  // is "memstr" in the standard library.
+  // is no "memstr" in the standard library.
+
+  //FIXME: Can this be made faster because each header is followed by the offset
+  // to the next header?
 
   // Get the first byte of the header, regardless of byte order
   int h = ((UChar_t*)&header)[0];

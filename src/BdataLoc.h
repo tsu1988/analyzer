@@ -7,22 +7,21 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "TNamed.h"
+#include "THaAnalysisObject.h"
 #include <vector>
 
 class THaEvData;
 
 //FIXME: let this class handle its associated global analyzer variable
-
 //___________________________________________________________________________
-class BdataLoc : public TNamed {
+class BdataLoc : public THaAnalysisObject {
   // Utility class used by THaDecData.
   // Data location, either in (crates, slots, channel), or
   // relative to a unique header in a crate or in an event.
 public:
   // Base class constructor
   BdataLoc( const char* name, Int_t cra )
-    : TNamed(name,name), crate(cra), data(kBig) { }
+    : THaAnalysisObject(name,name), crate(cra), data(kBig) { }
   BdataLoc() {}  // For ROOT RTTI only
   virtual ~BdataLoc() {}
 
@@ -31,20 +30,19 @@ public:
 
   virtual void    Clear( const Option_t* ="" )  { data = kBig; }
   virtual Bool_t  DidLoad() const               { return (data != kBig); }
-  virtual UInt_t  NumHits()                     { return 1; }
+  virtual UInt_t  NumHits() const               { return DidLoad() ? 1 : 0; }
   virtual UInt_t  Get( Int_t i = 0 ) const      { return data; }
-
   Bool_t operator==( const char* aname ) const  { return fName == aname; }
   // operator== and != compare the hardware definitions of two BdataLoc's
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate); }
   // Bool_t operator!=( const BdataLoc& rhs ) const { return !(*this==rhs); }
    
-  static const Double_t kBig;  // default invalid value
-
 protected:
   Int_t   crate;   // Crate where these data originate
   UInt_t  data;    // raw data word
+
+  virtual Int_t DefineVariables( EMode mode = kDefine );
 
   ClassDef(BdataLoc,0)  
 };
@@ -78,15 +76,40 @@ public:
 
   virtual void    Load( const THaEvData& evt );
 
-  virtual void    Clear( const Option_t* ="" )  { rdata.clear(); }
-  virtual Bool_t  DidLoad() const               { return !rdata.empty(); }
-  virtual UInt_t  NumHits()                     { return rdata.size(); }
+  virtual void    Clear( const Option_t* ="" )  { CrateLoc::Clear(); rdata.clear(); }
+  virtual UInt_t  NumHits() const               { return rdata.size(); }
   virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
 
 protected:
   std::vector<UInt_t> rdata;     // raw data
 
+  virtual Int_t DefineVariables( EMode mode = kDefine );
+
   ClassDef(CrateLocMulti,0)  
+};
+
+//FIXME: put into Hall A library
+//___________________________________________________________________________
+class TrigBitLoc : public CrateLocMulti {
+public:
+  // (crate,slot,channel) multihit TDC for Hall A-style trigger bits
+  TrigBitLoc( const char* nm, Int_t cra, Int_t slo, Int_t cha,
+	      UInt_t num, UInt_t lo, UInt_t hi, UInt_t* loc )
+    : CrateLocMulti(nm,cra,slo,cha), bitnum(num), cutlo(lo), cuthi(hi),
+      bitloc(loc) { }
+  virtual ~TrigBitLoc() {}
+
+  virtual void    Load( const THaEvData& evt );
+
+protected:
+  UInt_t  bitnum;        // Bit number for this variable
+  UInt_t  cutlo, cuthi;  // TDC cut for detecting valid trigger bit data
+  UInt_t* bitloc;        // External bitpattern variable to fill
+
+  // Re-uses base class "data" member for result of per-event bit test
+  virtual Int_t DefineVariables( EMode mode = kDefine );
+
+  ClassDef(TrigBitLoc,0)  
 };
 
 //___________________________________________________________________________
