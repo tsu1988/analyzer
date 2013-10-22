@@ -22,10 +22,10 @@ BdataLoc::~BdataLoc()
 {
   // Destructor - clean up global variable(s)
 
-  // This is a bit subtle. The following call will always invoke the base class
-  // instance BdataLoc::DefineVariables, even when destroying derived class
-  // objects. But that's OK since the kDelete mode is the same for the entire
-  // class hierarchy; it simply removes the name.
+  // The following call will always invoke the base class instance 
+  // BdataLoc::DefineVariables, even when destroying derived class
+  // objects. But that's OK since the kDelete mode is the same for 
+  // the entire class hierarchy; it simply removes the name.
 
   DefineVariables( THaAnalysisObject::kDelete );
 }
@@ -48,7 +48,7 @@ Int_t BdataLoc::DefineVariables( EMode mode )
 	// Check if we are trying to redefine ourselves, if so, succeed with
 	// warning (printed by Define() call above), else fail
 	var = gHaVars->Find( GetName() );
-	if( !(var != 0 && var->GetValuePointer() != &data) ) {
+	if( var == 0 || var->GetValuePointer() != &data ) {
 	  ret = THaAnalysisObject::kInitError;
 	}
       }
