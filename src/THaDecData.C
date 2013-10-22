@@ -104,7 +104,13 @@ THaDecData::THaDecData( const char* name, const char* descript )
 //_____________________________________________________________________________
 THaDecData::~THaDecData()
 {
-  // Dtor. Remove global variables.
+  // Destructor. Delete data location objects and global variables.
+
+  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
+    BdataLoc* dataloc = *it;
+    delete dataloc;
+  }
+  fBdataLoc.clear();
 
   DefineVariables( kDelete );
 }
@@ -135,54 +141,29 @@ Int_t THaDecData::DefineVariables( EMode mode )
   if( mode == kDefine && fIsSetup ) return kOK;
   fIsSetup = ( mode == kDefine );
 
-  Int_t retval = 0;
-
   RVarDef vars[] = {
     { "evtype",     "CODA event type",             "evtype" },  
     { "evtypebits", "event type bit pattern",      "evtypebits" },  
     { 0 }
   };
-  retval = DefineVarsFromList( vars, mode );
-
-  //TODO: this will be called implicitly from BdataLoc::Init
+  Int_t retval = DefineVarsFromList( vars, mode );
+  if( retval != kOK ) {
+    DefineVariables(kDelete);
+    return retval;
+  }
 
   // Each defined decoder data location defines its own global variable(s)
-  // for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
-  //   BdataLoc* dataloc = *it;
-  //   retval = dataloc->DefineVariables(mode);
-  // }
+  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
+    BdataLoc* dataloc = *it;
+    retval = dataloc->DefineVariables(mode);
+    if( retval != kOK ) {
+      DefineVariables(kDelete);
+      return retval;
+    }
+  }
 
-//   if( mode != kDefine ) {
-//     // Undefine the dynamically-defined global variables
-//      for( Iter_t p = fCrateLoc.begin(); p != fCrateLoc.end(); ++p ) {
-//       DefineChannel(*p,mode);
-//       if( mode == kDelete )
-// 	delete *p;
-//     }
-//     for( Iter_t p = fWordLoc.begin();  p != fWordLoc.end(); ++p ) {
-//       DefineChannel(*p,mode);
-//       if( mode == kDelete )
-// 	delete *p;
-//     }
-//     if( mode == kDelete ) {
-//       const HistDef* h = histdefs;
-//       for( vector<TH1F*>::iterator it = hist.begin(); it != hist.end(); ++it ) {
-// 	// Verify that each histogram is still in memory. It usually isn't because
-// 	// ROOT deletes it when the output file is closed.
-// 	assert( h && h->name );
-// 	TObject* obj = gDirectory->FindObject(h->name);
-// 	if( obj && obj->IsA() && obj->IsA()->InheritsFrom("TH1F") ) {
-// 	  assert( !strcmp(h->name,obj->GetName()) );
-// 	  delete *it;
-// 	}
-// 	++h;
-//       }
-//       fCrateLoc.clear();   
-//       fWordLoc.clear(); 
-//       hist.clear();
-//     }
 
-//   } else {
+  // TODO: ReadDatabase stuff:
 
 // // Set up the locations in raw data corresponding to variables of this class. 
 // // Each element of a BdataLoc is one channel or word.  Since a channel 
@@ -347,30 +328,6 @@ Int_t THaDecData::DefineVariables( EMode mode )
 }
 
 //_____________________________________________________________________________
-//FIXME: put into BdataLoc
-// BdataLoc* THaDecData::DefineChannel(BdataLoc *b, EMode mode, const char* desc)
-// {
-//   if( gHaVars ) {
-//     string nm(fPrefix); nm += b->GetName();
-//     if (mode==kDefine)
-//       //FIXME: one should be able to define scalar-type global variables
-//       // using a fixed-size variable-number-of-entry array (rdata) is a 
-//       // terrible kludge to squeeze in support for multihit modules.
-//       // This problem will go away automatically if BdataLoc turns into 
-//       // a class hierachy and this function is part of each subclass
-
-//       // gHaVars->Define(nm.c_str(),desc,b->rdata[0],&(b->ndata));
-
-//     else if (mode==kDelete) {
-//       gHaVars->RemoveName(nm.c_str());
-//       b = NULL;
-//     }
-//   }
-//   return b;
-// }
-  
-
-//_____________________________________________________________________________
 THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time ) 
 {
   // Custom Init() method. Since this apparatus has no detectors, we
@@ -464,11 +421,7 @@ Int_t THaDecData::Decode(const THaEvData& evdata)
   // lenroc12 = evdata.GetRocLength(12);
   // lenroc16 = evdata.GetRocLength(16);
 
-  // hist[16]->Fill(lenroc12);
-  // hist[17]->Fill(lenroc16);
-
-// For each raw data registerd in fCrateLoc, get the data if it belongs to a 
-// combination (crate, slot, chan).
+  // For each raw data source registered in fBdataLoc, get the data 
 
   //TODO: accelerate search for multiple header words in same crate
   //- group WordLoc objects by crate
@@ -482,58 +435,6 @@ Int_t THaDecData::Decode(const THaEvData& evdata)
   }
   
   evtype = evdata.GetEvType();   // CODA event type 
-
-//   for( Iter_t p = fCrateLoc.begin(); p != fCrateLoc.end(); ++p) {
-//     BdataLoc& dataloc = **p;
-//     bool found = false;
-
-// // bit pattern of triggers
-
-//   // FIXME: dozens of string comparisons for every event?!?
-//   // should store pointer to member data with the corresponding BdataLoc object
-//   // otherwise use a hash list
-//     for (UInt_t i = 1; i <= bits.GetNbits(); ++i) {
-//       if ( dataloc == Form("bit%d",i) ) {
-// 	TrigBits(i,&dataloc);
-// 	found = true;
-// 	break;
-//       }
-//     }
-//     if( found ) continue;
-
-// // synch ADCs
-//     if ( dataloc == "synchadc1" ) synchadc1  = dataloc.Get();
-//     else if ( dataloc == "synchadc2" ) synchadc2  = dataloc.Get();
-//     else if ( dataloc == "synchadc3" ) synchadc3  = dataloc.Get();
-//     else if ( dataloc == "synchadc4" ) synchadc4  = dataloc.Get();
-//     else if ( dataloc == "synchadc14" ) synchadc14 = dataloc.Get();
-
-// // coincidence times
-//     else if ( dataloc == "ctimel" ) ctimel = dataloc.Get();
-//     else if ( dataloc == "ctimer" ) ctimer = dataloc.Get();
-
-// // RF time
-//     else if ( dataloc == "rftime1" ) rftime1  = dataloc.Get();
-//     else if ( dataloc == "rftime2" ) rftime2  = dataloc.Get();
-
-// // EDTM pulser
-//     else if ( dataloc == "edtpl" ) edtpl  = dataloc.Get();
-//     else if ( dataloc == "edtpr" ) edtpr  = dataloc.Get();
-
-//   }
-
-//   for (Iter_t p = fWordLoc.begin(); p != fWordLoc.end(); ++p) {
-//     BdataLoc& dataloc = **p;
-
-// // time stamps
-//     if ( dataloc == "timestamp" ) timestamp = dataloc.Get();
-//     else if ( dataloc == "timeroc1" ) timeroc1  = dataloc.Get();
-//     else if ( dataloc == "timeroc2" ) timeroc2  = dataloc.Get();
-//     else if ( dataloc == "timeroc3" ) timeroc3  = dataloc.Get();
-//     else if ( dataloc == "timeroc4" ) timeroc4  = dataloc.Get();
-//     else if ( dataloc == "timeroc14" ) timeroc14 = dataloc.Get();
-
-//   }
 
 // debug 
 //    Print();

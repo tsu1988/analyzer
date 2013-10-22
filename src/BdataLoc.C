@@ -10,10 +10,79 @@
 
 #include "BdataLoc.h"
 #include "THaEvData.h"
+#include "THaGlobals.h"
+#include "THaVarList.h"
+
 #include <cstring>   // for memchr
-#include <cassert>
 
 using namespace std;
+
+//_____________________________________________________________________________
+BdataLoc::~BdataLoc()
+{
+  // Destructor - clean up global variable(s)
+
+  // This is a bit subtle. The following call will always invoke the base class
+  // instance BdataLoc::DefineVariables, even when destroying derived class
+  // objects. But that's OK since the kDelete mode is the same for the entire
+  // class hierarchy; it simply removes the name.
+
+  DefineVariables( THaAnalysisObject::kDelete );
+}
+
+//_____________________________________________________________________________
+Int_t BdataLoc::DefineVariables( EMode mode )
+{
+  // Export this object's data as a global variable
+
+  // Note that the apparatus prefix is already part of this object's name,
+  // e.g. "D.syncroc1", where "D" is the name of the parent THaDecData object
+
+  Int_t ret = THaAnalysisObject::kOK;
+
+  switch( mode ) {
+  case THaAnalysisObject::kDefine:
+    {
+      THaVar* var = gHaVars->Define( GetName(), data );
+      if( !var ) {
+	// Check if we are trying to redefine ourselves, if so, succeed with
+	// warning (printed by Define() call above), else fail
+	var = gHaVars->Find( GetName() );
+	if( !(var != 0 && var->GetValuePointer() != &data) ) {
+	  ret = THaAnalysisObject::kInitError;
+	}
+      }
+    }
+    break;
+  case THaAnalysisObject::kDelete:
+    gHaVars->RemoveName( GetName() );
+    break;
+  }
+
+  return ret;
+}
+
+//_____________________________________________________________________________
+Int_t CrateLocMulti::DefineVariables( EMode mode )
+{
+  // For multivalued data (multihit modules), define a variable-sized global
+  // variable on the vector<UInt_t> rdata member.
+
+  //TODO: This doesn't work yet. We need support for STL containers in our
+  // global variable system
+
+  return CrateLoc::DefineVariables(mode);
+}
+
+//_____________________________________________________________________________
+Int_t TrigBitLoc::DefineVariables( EMode mode )
+{
+  // Define the global variable for trigger bit test result. This is stored
+  // in the "data" member of the base class, not in the rdata array, so here
+  // we just do what the base class does.
+
+  return BdataLoc::DefineVariables(mode);
+}
 
 //_____________________________________________________________________________
 void CrateLoc::Load( const THaEvData& evdata )
@@ -110,5 +179,6 @@ void RoclenLoc::Load( const THaEvData& evdata )
 ClassImp(BdataLoc)
 ClassImp(CrateLoc)
 ClassImp(CrateLocMulti)
+ClassImp(TrigBitLoc)
 ClassImp(WordLoc)
 ClassImp(RoclenLoc)

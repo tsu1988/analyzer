@@ -9,40 +9,41 @@
 
 #include "THaAnalysisObject.h"
 #include <vector>
+#include <cassert>
 
 class THaEvData;
 
-//FIXME: let this class handle its associated global analyzer variable
 //___________________________________________________________________________
-class BdataLoc : public THaAnalysisObject {
+class BdataLoc : public TNamed {
   // Utility class used by THaDecData.
   // Data location, either in (crates, slots, channel), or
   // relative to a unique header in a crate or in an event.
 public:
   // Base class constructor
   BdataLoc( const char* name, Int_t cra )
-    : THaAnalysisObject(name,name), crate(cra), data(kBig) { }
+    : TNamed(name,name), crate(cra), data(THaAnalysisObject::kBig) { }
   BdataLoc() {}  // For ROOT RTTI only
-  virtual ~BdataLoc() {}
+  virtual ~BdataLoc();
 
   // Main function: extract the defined data from the event
   virtual void    Load( const THaEvData& evt ) = 0;
 
-  virtual void    Clear( const Option_t* ="" )  { data = kBig; }
-  virtual Bool_t  DidLoad() const               { return (data != kBig); }
+  virtual void    Clear( const Option_t* ="" )  { data = THaAnalysisObject::kBig; }
+  virtual Bool_t  DidLoad() const               { return (data != THaAnalysisObject::kBig); }
   virtual UInt_t  NumHits() const               { return DidLoad() ? 1 : 0; }
-  virtual UInt_t  Get( Int_t i = 0 ) const      { return data; }
+  virtual UInt_t  Get( Int_t i = 0 ) const      { assert(DidLoad()&&i==0); return data; }
   Bool_t operator==( const char* aname ) const  { return fName == aname; }
   // operator== and != compare the hardware definitions of two BdataLoc's
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate); }
   // Bool_t operator!=( const BdataLoc& rhs ) const { return !(*this==rhs); }
+
+  typedef THaAnalysisObject::EMode EMode;
+  virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
    
 protected:
   Int_t   crate;   // Crate where these data originate
   UInt_t  data;    // raw data word
-
-  virtual Int_t DefineVariables( EMode mode = kDefine );
 
   ClassDef(BdataLoc,0)  
 };
@@ -80,10 +81,10 @@ public:
   virtual UInt_t  NumHits() const               { return rdata.size(); }
   virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
 
+  virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
+
 protected:
   std::vector<UInt_t> rdata;     // raw data
-
-  virtual Int_t DefineVariables( EMode mode = kDefine );
 
   ClassDef(CrateLocMulti,0)  
 };
@@ -100,14 +101,12 @@ public:
   virtual ~TrigBitLoc() {}
 
   virtual void    Load( const THaEvData& evt );
+  virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
 
 protected:
   UInt_t  bitnum;        // Bit number for this variable
   UInt_t  cutlo, cuthi;  // TDC cut for detecting valid trigger bit data
   UInt_t* bitloc;        // External bitpattern variable to fill
-
-  // Re-uses base class "data" member for result of per-event bit test
-  virtual Int_t DefineVariables( EMode mode = kDefine );
 
   ClassDef(TrigBitLoc,0)  
 };
