@@ -58,6 +58,9 @@
 #include "THaDetMap.h"
 #include "TDatime.h"
 #include "TClass.h"
+#include "TString.h"
+#include "TObjArray.h"
+#include "TObjString.h"
 #include "TDirectory.h"
 #include "BdataLoc.h"
 #include "THaEvData.h"
@@ -70,11 +73,30 @@
 #include <vector>
 #include <string>
 #include <cstdlib>
+#include <cstdio>
 #include <cassert>
+#include <algorithm>
 
 using namespace std;
 
 typedef vector<BdataLoc*>::iterator Iter_t;
+
+// FIXME: override other THaApparatus functions?
+
+//___________________________________________________________________________
+struct DeleteObject {
+  template< typename T >
+  void operator() ( const T* ptr ) const { delete ptr; }
+};
+
+//___________________________________________________________________________
+template< typename Container >
+inline void DeleteContainer( Container& c )
+{
+  // Delete all elements of given container of pointers
+  for_each( c.begin(), c.end(), DeleteObject() );
+  c.clear();
+}
 
 //_____________________________________________________________________________
 // static UInt_t header_str_to_base16(const char* hdr) {
@@ -106,12 +128,7 @@ THaDecData::~THaDecData()
 {
   // Destructor. Delete data location objects and global variables.
 
-  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
-    BdataLoc* dataloc = *it;
-    delete dataloc;
-  }
-  fBdataLoc.clear();
-
+  DeleteContainer( fBdataLoc );
   DefineVariables( kDelete );
 }
 
@@ -147,21 +164,83 @@ Int_t THaDecData::DefineVariables( EMode mode )
     { 0 }
   };
   Int_t retval = DefineVarsFromList( vars, mode );
-  if( retval != kOK ) {
-    DefineVariables(kDelete);
+  if( retval != kOK && mode == kDefine ) {
+    // Something went wrong; back out by removing all of our variables
+    DefineVariables( kDelete );
     return retval;
   }
 
   // Each defined decoder data location defines its own global variable(s)
   for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
     BdataLoc* dataloc = *it;
-    retval = dataloc->DefineVariables(mode);
-    if( retval != kOK ) {
-      DefineVariables(kDelete);
+    retval = dataloc->DefineVariables( mode );
+    if( retval != kOK && mode == kDefine ) {
+      DefineVariables( kDelete );
       return retval;
     }
   }
+  return retval;
+}
 
+//_____________________________________________________________________________
+Int_t THaDecData::ReadDatabase( const TDatime& date )
+{
+  // Read THaDecData database
+
+  static const char* const here = "ReadDatabase";
+
+  fIsInit = kFALSE;
+
+  // Delete existing configuration so as to allow re-initialization
+  DeleteContainer( fBdataLoc );
+
+  FILE* file = OpenFile( date );
+  if( !file ) return kFileError;
+
+  typedef set<BdataLocType> TypeSet_t;
+  typedef TypeSet_t::const_iterator TypeIter_t;
+
+  bool err = false;
+  for( TypeIter_t it = fgBdataLocTypes.begin();
+       !err && it != fgBdataLocTypes.end(); ++it ) {
+    const BdataLocType& loctype = *it;
+    TString dbkey = fPrefix, configstr;
+    dbkey += loctype.fDBkey;
+
+    Int_t ret = LoadDBvalue( file, date, dbkey, configstr );
+    if( ret ) continue;  // No definitions for this BdataLoc type
+
+    TObjArray* params = configstr.Tokenize(" ");
+    if( !params->IsEmpty() ) {
+      Int_t nparams = params->GetLast()+1;
+      assert( nparams > 0 );   // else bug in IsEmpty() or GetLast()
+      
+      if( nparams % loctype.nparams ) {
+	Error( Here(here), "Incorrect number of parameters in database key %s. "
+	       "Have %d, but must be a multiple of %d. Fix database.",
+	       dbkey.Data(), nparams, loctype.nparams );
+	err = true;
+      }
+
+      for( Int_t ip = 0; !err && ip < nparams; ip += loctype.nparams ) {
+	BdataLoc* item = static_cast<BdataLoc*>( loctype.fTClass->New() );
+	if( !item ) {
+	  Error( Here(here), "Failed to create raw data type %s. "
+		 "Should never happen. Call expert.", loctype.fTClass->GetName() );
+	  err = true;
+	  break;
+	}
+
+	item->Configure( params, ip );
+      }
+      
+    }
+    delete params;
+  }
+
+  fclose(file);
+  if( err )
+    return kInitError;
 
   // TODO: ReadDatabase stuff:
 
@@ -324,8 +403,9 @@ Int_t THaDecData::DefineVariables( EMode mode )
   //   }
   // }
 
-  return retval;
+  return 0;
 }
+
 
 //_____________________________________________________________________________
 THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time ) 
@@ -333,21 +413,9 @@ THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time )
   // Custom Init() method. Since this apparatus has no detectors, we
   // skip the detector initialization.
 
-  fStatus = kNotinit;
-  if( IsZombie() )
-    return fStatus;
-    
   // Standard analysis object init, calls MakePrefix(), ReadDatabase()
   // and DefineVariables(), and Clear("I")
-  THaAnalysisObject::Init( run_time );
-  if( fStatus != kOK )
-    return fStatus;
-
-  //TODO: initialize all BdataLocs
-  //  return fStatus = static_cast<EStatus>( SetupDecData( &run_time ) );
-
-  return fStatus;
-
+  return THaAnalysisObject::Init( run_time );
 }
 
 //_____________________________________________________________________________

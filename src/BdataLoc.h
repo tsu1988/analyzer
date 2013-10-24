@@ -12,6 +12,7 @@
 #include <cassert>
 
 class THaEvData;
+class TObjarray;
 
 //___________________________________________________________________________
 class BdataLoc : public TNamed {
@@ -27,6 +28,9 @@ public:
 
   // Main function: extract the defined data from the event
   virtual void    Load( const THaEvData& evt ) = 0;
+
+  // Initialization from TObjString parameters in TObjArray
+  virtual Int_t   Configure( const TObjArray* params, Int_t start ) = 0;
 
   virtual void    Clear( const Option_t* ="" )  { data = THaAnalysisObject::kBig; }
   virtual Bool_t  DidLoad() const               { return (data != THaAnalysisObject::kBig); }
@@ -104,7 +108,7 @@ public:
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
 
 protected:
-  UInt_t  bitnum;        // Bit number for this variable
+  UInt_t  bitnum;        // Bit number for this variable (0-31)
   UInt_t  cutlo, cuthi;  // TDC cut for detecting valid trigger bit data
   UInt_t* bitloc;        // External bitpattern variable to fill
 

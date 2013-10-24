@@ -9,6 +9,7 @@
 
 #include "THaApparatus.h"
 #include <vector>
+#include <set>
 
 class BdataLoc;
 
@@ -27,12 +28,26 @@ public:
 
 protected:
 
-  std::vector<BdataLoc*> fBdataLoc;  // Raw data locations
+  // Configuration
+  struct BdataLocType {
+    TClass*  fTClass;  // ROOT class representing the type
+    TString  fDBkey;   // Database key name to search for definitions
+    Int_t    nparams;  // Number of database parameters for this type
+    bool operator<( const BdataLocType& rhs ) const {
+      return fTClass < rhs.fTClass;
+    }
+  };
+  static std::set<BdataLocType> fgBdataLocTypes;  // All defined types
+
+  // Event data
+  std::vector<BdataLoc*> fBdataLoc;  // Raw data channels
+
+  UInt_t evtype;         // CODA event type
+  UInt_t evtypebits;     // Bitpattern of active trigger numbers
 
   virtual Int_t DefineVariables( EMode mode = kDefine );
+  virtual Int_t ReadDatabase( const TDatime& date );
 
-  UInt_t evtype;
-  UInt_t evtypebits;
 
   // ============= OLD ============
 #if 0
