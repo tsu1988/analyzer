@@ -26,60 +26,13 @@ using namespace std;
 
 // Initialization of the static set containing type definitions.
 // TODO: can we enforce initialization order?
-set<BdataLocType> BdataLoc::fgBdataLocTypes;
+set<BdataLoc::BdataLocType> BdataLoc::fgBdataLocTypes;
 
-// Note that the calls to RegistrationInfo() are within the class scope
-// of the variable being defined, i.e. to the private instance of each class
-Bool_t CrateLoc::fIsRegistered       = DoRegister( RegistrationInfo() );
-Bool_t CrateLocMulti::fIsRegistered  = DoRegister( RegistrationInfo() );
-Bool_t TrigBitLoc::fIsRegistered     = DoRegister( RegistrationInfo() );
-Bool_t WordLoc::fIsRegistered        = DoRegister( RegistrationInfo() );
-Bool_t RoclenLoc::fIsRegistered      = DoRegister( RegistrationInfo() );
-
-//_____________________________________________________________________________
-BdataLocType CrateLoc::RegistrationInfo()
-{
-  // Returns the registration info for this type (for call to DoRegister)
-
-  BdataLocType info = { CrateLoc::Class(), "crate", 4, 0 };
-  return info;
-}
-
-//_____________________________________________________________________________
-BdataLocType CrateLocMulti::RegistrationInfo()
-{
-  // Returns the registration info for this type (for call to DoRegister)
-
-  BdataLocType info = { CrateLocMulti::Class(), "multihit", 4, 0 };
-  return info;
-}
-
-//_____________________________________________________________________________
-BdataLocType TrigBitLoc::RegistrationInfo()
-{
-  // Returns the registration info for this type (for call to DoRegister)
-
-  BdataLocType info = { TrigBitLoc::Class(), "trigbit", 4, 0 };
-  return info;
-}
-
-//_____________________________________________________________________________
-BdataLocType WordLoc::RegistrationInfo()
-{
-  // Returns the registration info for this type (for call to DoRegister)
-
-  BdataLocType info = { WordLoc::Class(), "word", 4, 0 };
-  return info;
-}
-
-//_____________________________________________________________________________
-BdataLocType RoclenLoc::RegistrationInfo()
-{
-  // Returns the registration info for this type (for call to DoRegister)
-
-  BdataLocType info = { RoclenLoc::Class(), "roclen", 2, 0 };
-  return info;
-}
+BdataLoc::TypeIter_t CrateLoc::fgThisType      = DoRegister( BdataLocType( CrateLoc::Class(), "crate", 4 ));
+BdataLoc::TypeIter_t CrateLocMulti::fgThisType = DoRegister( BdataLocType( CrateLocMulti::Class(), "multi", 4 ));
+BdataLoc::TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 4 ));
+BdataLoc::TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType(WordLoc::Class(), "word", 4 ));
+BdataLoc::TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType(RoclenLoc::Class(), "roclen", 2 ));
 
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
@@ -177,24 +130,26 @@ Int_t BdataLoc::Configure( const TObjArray* params, Int_t start )
 }
 
 //_____________________________________________________________________________
-Bool_t BdataLoc::DoRegister( const BdataLocType& info )
+BdataLoc::TypeIter_t BdataLoc::DoRegister( const BdataLocType& info )
 {
   // Add given info in fgBdataLocTypes
 
   if( !info.fTClass ) {
     ::Error( "BdataLoc::DoRegister", "Attempt to register NULL class pointer. "
 	     "Coding error. Call expert." );
-    return kFALSE;
+    return fgBdataLocTypes.end();
   }
 
-  pair< set<BdataLocType>::iterator, bool > ins = fgBdataLocTypes.insert(info);
+  pair< TypeIter_t, bool > ins = fgBdataLocTypes.insert(info);
 
   if( !ins.second ) {
     ::Error( "BdataLoc::DoRegister", "Attempt to register duplicate class "
 	     "\"%s\". Coding error. Call expert.", info.fTClass->GetName() );
-    return kFALSE;
+    return fgBdataLocTypes.end();
   }
-  return kTRUE;
+  // NB: std::set guarantees that iterators remain valid on further insertions,
+  // so this return value will remain good, unlike, e.g., std::vector iterators.
+  return ins.first;
 }
 
 //_____________________________________________________________________________

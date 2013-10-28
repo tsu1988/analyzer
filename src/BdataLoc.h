@@ -8,24 +8,13 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "THaAnalysisObject.h"
+#include "TString.h"
 #include <vector>
 #include <cassert>
 #include <set>
 
 class THaEvData;
-class TObjarray;
-class TString;
-
-//___________________________________________________________________________
-struct BdataLocType {
-  TClass*  fTClass;  // ROOT class representing the type
-  TString  fDBkey;   // Database key name to search for definitions
-  Int_t    nparams;  // Number of database parameters for this type
-  void*    optptr;   // Optional pointer to arbitrary data
-  bool operator<( const BdataLocType& rhs ) const {
-    return fTClass < rhs.fTClass;
-  }
-};
+class TObjArray;
 
 //___________________________________________________________________________
 class BdataLoc : public TNamed {
@@ -33,6 +22,18 @@ class BdataLoc : public TNamed {
   // Data location, either in (crates, slots, channel), or
   // relative to a unique header in a crate or in an event.
 public:
+  struct BdataLocType {
+  public:
+    BdataLocType( TClass* cl, const char* key, Int_t np, void* ptr = 0 )
+      : fTClass(cl), fDBkey(key), nparams(np), optptr(ptr) {}
+    bool operator<( const BdataLocType& rhs ) const { return fDBkey < rhs.fDBkey; }
+
+    TClass*  fTClass;  // ROOT class representing the type
+    TString  fDBkey;   // Database key name to search for definitions
+    Int_t    nparams;  // Number of database parameters for this type
+    void*    optptr;   // Optional pointer to arbitrary data
+  };
+
   // Base class constructor
   BdataLoc( const char* name, Int_t cra )
     : TNamed(name,name), crate(cra), data(THaAnalysisObject::kBig) { }
@@ -45,7 +46,7 @@ public:
   // Initialization from TObjString parameters in TObjArray
   virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
   // Number of parameters needed for initialization
-  virtual Int_t   GetNparams() const { return 2; }
+  virtual Int_t   GetNparams() const = 0;
   // Optional data passed in via generic pointer
   virtual Int_t   OptionPtr( void* ) { return 0; }
 
@@ -62,6 +63,7 @@ public:
   typedef THaAnalysisObject::EMode EMode;
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
    
+  typedef std::set<BdataLocType>::iterator TypeIter_t;
   static std::set<BdataLocType> fgBdataLocTypes;  // All defined types
 
 protected:
@@ -71,7 +73,7 @@ protected:
   Int_t    CheckConfigureParams( const TObjArray* params, Int_t start );
   TString& GetString( const TObjArray* params, Int_t pos );
 
-  static Bool_t   DoRegister( const BdataLocType& registration_info );
+  static TypeIter_t DoRegister( const BdataLocType& registration_info );
 
   ClassDef(BdataLoc,0)  
 };
@@ -87,7 +89,7 @@ public:
 
   virtual void   Load( const THaEvData& evt );
   virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
-  virtual Int_t  GetNparams() const { return 4; }
+  virtual Int_t  GetNparams() const { return fgThisType->nparams; }
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate && slot == rhs.slot && chan == rhs.chan); }
@@ -96,8 +98,7 @@ protected:
   Int_t slot, chan;    // Data location
 
 private:
-  static Bool_t fIsRegistered;
-  static BdataLocType RegistrationInfo();
+  static TypeIter_t fgThisType;
 
   ClassDef(CrateLoc,0)  
 };
@@ -116,6 +117,7 @@ public:
   virtual void    Clear( const Option_t* ="" )  { CrateLoc::Clear(); rdata.clear(); }
   virtual UInt_t  NumHits() const               { return rdata.size(); }
   virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
+  virtual Int_t   GetNparams() const            { return fgThisType->nparams; }
 
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
 
@@ -123,8 +125,7 @@ protected:
   std::vector<UInt_t> rdata;     // raw data
 
 private:
-  static Bool_t fIsRegistered;
-  static BdataLocType RegistrationInfo();
+  static TypeIter_t fgThisType;
 
   ClassDef(CrateLocMulti,0)  
 };
@@ -144,7 +145,7 @@ public:
   virtual void    Load( const THaEvData& evt );
   virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
-  virtual Int_t   GetNparams() const { return 4; }
+  virtual Int_t   GetNparams() const { return fgThisType->nparams; }
   virtual Int_t   OptionPtr( void* ptr );
 
 protected:
@@ -153,8 +154,7 @@ protected:
   UInt_t* bitloc;        // External bitpattern variable to fill
 
 private:
-  static Bool_t fIsRegistered;
-  static BdataLocType RegistrationInfo();
+  static TypeIter_t fgThisType;
 
   ClassDef(TrigBitLoc,0)  
 };
@@ -170,7 +170,7 @@ public:
 
   virtual void   Load( const THaEvData& evt );
   virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
-  virtual Int_t  GetNparams() const { return 4; }
+  virtual Int_t  GetNparams() const { return fgThisType->nparams; }
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate &&
@@ -181,8 +181,7 @@ protected:
   Int_t  ntoskip;             // how far to skip beyond header
    
 private:
-  static Bool_t fIsRegistered;
-  static BdataLocType RegistrationInfo();
+  static TypeIter_t fgThisType;
 
   ClassDef(WordLoc,0)  
 };
@@ -196,10 +195,10 @@ public:
   virtual ~RoclenLoc() {}
 
   virtual void   Load( const THaEvData& evt );
+  virtual Int_t  GetNparams() const { return fgThisType->nparams; }
 
 private:
-  static Bool_t fIsRegistered;
-  static BdataLocType RegistrationInfo();
+  static TypeIter_t fgThisType;
 
   ClassDef(RoclenLoc,0)  
 };

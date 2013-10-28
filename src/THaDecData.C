@@ -197,13 +197,10 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   FILE* file = OpenFile( date );
   if( !file ) return kFileError;
 
-  typedef set<BdataLocType> TypeSet_t;
-  typedef TypeSet_t::const_iterator TypeIter_t;
-
   bool err = false;
-  for( TypeIter_t it = BdataLoc::fgBdataLocTypes.begin();
+  for( BdataLoc::TypeIter_t it = BdataLoc::fgBdataLocTypes.begin();
        !err && it != BdataLoc::fgBdataLocTypes.end(); ++it ) {
-    const BdataLocType& loctype = *it;
+    const BdataLoc::BdataLocType& loctype = *it;
     TString dbkey = fPrefix, configstr;
     dbkey += loctype.fDBkey;
 
