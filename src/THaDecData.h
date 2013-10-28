@@ -9,7 +9,6 @@
 
 #include "THaApparatus.h"
 #include <vector>
-#include <set>
 
 class BdataLoc;
 
@@ -27,17 +26,6 @@ public:
    virtual Int_t   Reconstruct() { return 0; }
 
 protected:
-
-  // Configuration
-  struct BdataLocType {
-    TClass*  fTClass;  // ROOT class representing the type
-    TString  fDBkey;   // Database key name to search for definitions
-    Int_t    nparams;  // Number of database parameters for this type
-    bool operator<( const BdataLocType& rhs ) const {
-      return fTClass < rhs.fTClass;
-    }
-  };
-  static std::set<BdataLocType> fgBdataLocTypes;  // All defined types
 
   // Event data
   std::vector<BdataLoc*> fBdataLoc;  // Raw data channels

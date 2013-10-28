@@ -12,10 +12,74 @@
 #include "THaEvData.h"
 #include "THaGlobals.h"
 #include "THaVarList.h"
+#include "TObjArray.h"
+#include "TObjString.h"
+#include "TError.h"
+#include "TClass.h"
 
 #include <cstring>   // for memchr
+#include <cstdlib>   // for strtoul
+#include <errno.h>
+#include <utility>
 
 using namespace std;
+
+// Initialization of the static set containing type definitions.
+// TODO: can we enforce initialization order?
+set<BdataLocType> BdataLoc::fgBdataLocTypes;
+
+// Note that the calls to RegistrationInfo() are within the class scope
+// of the variable being defined, i.e. to the private instance of each class
+Bool_t CrateLoc::fIsRegistered       = DoRegister( RegistrationInfo() );
+Bool_t CrateLocMulti::fIsRegistered  = DoRegister( RegistrationInfo() );
+Bool_t TrigBitLoc::fIsRegistered     = DoRegister( RegistrationInfo() );
+Bool_t WordLoc::fIsRegistered        = DoRegister( RegistrationInfo() );
+Bool_t RoclenLoc::fIsRegistered      = DoRegister( RegistrationInfo() );
+
+//_____________________________________________________________________________
+BdataLocType CrateLoc::RegistrationInfo()
+{
+  // Returns the registration info for this type (for call to DoRegister)
+
+  BdataLocType info = { CrateLoc::Class(), "crate", 4, 0 };
+  return info;
+}
+
+//_____________________________________________________________________________
+BdataLocType CrateLocMulti::RegistrationInfo()
+{
+  // Returns the registration info for this type (for call to DoRegister)
+
+  BdataLocType info = { CrateLocMulti::Class(), "multihit", 4, 0 };
+  return info;
+}
+
+//_____________________________________________________________________________
+BdataLocType TrigBitLoc::RegistrationInfo()
+{
+  // Returns the registration info for this type (for call to DoRegister)
+
+  BdataLocType info = { TrigBitLoc::Class(), "trigbit", 4, 0 };
+  return info;
+}
+
+//_____________________________________________________________________________
+BdataLocType WordLoc::RegistrationInfo()
+{
+  // Returns the registration info for this type (for call to DoRegister)
+
+  BdataLocType info = { WordLoc::Class(), "word", 4, 0 };
+  return info;
+}
+
+//_____________________________________________________________________________
+BdataLocType RoclenLoc::RegistrationInfo()
+{
+  // Returns the registration info for this type (for call to DoRegister)
+
+  BdataLocType info = { RoclenLoc::Class(), "roclen", 2, 0 };
+  return info;
+}
 
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
@@ -63,25 +127,89 @@ Int_t BdataLoc::DefineVariables( EMode mode )
 }
 
 //_____________________________________________________________________________
-Int_t CrateLocMulti::DefineVariables( EMode mode )
+Int_t BdataLoc::CheckConfigureParams( const TObjArray* params, Int_t start )
 {
-  // For multivalued data (multihit modules), define a variable-sized global
-  // variable on the vector<UInt_t> rdata member.
+  // Check given parameters of call to Configure for obvious errors.
+  // Internal helper function.
 
-  //TODO: This doesn't work yet. We need support for STL containers in our
-  // global variable system
+  // Invalid call parameter?
+  if( !params || start < 0 || start + GetNparams() > params->GetLast()+1 )
+    return 1;
 
-  return CrateLoc::DefineVariables(mode);
+  // Invalid parameter array data?
+  for( Int_t ip = start; ip < start + GetNparams(); ++ip ) {
+    if( params->At(ip)->IsA() != TObjString::Class() )
+      return 2;
+    TObjString* os = static_cast<TObjString*>(params->At(ip));
+    if( !os )
+      return 3;
+    if( os->String().IsNull() )
+      return 4;
+  }
+  return 0;
 }
 
 //_____________________________________________________________________________
-Int_t TrigBitLoc::DefineVariables( EMode mode )
+TString& BdataLoc::GetString( const TObjArray* params, Int_t pos )
 {
-  // Define the global variable for trigger bit test result. This is stored
-  // in the "data" member of the base class, not in the rdata array, so here
-  // we just do what the base class does.
+  // Get the string at index pos in the given parameter array. Assumes
+  // that parameters have been checked. Internal helper function.
 
-  return BdataLoc::DefineVariables(mode);
+  return (static_cast<TObjString*>((*params)[pos]))->String();
+}
+
+//_____________________________________________________________________________
+Int_t BdataLoc::Configure( const TObjArray* params, Int_t start )
+{
+  // Initialize this object from the TObjString parameters given in the params
+  // array, starting at index 'start'
+
+  Int_t ret = CheckConfigureParams( params, start );
+  if( ret )
+    return ret;
+
+  SetName( GetString( params, start ) );
+  SetTitle( GetName() );
+  
+  crate = GetString( params, start+1 ).Atoi();
+  
+  return 0;
+}
+
+//_____________________________________________________________________________
+Bool_t BdataLoc::DoRegister( const BdataLocType& info )
+{
+  // Add given info in fgBdataLocTypes
+
+  if( !info.fTClass ) {
+    ::Error( "BdataLoc::DoRegister", "Attempt to register NULL class pointer. "
+	     "Coding error. Call expert." );
+    return kFALSE;
+  }
+
+  pair< set<BdataLocType>::iterator, bool > ins = fgBdataLocTypes.insert(info);
+
+  if( !ins.second ) {
+    ::Error( "BdataLoc::DoRegister", "Attempt to register duplicate class "
+	     "\"%s\". Coding error. Call expert.", info.fTClass->GetName() );
+    return kFALSE;
+  }
+  return kTRUE;
+}
+
+//_____________________________________________________________________________
+Int_t CrateLoc::Configure( const TObjArray* params, Int_t start )
+{
+  // Initialize CrateLoc from given parmeters
+
+  Int_t ret = BdataLoc::Configure( params, start );
+  if( ret )
+    return ret;
+
+  slot = GetString( params, start+2 ).Atoi();
+  chan = GetString( params, start+3 ).Atoi();
+
+  return 0;
 }
 
 //_____________________________________________________________________________
@@ -92,6 +220,18 @@ void CrateLoc::Load( const THaEvData& evdata )
   if( evdata.GetNumHits(crate,slot,chan) > 0 ) {
     data = evdata.GetData(crate,slot,chan,0);
   }
+}
+
+//_____________________________________________________________________________
+Int_t CrateLocMulti::DefineVariables( EMode mode )
+{
+  // For multivalued data (multihit modules), define a variable-sized global
+  // variable on the vector<UInt_t> rdata member.
+
+  //TODO: This doesn't work yet. We need support for STL containers in our
+  // global variable system
+
+  return CrateLoc::DefineVariables(mode);
 }
 
 //_____________________________________________________________________________
@@ -106,6 +246,16 @@ void CrateLocMulti::Load( const THaEvData& evdata )
 }
 
 //FIXME: This goes into the Hall A library
+//_____________________________________________________________________________
+Int_t TrigBitLoc::DefineVariables( EMode mode )
+{
+  // Define the global variable for trigger bit test result. This is stored
+  // in the "data" member of the base class, not in the rdata array, so here
+  // we just do what the base class does.
+
+  return BdataLoc::DefineVariables(mode);
+}
+
 //_____________________________________________________________________________
 void TrigBitLoc::Load( const THaEvData& evdata )
 {
@@ -124,6 +274,37 @@ void TrigBitLoc::Load( const THaEvData& evdata )
       break;
     }
   }
+}
+
+//_____________________________________________________________________________
+Int_t TrigBitLoc::OptionPtr( void* ptr )
+{
+  // TrigBitLoc uses the optional pointer to set the 'bitloc' address
+
+  bitloc = static_cast<UInt_t*>(ptr);
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t WordLoc::Configure( const TObjArray* params, Int_t start )
+{
+  // Initialize WordLoc from given parmeters
+
+  Int_t ret = BdataLoc::Configure( params, start );
+  if( ret )
+    return ret;
+
+  // Convert header word, given as a hex string, to unsigned int32
+  const char* hs = GetString( params, start+2 ).Data();
+  char* p = 0;
+  unsigned long li = strtoul( hs, &p, 16 );
+  if( errno || *p )   return 10;
+  if( li > kMaxUInt ) return 11;
+  header = static_cast<UInt_t>(li);
+
+  ntoskip = GetString( params, start+3 ).Atoi();
+
+  return 0;
 }
 
 //_____________________________________________________________________________

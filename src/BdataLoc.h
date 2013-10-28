@@ -10,9 +10,22 @@
 #include "THaAnalysisObject.h"
 #include <vector>
 #include <cassert>
+#include <set>
 
 class THaEvData;
 class TObjarray;
+class TString;
+
+//___________________________________________________________________________
+struct BdataLocType {
+  TClass*  fTClass;  // ROOT class representing the type
+  TString  fDBkey;   // Database key name to search for definitions
+  Int_t    nparams;  // Number of database parameters for this type
+  void*    optptr;   // Optional pointer to arbitrary data
+  bool operator<( const BdataLocType& rhs ) const {
+    return fTClass < rhs.fTClass;
+  }
+};
 
 //___________________________________________________________________________
 class BdataLoc : public TNamed {
@@ -23,14 +36,18 @@ public:
   // Base class constructor
   BdataLoc( const char* name, Int_t cra )
     : TNamed(name,name), crate(cra), data(THaAnalysisObject::kBig) { }
-  BdataLoc() {}  // For ROOT RTTI only
+  BdataLoc() {}
   virtual ~BdataLoc();
 
   // Main function: extract the defined data from the event
   virtual void    Load( const THaEvData& evt ) = 0;
 
   // Initialization from TObjString parameters in TObjArray
-  virtual Int_t   Configure( const TObjArray* params, Int_t start ) = 0;
+  virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
+  // Number of parameters needed for initialization
+  virtual Int_t   GetNparams() const { return 2; }
+  // Optional data passed in via generic pointer
+  virtual Int_t   OptionPtr( void* ) { return 0; }
 
   virtual void    Clear( const Option_t* ="" )  { data = THaAnalysisObject::kBig; }
   virtual Bool_t  DidLoad() const               { return (data != THaAnalysisObject::kBig); }
@@ -45,9 +62,16 @@ public:
   typedef THaAnalysisObject::EMode EMode;
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
    
+  static std::set<BdataLocType> fgBdataLocTypes;  // All defined types
+
 protected:
   Int_t   crate;   // Crate where these data originate
   UInt_t  data;    // raw data word
+
+  Int_t    CheckConfigureParams( const TObjArray* params, Int_t start );
+  TString& GetString( const TObjArray* params, Int_t pos );
+
+  static Bool_t   DoRegister( const BdataLocType& registration_info );
 
   ClassDef(BdataLoc,0)  
 };
@@ -58,15 +82,22 @@ public:
   // c'tor for (crate,slot,channel) selection
   CrateLoc( const char* nm, Int_t cra, Int_t slo, Int_t cha )
     : BdataLoc(nm,cra), slot(slo), chan(cha) { }
+  CrateLoc() {}
   virtual ~CrateLoc() {}
 
   virtual void   Load( const THaEvData& evt );
+  virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
+  virtual Int_t  GetNparams() const { return 4; }
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate && slot == rhs.slot && chan == rhs.chan); }
 
 protected:
   Int_t slot, chan;    // Data location
+
+private:
+  static Bool_t fIsRegistered;
+  static BdataLocType RegistrationInfo();
 
   ClassDef(CrateLoc,0)  
 };
@@ -77,6 +108,7 @@ public:
   // (crate,slot,channel) allowing for multiple hits per channel
   CrateLocMulti( const char* nm, Int_t cra, Int_t slo, Int_t cha )
     : CrateLoc(nm,cra,slo,cha) { }
+  CrateLocMulti() {}
   virtual ~CrateLocMulti() {}
 
   virtual void    Load( const THaEvData& evt );
@@ -90,6 +122,10 @@ public:
 protected:
   std::vector<UInt_t> rdata;     // raw data
 
+private:
+  static Bool_t fIsRegistered;
+  static BdataLocType RegistrationInfo();
+
   ClassDef(CrateLocMulti,0)  
 };
 
@@ -102,15 +138,23 @@ public:
 	      UInt_t num, UInt_t lo, UInt_t hi, UInt_t* loc )
     : CrateLocMulti(nm,cra,slo,cha), bitnum(num), cutlo(lo), cuthi(hi),
       bitloc(loc) { }
+  TrigBitLoc() : bitloc(0) {}
   virtual ~TrigBitLoc() {}
 
   virtual void    Load( const THaEvData& evt );
+  virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
+  virtual Int_t   GetNparams() const { return 4; }
+  virtual Int_t   OptionPtr( void* ptr );
 
 protected:
   UInt_t  bitnum;        // Bit number for this variable (0-31)
   UInt_t  cutlo, cuthi;  // TDC cut for detecting valid trigger bit data
   UInt_t* bitloc;        // External bitpattern variable to fill
+
+private:
+  static Bool_t fIsRegistered;
+  static BdataLocType RegistrationInfo();
 
   ClassDef(TrigBitLoc,0)  
 };
@@ -121,9 +165,12 @@ public:
   // c'tor for header search 
   WordLoc( const char* nm, Int_t cra, UInt_t head, Int_t skip )
     : BdataLoc(nm,cra), header(head), ntoskip(skip) { }
+  WordLoc() {}
   virtual ~WordLoc() {}
 
   virtual void   Load( const THaEvData& evt );
+  virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
+  virtual Int_t  GetNparams() const { return 4; }
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate &&
@@ -133,6 +180,10 @@ protected:
   UInt_t header;              // header (unique either in data or in crate)
   Int_t  ntoskip;             // how far to skip beyond header
    
+private:
+  static Bool_t fIsRegistered;
+  static BdataLocType RegistrationInfo();
+
   ClassDef(WordLoc,0)  
 };
 
@@ -141,36 +192,17 @@ class RoclenLoc : public BdataLoc {
 public:
   // Event length of a crate
   RoclenLoc( const char* nm, Int_t cra ) : BdataLoc(nm,cra) { }
+  RoclenLoc() {}
   virtual ~RoclenLoc() {}
 
   virtual void   Load( const THaEvData& evt );
 
+private:
+  static Bool_t fIsRegistered;
+  static BdataLocType RegistrationInfo();
+
   ClassDef(RoclenLoc,0)  
 };
-
-//======== OLD ===========
-#if 0
-  Bool_t IsSlot() { return (search_choice == 0); }
-  void SetSlot( Int_t cr, Int_t sl, Int_t ch ) {
-    crate = cr; slot = sl; chan = ch; header = ntoskip = search_choice = 0;
-  }
-  void SetHeader( Int_t cr, UInt_t hd, Int_t sk ) {
-    crate = cr; header = hd; ntoskip = sk; slot = chan = 0; search_choice = 1;
-  }
-
-void    Load( UInt_t data)            { rdata.push_back(data); }
-
-( search_choice == rhs.search_choice && crate == rhs.crate &&
-	     ( (search_choice == 0 && slot == rhs.slot && chan == rhs.chan) ||
-	       (search_choice == 1 && header == rhs.header && 
-		ntoskip == rhs.ntoskip)
-	       )  
-	     );
-  }
-
-
-  Int_t  search_choice;       // whether to search in crates or rel. to header
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 

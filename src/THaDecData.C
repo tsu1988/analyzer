@@ -201,8 +201,8 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   typedef TypeSet_t::const_iterator TypeIter_t;
 
   bool err = false;
-  for( TypeIter_t it = fgBdataLocTypes.begin();
-       !err && it != fgBdataLocTypes.end(); ++it ) {
+  for( TypeIter_t it = BdataLoc::fgBdataLocTypes.begin();
+       !err && it != BdataLoc::fgBdataLocTypes.end(); ++it ) {
     const BdataLocType& loctype = *it;
     TString dbkey = fPrefix, configstr;
     dbkey += loctype.fDBkey;
@@ -215,7 +215,7 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
       Int_t nparams = params->GetLast()+1;
       assert( nparams > 0 );   // else bug in IsEmpty() or GetLast()
       
-      if( nparams % loctype.nparams ) {
+      if( nparams % loctype.nparams != 0 ) {
 	Error( Here(here), "Incorrect number of parameters in database key %s. "
 	       "Have %d, but must be a multiple of %d. Fix database.",
 	       dbkey.Data(), nparams, loctype.nparams );
@@ -230,8 +230,20 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	  err = true;
 	  break;
 	}
-
-	item->Configure( params, ip );
+	err = item->Configure( params, ip );
+	if( !err && loctype.optptr != 0 ) {
+	  // Optional pointer to some type-specific data
+	  err = item->OptionPtr( loctype.optptr );
+	}
+	if( err ) {
+	  Int_t in = ip - (ip % loctype.nparams);
+	  Error( Here(here), "Failed to configure raw data type %s item named "
+		 "\"%s\"\n at parameter index = %d, value = \"%s\". "
+		 "Fix database.", loctype.fTClass->GetName(),
+		 (static_cast<TObjString*>(params->At(in)))->String().Data(),
+		 ip,
+		 (static_cast<TObjString*>(params->At(ip)))->String().Data() );
+	}
       }
       
     }
