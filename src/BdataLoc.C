@@ -24,15 +24,14 @@
 
 using namespace std;
 
-// Initialization of the static set containing type definitions.
-// TODO: can we enforce initialization order?
-set<BdataLoc::BdataLocType> BdataLoc::fgBdataLocTypes;
+typedef BdataLoc::TypeSet_t  TypeSet_t;
+typedef BdataLoc::TypeIter_t TypeIter_t;
 
-BdataLoc::TypeIter_t CrateLoc::fgThisType      = DoRegister( BdataLocType( CrateLoc::Class(), "crate", 4 ));
-BdataLoc::TypeIter_t CrateLocMulti::fgThisType = DoRegister( BdataLocType( CrateLocMulti::Class(), "multi", 4 ));
-BdataLoc::TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 4 ));
-BdataLoc::TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType(WordLoc::Class(), "word", 4 ));
-BdataLoc::TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType(RoclenLoc::Class(), "roclen", 2 ));
+TypeIter_t CrateLoc::fgThisType      = DoRegister( BdataLocType( CrateLoc::Class(), "crate", 4 ));
+TypeIter_t CrateLocMulti::fgThisType = DoRegister( BdataLocType( CrateLocMulti::Class(), "multi", 4 ));
+TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 4 ));
+TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType(WordLoc::Class(), "word", 4 ));
+TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType(RoclenLoc::Class(), "roclen", 2 ));
 
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
@@ -130,22 +129,33 @@ Int_t BdataLoc::Configure( const TObjArray* params, Int_t start )
 }
 
 //_____________________________________________________________________________
-BdataLoc::TypeIter_t BdataLoc::DoRegister( const BdataLocType& info )
+TypeSet_t& BdataLoc::fgBdataLocTypes()
+{
+  // Local storage for all defined BdataLoc types. Initialize here on first use
+  // (cf. http://www.parashift.com/c++-faq/static-init-order-on-first-use-members.html)
+
+  static TypeSet_t* fgBdataLocTypes = new TypeSet_t;
+
+  return *fgBdataLocTypes;
+}
+
+//_____________________________________________________________________________
+TypeIter_t BdataLoc::DoRegister( const BdataLocType& info )
 {
   // Add given info in fgBdataLocTypes
 
   if( !info.fTClass ) {
     ::Error( "BdataLoc::DoRegister", "Attempt to register NULL class pointer. "
 	     "Coding error. Call expert." );
-    return fgBdataLocTypes.end();
+    return fgBdataLocTypes().end();
   }
 
-  pair< TypeIter_t, bool > ins = fgBdataLocTypes.insert(info);
+  pair< TypeIter_t, bool > ins = fgBdataLocTypes().insert(info);
 
   if( !ins.second ) {
     ::Error( "BdataLoc::DoRegister", "Attempt to register duplicate class "
 	     "\"%s\". Coding error. Call expert.", info.fTClass->GetName() );
-    return fgBdataLocTypes.end();
+    return fgBdataLocTypes().end();
   }
   // NB: std::set guarantees that iterators remain valid on further insertions,
   // so this return value will remain good, unlike, e.g., std::vector iterators.

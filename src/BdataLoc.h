@@ -33,6 +33,8 @@ public:
     Int_t    nparams;  // Number of database parameters for this type
     void*    optptr;   // Optional pointer to arbitrary data
   };
+  typedef std::set<BdataLocType> TypeSet_t;
+  typedef TypeSet_t::iterator TypeIter_t;
 
   // Base class constructor
   BdataLoc( const char* name, Int_t cra )
@@ -63,8 +65,7 @@ public:
   typedef THaAnalysisObject::EMode EMode;
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
    
-  typedef std::set<BdataLocType>::iterator TypeIter_t;
-  static std::set<BdataLocType> fgBdataLocTypes;  // All defined types
+  static TypeSet_t& fgBdataLocTypes();
 
 protected:
   Int_t   crate;   // Crate where these data originate
