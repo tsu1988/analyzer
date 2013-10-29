@@ -29,9 +29,12 @@ typedef BdataLoc::TypeIter_t TypeIter_t;
 
 TypeIter_t CrateLoc::fgThisType      = DoRegister( BdataLocType( CrateLoc::Class(), "crate", 4 ));
 TypeIter_t CrateLocMulti::fgThisType = DoRegister( BdataLocType( CrateLocMulti::Class(), "multi", 4 ));
-TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 4 ));
 TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType(WordLoc::Class(), "word", 4 ));
 TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType(RoclenLoc::Class(), "roclen", 2 ));
+
+// ======= FIXME: Hall A lib ================================================
+TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 4 ));
+// ======= END FIXME: Hall A lib ============================================
 
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
@@ -210,46 +213,6 @@ void CrateLocMulti::Load( const THaEvData& evdata )
   }
 }
 
-//FIXME: This goes into the Hall A library
-//_____________________________________________________________________________
-Int_t TrigBitLoc::DefineVariables( EMode mode )
-{
-  // Define the global variable for trigger bit test result. This is stored
-  // in the "data" member of the base class, not in the rdata array, so here
-  // we just do what the base class does.
-
-  return BdataLoc::DefineVariables(mode);
-}
-
-//_____________________________________________________________________________
-void TrigBitLoc::Load( const THaEvData& evdata )
-{
-  // Test hit(s) in our TDC channel for a valid trigger bit and set results
-
-  // Read hit(s) from defined multihit TDC channel
-  CrateLocMulti::Load( evdata );
-
-  // Figure out which triggers got a hit.  These are multihit TDCs, so we
-  // need to sort out which hit we want to take by applying cuts.
-  for( UInt_t ihit = 0; ihit < NumHits(); ++ihit ) {
-    if( Get(ihit) > cutlo && Get(ihit) < cuthi ) {
-      data = 1;
-      if( bitloc )
-	*bitloc |= BIT(bitnum);
-      break;
-    }
-  }
-}
-
-//_____________________________________________________________________________
-Int_t TrigBitLoc::OptionPtr( void* ptr )
-{
-  // TrigBitLoc uses the optional pointer to set the 'bitloc' address
-
-  bitloc = static_cast<UInt_t*>(ptr);
-  return 0;
-}
-
 //_____________________________________________________________________________
 Int_t WordLoc::Configure( const TObjArray* params, Int_t start )
 {
@@ -325,6 +288,49 @@ void RoclenLoc::Load( const THaEvData& evdata )
 ClassImp(BdataLoc)
 ClassImp(CrateLoc)
 ClassImp(CrateLocMulti)
-ClassImp(TrigBitLoc)
 ClassImp(WordLoc)
 ClassImp(RoclenLoc)
+
+// ======= FIXME: Hall A lib ================================================
+//_____________________________________________________________________________
+Int_t TrigBitLoc::DefineVariables( EMode mode )
+{
+  // Define the global variable for trigger bit test result. This is stored
+  // in the "data" member of the base class, not in the rdata array, so here
+  // we just do what the base class does.
+
+  return BdataLoc::DefineVariables(mode);
+}
+
+//_____________________________________________________________________________
+void TrigBitLoc::Load( const THaEvData& evdata )
+{
+  // Test hit(s) in our TDC channel for a valid trigger bit and set results
+
+  // Read hit(s) from defined multihit TDC channel
+  CrateLocMulti::Load( evdata );
+
+  // Figure out which triggers got a hit.  These are multihit TDCs, so we
+  // need to sort out which hit we want to take by applying cuts.
+  for( UInt_t ihit = 0; ihit < NumHits(); ++ihit ) {
+    if( Get(ihit) > cutlo && Get(ihit) < cuthi ) {
+      data = 1;
+      if( bitloc )
+	*bitloc |= BIT(bitnum);
+      break;
+    }
+  }
+}
+
+//_____________________________________________________________________________
+Int_t TrigBitLoc::OptionPtr( void* ptr )
+{
+  // TrigBitLoc uses the optional pointer to set the 'bitloc' address
+
+  bitloc = static_cast<UInt_t*>(ptr);
+  return 0;
+}
+
+//_____________________________________________________________________________
+ClassImp(TrigBitLoc)
+// ======= END FIXME: Hall A lib ============================================
