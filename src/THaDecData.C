@@ -251,6 +251,15 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   if( err )
     return kInitError;
 
+// ======= FIXME: Hall A lib ================================================
+  // Configure the trigger bits with a pointer to our evtypebits
+  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
+    BdataLoc* dataloc = *it;
+    if( dataloc && dataloc->Class() == TrigBitLoc::Class() )
+      dataloc->OptionPtr( &evtypebits );
+  }
+// ======= END FIXME: Hall A lib ============================================
+
   // TODO: ReadDatabase stuff:
 
 // // Set up the locations in raw data corresponding to variables of this class. 
