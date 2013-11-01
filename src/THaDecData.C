@@ -197,7 +197,7 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   FILE* file = OpenFile( date );
   if( !file ) return kFileError;
 
-  bool err = false;
+  Int_t err = 0;
   for( BdataLoc::TypeIter_t it = BdataLoc::fgBdataLocTypes().begin();
        !err && it != BdataLoc::fgBdataLocTypes().end(); ++it ) {
     const BdataLoc::BdataLocType& loctype = *it;
@@ -216,15 +216,15 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	Error( Here(here), "Incorrect number of parameters in database key %s. "
 	       "Have %d, but must be a multiple of %d. Fix database.",
 	       dbkey.Data(), nparams, loctype.nparams );
-	err = true;
+	err = -1;
       }
 
-      for( Int_t ip = 0; !err && ip < nparams; ip += loctype.nparams ) {
+      for( Int_t ip = 0; ip < nparams; ip += loctype.nparams ) {
 	BdataLoc* item = static_cast<BdataLoc*>( loctype.fTClass->New() );
 	if( !item ) {
-	  Error( Here(here), "Failed to create raw data type %s. "
-		 "Should never happen. Call expert.", loctype.fTClass->GetName() );
-	  err = true;
+	  Error( Here(here), "Failed to create item of data type %s. Should "
+		 "never happen. Call expert.",	loctype.fTClass->GetName() );
+	  err = -1;
 	  break;
 	}
 	err = item->Configure( params, ip );
@@ -233,12 +233,17 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	  err = item->OptionPtr( loctype.optptr );
 	}
 	if( err ) {
-	  Int_t in = ip - (ip % loctype.nparams);
-	  Error( Here(here), "Failed to configure raw data type %s item named "
+	  Int_t in = ip - (ip % loctype.nparams); // index of name
+	  Error( Here(here), "Failed to configure raw data type %s item "
 		 "\"%s\"\n at parameter index = %d, value = \"%s\". "
 		 "Fix database.", loctype.fTClass->GetName(),
 		 BdataLoc::GetString(params,in).Data(), ip,
 		 BdataLoc::GetString(params,ip).Data() );
+	  delete item;
+	  break;
+	} else {
+	  // Add this BdataLoc to the list to be processed
+	  fBdataLoc.push_back(item);
 	}
       }
       
@@ -427,8 +432,8 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 //_____________________________________________________________________________
 THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time ) 
 {
-  // Custom Init() method. Since this apparatus has no detectors, we
-  // skip the detector initialization.
+  // Custom Init() method. Since this apparatus has no traditional "detectors",
+  // we skip the detector initialization.
 
   // Standard analysis object init, calls MakePrefix(), ReadDatabase()
   // and DefineVariables(), and Clear("I")
