@@ -196,10 +196,30 @@ Int_t CrateLocMulti::DefineVariables( EMode mode )
   // For multivalued data (multihit modules), define a variable-sized global
   // variable on the vector<UInt_t> rdata member.
 
-  //TODO: This doesn't work yet. We need support for STL containers in our
-  // global variable system
+  Int_t ret = THaAnalysisObject::kOK;
 
-  return CrateLoc::DefineVariables(mode);
+  switch( mode ) {
+  case THaAnalysisObject::kDefine:
+    {
+      TString comment = GetName();
+      comment.Append(" multihit data");
+      THaVar* var = gHaVars->Define( GetName(), comment, rdata );
+      if( !var ) {
+	// Check if we are trying to redefine ourselves, if so, succeed with
+	// warning (printed by Define() call above), else fail
+	var = gHaVars->Find( GetName() );
+	if( var == 0 || var->GetValuePointer() != &rdata ) {
+	  ret = THaAnalysisObject::kInitError;
+	}
+      }
+    }
+    break;
+  case THaAnalysisObject::kDelete:
+    gHaVars->RemoveName( GetName() );
+    break;
+  }
+
+  return ret;
 }
 
 //_____________________________________________________________________________
