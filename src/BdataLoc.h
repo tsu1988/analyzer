@@ -68,12 +68,14 @@ public:
   // Returns set of all defined (i.e. compiled & loaded) BdataLoc classes
   static TypeSet_t& fgBdataLocTypes();
 
+  // Helper function for parameter parsing
+  static TString& GetString( const TObjArray* params, Int_t pos );
+
 protected:
   Int_t   crate;   // Crate where these data originate
   UInt_t  data;    // raw data word
 
   Int_t    CheckConfigureParams( const TObjArray* params, Int_t start );
-  TString& GetString( const TObjArray* params, Int_t pos );
 
   static TypeIter_t DoRegister( const BdataLocType& registration_info );
 

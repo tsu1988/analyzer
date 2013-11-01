@@ -237,9 +237,8 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	  Error( Here(here), "Failed to configure raw data type %s item named "
 		 "\"%s\"\n at parameter index = %d, value = \"%s\". "
 		 "Fix database.", loctype.fTClass->GetName(),
-		 (static_cast<TObjString*>(params->At(in)))->String().Data(),
-		 ip,
-		 (static_cast<TObjString*>(params->At(ip)))->String().Data() );
+		 BdataLoc::GetString(params,in).Data(), ip,
+		 BdataLoc::GetString(params,ip).Data() );
 	}
       }
       
