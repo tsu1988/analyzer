@@ -8,9 +8,12 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "THaApparatus.h"
-#include <vector>
+#include "THashList.h"
 
-class BdataLoc;
+// TODO:
+// - Use TList* for fBdataLoc?
+// - override more THaApparatus functions?
+// - IMPORTANT: how to make global variables/output survive if reinitializing?
 
 class THaDecData : public THaApparatus {
   
@@ -27,44 +30,14 @@ public:
 
 protected:
 
-  // Event data
-  std::vector<BdataLoc*> fBdataLoc;  // Raw data channels
-
-  UInt_t evtype;         // CODA event type
-  UInt_t evtypebits;     // Bitpattern of active trigger numbers
+  UInt_t     evtype;      // CODA event type
+  UInt_t     evtypebits;  // Bitpattern of active trigger numbers
+  THashList  fBdataLoc;   // Raw data channels
 
   virtual Int_t DefineVariables( EMode mode = kDefine );
   virtual Int_t ReadDatabase( const TDatime& date );
 
-
-  // ============= OLD ============
-#if 0
-   virtual BdataLoc* DefineChannel(BdataLoc*, EMode, const char* desc="automatic");
-
-   Double_t ctimel, ctimer;
-   Double_t pulser1;
-   UInt_t synchadc1, synchadc2, synchadc3, 
-          synchadc4, synchadc14;
-   UInt_t timestamp, timeroc1, timeroc2, timeroc3,  
-          timeroc4, timeroc14;
-   Double_t rftime1,rftime2;
-   Double_t edtpl,edtpr;
-   Double_t lenroc12,lenroc16;
-  //FIXME: combine into one collection for better efficiency - and decide on the
-  // proper data structure (array vs. list/hashlist etc.)
-   std::vector < BdataLoc* > fCrateLoc;   // Raw Data locations by crate, slot, channel
-   std::vector < BdataLoc* > fWordLoc;    // Raw Data locations relative to header word
-
-   std::vector<TH1F* > hist;
-   Int_t DefaultMap();
-   void TrigBits(UInt_t ibit, BdataLoc *dataloc);
-   Int_t SetupDecData( const TDatime* runTime = NULL, EMode mode = kDefine );
-   virtual void BookHist(); 
-
-  static THaDecData* fgThis;   //Pointer to instance of this class
-#endif
-
-  ClassDef(THaDecData,0)  
+  ClassDef(THaDecData,0)
 };
 
 #endif

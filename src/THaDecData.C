@@ -64,8 +64,8 @@
 #include "TDirectory.h"
 #include "BdataLoc.h"
 #include "THaEvData.h"
-
 #include "VarDef.h"
+
 #include <fstream>
 #include <iostream>
 #include <cstring>
@@ -79,48 +79,11 @@
 
 using namespace std;
 
-typedef vector<BdataLoc*>::iterator Iter_t;
-
-// FIXME: override other THaApparatus functions?
-
-//___________________________________________________________________________
-struct DeleteObject {
-  template< typename T >
-  void operator() ( const T* ptr ) const { delete ptr; }
-};
-
-//___________________________________________________________________________
-template< typename Container >
-inline void DeleteContainer( Container& c )
-{
-  // Delete all elements of given container of pointers
-  for_each( c.begin(), c.end(), DeleteObject() );
-  c.clear();
-}
-
-//_____________________________________________________________________________
-// static UInt_t header_str_to_base16(const char* hdr) {
-//   // Utility to convert string header to base 16 (FIXME: base 16??) integer
-//   const char chex[] = "0123456789abcdef";
-//   if( !hdr ) return 0;
-//   const char* p = hdr+strlen(hdr);
-//   UInt_t result = 0;  UInt_t power = 1;
-//   while( p-- != hdr ) {
-//     const char* q = strchr(chex,tolower(*p));
-//     if( q ) {
-//       result += (q-chex)*power; 
-//       power *= 16;
-//     }
-//   }
-//   return result;
-// };
-
-
 //_____________________________________________________________________________
 THaDecData::THaDecData( const char* name, const char* descript )
   : THaApparatus( name, descript )
 {
-
+  fBdataLoc.SetOwner(kTRUE);
 }
 
 //_____________________________________________________________________________
@@ -128,22 +91,19 @@ THaDecData::~THaDecData()
 {
   // Destructor. Delete data location objects and global variables.
 
-  DeleteContainer( fBdataLoc );
+  fBdataLoc.Delete();
   DefineVariables( kDelete );
 }
 
 //_____________________________________________________________________________
 void THaDecData::Clear( Option_t* )
 {
-  // Clear the object (reset event-by-event data)
+  // Reset event-by-event data
 
-  THaApparatus::Clear();
-
-  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
-    BdataLoc* dataloc = *it;
-    dataloc->Clear();
+  TIter next( &fBdataLoc );
+  while( TObject* obj = next() ) {
+    obj->Clear();
   }
-
   evtype     = 0;
   evtypebits = 0;
 
@@ -171,8 +131,8 @@ Int_t THaDecData::DefineVariables( EMode mode )
   }
 
   // Each defined decoder data location defines its own global variable(s)
-  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
-    BdataLoc* dataloc = *it;
+  TIter next( &fBdataLoc );
+  while( BdataLoc* dataloc = static_cast<BdataLoc*>( next() ) ) {
     retval = dataloc->DefineVariables( mode );
     if( retval != kOK && mode == kDefine ) {
       DefineVariables( kDelete );
@@ -192,7 +152,8 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   fIsInit = kFALSE;
 
   // Delete existing configuration so as to allow re-initialization
-  DeleteContainer( fBdataLoc );
+  //FIXME: better re-init
+  //DeleteContainer( fBdataLoc );
 
   FILE* file = OpenFile( date );
   if( !file ) return kFileError;
@@ -243,7 +204,7 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	  break;
 	} else {
 	  // Add this BdataLoc to the list to be processed
-	  fBdataLoc.push_back(item);
+	  fBdataLoc.Add(item);
 	}
       }
       
@@ -257,9 +218,9 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 
 // ======= FIXME: Hall A lib ================================================
   // Configure the trigger bits with a pointer to our evtypebits
-  for( Iter_t it = fBdataLoc.begin(); it != fBdataLoc.end(); ++it ) {
-    BdataLoc* dataloc = *it;
-    if( dataloc && dataloc->Class() == TrigBitLoc::Class() )
+  TIter next( &fBdataLoc );
+  while( BdataLoc* dataloc = static_cast<BdataLoc*>( next() ) ) {
+    if( dataloc->Class() == TrigBitLoc::Class() )
       dataloc->OptionPtr( &evtypebits );
   }
 // ======= END FIXME: Hall A lib ============================================
@@ -518,9 +479,8 @@ Int_t THaDecData::Decode(const THaEvData& evdata)
   //- for each crate with >1 WordLoc defs, make a MultiWordLoc
   //- MultiWordLoc uses faster search algo to scan crate buffer
 
-  for( Iter_t p = fBdataLoc.begin(); p != fBdataLoc.end(); ++p) {
-    BdataLoc *dataloc = *p;
-
+  TIter next( &fBdataLoc );
+  while( BdataLoc *dataloc = static_cast<BdataLoc*>( next() ) ) {
     dataloc->Load( evdata );
   }
   
