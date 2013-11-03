@@ -21,6 +21,8 @@
 #include <cstdlib>   // for strtoul
 #include <errno.h>
 #include <utility>
+#include <iostream>
+#include <iomanip>   // for setw
 
 using namespace std;
 
@@ -41,6 +43,8 @@ TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Clas
 #define kDelete    THaAnalysisObject::kDelete
 #define kOK        THaAnalysisObject::kOK
 #define kInitError THaAnalysisObject::kInitError
+
+static const int kNamePrintWidth = 30;
 
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
@@ -161,6 +165,16 @@ TypeIter_t BdataLoc::DoRegister( const BdataLocType& info )
 }
 
 //_____________________________________________________________________________
+void BdataLoc::Print( Option_t* opt ) const
+{
+  // Print name and data value
+
+  cout << setw(kNamePrintWidth) << fName
+       << " "                   << data
+       << endl;
+}
+
+//_____________________________________________________________________________
 Int_t CrateLoc::Configure( const TObjArray* params, Int_t start )
 {
   // Initialize CrateLoc from given parmeters
@@ -216,6 +230,19 @@ void CrateLocMulti::Load( const THaEvData& evdata )
   for (Int_t i = 0; i < evdata.GetNumHits(crate,slot,chan); ++i) {
     rdata.push_back( evdata.GetData(crate,slot,chan,i) );
   }
+}
+
+//_____________________________________________________________________________
+void CrateLocMulti::Print( Option_t* opt ) const
+{
+  // Print name and all data values
+
+  cout << setw(kNamePrintWidth) << fName;
+  for( vector<UInt_t>::const_iterator it = rdata.begin();
+       it != rdata.end(); ++it ) {
+    cout << " " << *it;
+  }
+  cout << endl;
 }
 
 //_____________________________________________________________________________

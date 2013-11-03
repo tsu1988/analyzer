@@ -22,6 +22,7 @@ class BdataLoc : public TNamed {
   // Data location, either in (crates, slots, channel), or
   // relative to a unique header in a crate or in an event.
 public:
+  // Helper class for holding info on BdataLoc classes
   struct BdataLocType {
   public:
     BdataLocType( TClass* cl, const char* key, Int_t np, void* ptr = 0 )
@@ -35,6 +36,8 @@ public:
   };
   typedef std::set<BdataLocType> TypeSet_t;
   typedef TypeSet_t::iterator TypeIter_t;
+  // Returns set of all defined (i.e. compiled & loaded) BdataLoc classes
+  static TypeSet_t& fgBdataLocTypes();
 
   // Base class constructor
   BdataLoc( const char* name, Int_t cra )
@@ -56,6 +59,8 @@ public:
   virtual Bool_t  DidLoad() const               { return (data != THaAnalysisObject::kBig); }
   virtual UInt_t  NumHits() const               { return DidLoad() ? 1 : 0; }
   virtual UInt_t  Get( Int_t i = 0 ) const      { assert(DidLoad()&&i==0); return data; }
+  virtual void    Print( Option_t* opt="" ) const;
+  //TODO: Needed?
   Bool_t operator==( const char* aname ) const  { return fName == aname; }
   // operator== and != compare the hardware definitions of two BdataLoc's
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
@@ -65,15 +70,12 @@ public:
   typedef THaAnalysisObject::EMode EMode;
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
    
-  // Returns set of all defined (i.e. compiled & loaded) BdataLoc classes
-  static TypeSet_t& fgBdataLocTypes();
-
   // Helper function for parameter parsing
   static TString& GetString( const TObjArray* params, Int_t pos );
 
 protected:
-  Int_t   crate;   // Crate where these data originate
-  UInt_t  data;    // raw data word
+  Int_t   crate;   // Data location: crate number
+  UInt_t  data;    // Raw data word
 
   Int_t    CheckConfigureParams( const TObjArray* params, Int_t start );
 
@@ -102,7 +104,7 @@ public:
   // { return (crate == rhs.crate && slot == rhs.slot && chan == rhs.chan); }
 
 protected:
-  Int_t slot, chan;    // Data location
+  Int_t slot, chan;    // Data location: slot and channel
 
 private:
   static TypeIter_t fgThisType;
@@ -125,6 +127,7 @@ public:
   virtual UInt_t  NumHits() const               { return rdata.size(); }
   virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
   virtual Int_t   GetNparams() const            { return fgThisType->nparams; }
+  virtual void    Print( Option_t* opt="" ) const;
 
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
 
