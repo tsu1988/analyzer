@@ -17,34 +17,43 @@
 // gives
 //    fName   = "x"
 //    fNdim   = 2
-//    fDim    = [ 7, 4 ]
-//    fLen    = 7*4 = 28
+//    fDims   = [ 7, 4 ]
 //    fStatus = 0
 //
 // THaArrayStrings are used in particular by THaFormula and THaVar.
 //
 //////////////////////////////////////////////////////////////////////////
 
+#include "THaArrayString.h"
+#include "TMath.h"
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
-#include "THaArrayString.h"
-#include "TMath.h"
 
 using namespace std;
 
 //_____________________________________________________________________________
+THaArrayString::~THaArrayString()
+{
+  // Destructor
+
+  if( fNdim > 1 )
+    delete [] fDims;
+}
+  
+//_____________________________________________________________________________
 THaArrayString::THaArrayString( const THaArrayString& rhs )
-  : fName(rhs.fName), fNdim(rhs.fNdim), fDim(NULL), fLen(rhs.fLen), 
-  fStatus(rhs.fStatus)
+  : fName(rhs.fName), fNdim(rhs.fNdim), fStatus(rhs.fStatus)
 {
   // Copy constructor
 
-  if( fNdim > 0 ) {
-    fDim = new Int_t[fNdim];
+  if( fNdim <= 1 )
+    fDim = rhs.fDim;
+  else {
+    fDims = new Int_t[fNdim];
     for( Int_t i = 0; i<fNdim; i++ )
-      fDim[i] = rhs.fDim[i];
-  } 
+      fDims[i] = rhs.fDims[i];
+  }
 }
 
 //_____________________________________________________________________________
@@ -53,17 +62,18 @@ THaArrayString& THaArrayString::operator=( const THaArrayString& rhs )
   // Assignment operator
 
   if( this != &rhs ) {
+    if( fNdim > 1 )
+      delete [] fDims;
     fName    = rhs.fName;
     fNdim    = rhs.fNdim;
-    fLen     = rhs.fLen;
     fStatus  = rhs.fStatus;
-    delete [] fDim;
-    if( fNdim > 0 ) {
-      fDim = new Int_t[fNdim];
+    if( fNdim <= 1 )
+      fDim = rhs.fDim;
+    else {
+      fDims = new Int_t[fNdim];
       for( Int_t i = 0; i<fNdim; i++ )
-	fDim[i] = rhs.fDim[i];
-    } else
-      fDim = NULL;
+	fDims[i] = rhs.fDims[i];
+    }
   }
   return *this;
 }
@@ -92,7 +102,6 @@ Int_t THaArrayString::Parse( const char* string )
 
   static const size_t MAXLEN = 255;
   static const Double_t LOGMAXINT = 2.14875625968926443e+01;
-  bool changed = false;
   char *str = 0, *s, *t;
   const char *cs;
   size_t len;
@@ -100,29 +109,20 @@ Int_t THaArrayString::Parse( const char* string )
   Int_t j;
   Double_t lsum = 0.0;
 
-  if( !string || !*string ) {
-    // No string or empty string?
-    // If already initialized, just do nothing. Otherwise, we are
-    // being called from the constructor, so parse fName.
-    if( fLen != -1 ) goto ok;
-    string = fName.Data();
-    len = fName.Length();
-  } else {
-    len = strlen(string);
-    changed = true;
-  }
+  if( !string )
+    goto notinit;
+
+  len = strlen(string);
   if( len > MAXLEN ) goto toolong;
 
   // Copy string to local buffer and get rid of all whitespace
-    
+
   str = new char[ len+1 ];
   t = str;
   cs = string;
   while( *cs ) {
     if( *cs != ' ' && *cs != '\t' )
       *(t++) = *cs;
-    else
-      changed = true;
     cs++;
   }
   *t = 0;
@@ -142,13 +142,14 @@ Int_t THaArrayString::Parse( const char* string )
   // No name? Error.
   if( t == str ) goto badsyntax;
 
-  fNdim = 0; fLen = 1;
-  delete [] fDim; fDim = NULL;
+  if( fNdim>1 ) {
+    delete [] fDims; fDims = 0;
+  }
+  fNdim = 0;
 
   // No bracket found? No array, we're done.
   if( !*t ) {
-    if( changed )
-      fName = str;
+    fName = str;
     goto ok;
   }
 
@@ -186,7 +187,8 @@ Int_t THaArrayString::Parse( const char* string )
     fNdim = ncomma+1;
   else
     fNdim = nl;
-  fDim = new Int_t[ fNdim ];
+  if( fNdim > 1 )
+    fDims = new Int_t[ fNdim ];
 
   for( int i=0; i<fNdim; i++ ) {
     s = t;
@@ -206,8 +208,10 @@ Int_t THaArrayString::Parse( const char* string )
     j = atoi( s );
     lsum += TMath::Log(j);
     if( lsum > LOGMAXINT ) goto toolarge;
-    fDim[i] = j;
-    fLen *= j;
+    if( fNdim == 1 )
+      fDim = j;
+    else
+      fDims[i] = j;
 
     t++;
 
@@ -253,11 +257,11 @@ Int_t THaArrayString::Parse( const char* string )
 }
 
 //_____________________________________________________________________________
-static void WriteDims( Int_t ndim, Int_t* dims )
+void THaArrayString::PrintDims() const
 {
-  for( Int_t i = 0; i<ndim; i++ ) {
-    cout << dims[i];
-    if( i+1<ndim )
+  for( Int_t i = 0; i<fNdim; i++ ) {
+    cout << GetDim(i);
+    if( i+1<fNdim )
       cout << ",";
   }
 }
@@ -273,13 +277,14 @@ void THaArrayString::Print( Option_t* option ) const
     cout << fName ;
     if( fNdim > 0 ) {
       cout << "[";
-      WriteDims(fNdim,fDim);
+      PrintDims();
       cout << "]";
     }
     cout << endl;
   }
-  else 
-    WriteDims(fNdim,fDim);
+  else {
+    PrintDims();
+  }
 }
 //_____________________________________________________________________________
 ClassImp(THaArrayString);

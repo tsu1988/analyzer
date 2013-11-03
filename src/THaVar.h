@@ -21,7 +21,7 @@ public:
   static const Double_t kInvalid;
 
   THaVar() : 
-    fValueP(0), fType(kDouble), fCount(0), fOffset(-1), fMethod(0), fDim(0) {}
+    fValueP(0), fType(kDouble), fCount(0), fOffset(-1), fMethod(0) {}
   THaVar( const THaVar& rhs );
   THaVar& operator=( const THaVar& );
   virtual ~THaVar();
@@ -29,85 +29,85 @@ public:
   THaVar( const char* name, const char* descript, const Double_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueD(&var), fType(kDouble),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Float_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueF(&var), fType(kFloat),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Long64_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueL(&var), fType(kLong),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const ULong64_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueX(&var), fType(kULong),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Int_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueI(&var), fType(kInt),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UInt_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueU(&var), fType(kUInt),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Short_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueS(&var), fType(kShort),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UShort_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueW(&var), fType(kUShort),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Char_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueC(&var), fType(kChar),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Byte_t& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueB(&var), fType(kByte),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
 
   THaVar( const char* name, const char* descript, const Double_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueDD(&var), fType(kDoubleP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
 
   THaVar( const char* name, const char* descript, const Float_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueFF(&var), fType(kFloatP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Long64_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueLL(&var), fType(kLongP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const ULong64_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueXX(&var), fType(kULongP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Int_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueII(&var), fType(kIntP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UInt_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueUU(&var), fType(kUIntP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Short_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueSS(&var), fType(kShortP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UShort_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueWW(&var), fType(kUShortP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Char_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueCC(&var), fType(kCharP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Byte_t*& var,
 	  const Int_t* count = 0 ) :
     TNamed(name,descript), fParsedName(name), fValueBB(&var), fType(kByteP),
-    fCount(count), fOffset(-1), fMethod(0), fDim(0) {}
+    fCount(count), fOffset(-1), fMethod(0) {}
 
   THaVar( const char* name, const char* desc, const void* obj,
 	  VarType type, Int_t offset, TMethodCall* method=0, 
@@ -118,7 +118,7 @@ public:
   Int_t           GetLen()       const;
   Int_t           GetNdim()      const            
     { return ( fCount != 0 || fOffset != -1 || IsVector() ) ? 1 : fParsedName.GetNdim(); } 
-  const Int_t*    GetDim()       const;
+  Int_t           GetDim( Int_t i ) const;
   VarType         GetType()      const { return fType; }
   size_t          GetTypeSize()  const { return GetTypeSize( fType ); }
   const char*     GetTypeName()  const { return GetTypeName( fType ); }
@@ -230,7 +230,6 @@ protected:
 
   Int_t               fOffset;   //Offset of data w.r.t. object pointer
   TMethodCall*        fMethod;   //Member function to access data in object
-  Int_t*              fDim;      //Storage for current size of object array
 
   ClassDef(THaVar,0)   //Global symbolic variable
 };

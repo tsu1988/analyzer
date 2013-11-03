@@ -150,7 +150,7 @@ THaVar::THaVar( const char* name, const char* desc, const void* obj,
 		VarType type, Int_t offset, TMethodCall* method, 
 		const Int_t* count )
   : TNamed(name,desc), fParsedName(name), fObject(obj), fType(type),
-    fCount(count), fOffset(offset), fMethod(method), fDim(0)
+    fCount(count), fOffset(offset), fMethod(method)
 {
   // Generic constructor for any kind of THaVar (basic, object, function call)
   // The given type MUST match the type of the object pointed to!
@@ -180,24 +180,18 @@ THaVar::THaVar( const char* name, const char* desc, const void* obj,
       delete fMethod; fMethod = 0;
     }
   }
-  if( fOffset != -1 || IsVector() )
-    // Storage for the current collection/vector size, for compatibility with
-    // the way THaArrayString works. This is a pointer so we can modify the
-    // contents in a const function ... :-/ oi
-    fDim = new Int_t;
 }
 
 //_____________________________________________________________________________
 THaVar::THaVar( const THaVar& rhs ) :
   TNamed( rhs ), fParsedName(rhs.fParsedName), fValueP(rhs.fValueP),
   fType(rhs.fType), fCount(rhs.fCount), fOffset(rhs.fOffset),
-  fMethod(rhs.fMethod), fDim(rhs.fDim)
+  fMethod(rhs.fMethod)
 {
   // Copy constructor
 
   // Make local copies of pointers
-  if( fMethod ) fMethod = new TMethodCall( *rhs.fMethod );
-  if( fDim )    fDim    = new Int_t( *rhs.fDim );
+  if( fMethod ) fMethod = static_cast<TMethodCall*>( rhs.fMethod->Clone() );
 }
 
 //_____________________________________________________________________________
@@ -214,11 +208,8 @@ THaVar& THaVar::operator=( const THaVar& rhs )
     fOffset     = rhs.fOffset;
     // Make local copies of pointers
     delete fMethod;
-    delete fDim;
     fMethod     = rhs.fMethod;
-    fDim        = rhs.fDim;
-    if( fMethod ) fMethod  = new TMethodCall( *rhs.fMethod );
-    if( fDim )    fDim     = new Int_t( *rhs.fDim );
+    if( fMethod ) fMethod = static_cast<TMethodCall*>( rhs.fMethod->Clone() );
   }
   return *this;
 }
@@ -229,7 +220,6 @@ THaVar::~THaVar()
   // Destructor
 
   delete fMethod;
-  delete fDim;
 }
 
 //_____________________________________________________________________________
@@ -427,18 +417,18 @@ Int_t THaVar::GetLen() const
 }
 
 //_____________________________________________________________________________
-const Int_t* THaVar::GetDim() const
+Int_t THaVar::GetDim( Int_t i ) const
 {
-  // Return pointer to current array length. This is a legacy function for
-  // compatibility with how THaArrayString handles multi-dimensional arrays.
+  // Return number of elements for the i-th array dimension, or 0 if the index
+  // is out of range.
 
-  if( fCount )
-    return fCount;
-  if( fOffset != -1 || IsVector() ) {
-    *fDim = GetLen();
-    return fDim;
+  if( GetNdim() <= 1 ) {
+    if( i == 0 )
+      return GetLen();
+    else
+      return 0;
   }
-  return fParsedName.GetDim();
+  return fParsedName.GetDim(i);
 }
 
 //_____________________________________________________________________________
@@ -562,19 +552,19 @@ Int_t THaVar::Index( const THaArrayString& elem ) const
 
   if( fCount ) {
     if( elem.GetNdim() != 1 ) return -2;
-    return *elem.GetDim();
+    return elem.GetDim(0);
   }
 
   Int_t ndim = GetNdim();
   if( ndim != elem.GetNdim() ) return -2;
 
-  const Int_t *subs = elem.GetDim(), *adim = GetDim();
-
-  Int_t index = subs[0];
+  Int_t index = elem.GetDim(0);
   for( Int_t i = 0; i<ndim; i++ ) {
-    if( subs[i]+1 > adim[i] ) return -1;
+    // Note that elem holds array indices (0...len-1), while GetDim() of this
+    // object returns the "len" of each dimension. Yeah, I know.
+    if( elem.GetDim(i)+1 > GetDim(i) ) return -1;
     if( i>0 )
-      index = index*adim[i] + subs[i];
+      index = index*GetDim(i) + elem.GetDim(i);
   }
   if( index >= GetLen() || index > kMaxInt ) return -1;
   return index;
@@ -587,6 +577,8 @@ Int_t THaVar::Index( const char* s ) const
   // to the array element described by the string 's'.
   // 's' must be either a single integer subscript (for a 1-d array) 
   // or a comma-separated list of subscripts (for multi-dimensional arrays).
+  //
+  // Example:  Index("1,5") -> x[1][5]  (C-style, last index varies fastest)
   //
   // NOTE: This method is less efficient than 
   // THaVar::Index( THaArraySring& ) above because the string has 
