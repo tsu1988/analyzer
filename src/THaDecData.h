@@ -13,7 +13,7 @@
 class THaDecData : public THaApparatus {
   
 public:
-  THaDecData( const char* name,
+  THaDecData( const char* name = "D",
 	      const char* description = "Raw decoder data" );
   virtual ~THaDecData();
 
