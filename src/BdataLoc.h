@@ -79,6 +79,9 @@ protected:
 
   static TypeIter_t DoRegister( const BdataLocType& registration_info );
 
+  // Bit used by DefineVariables
+  enum { kIsSetup = BIT(14) };
+
   ClassDef(BdataLoc,0)  
 };
 
@@ -87,7 +90,7 @@ class CrateLoc : public BdataLoc {
 public:
   // c'tor for (crate,slot,channel) selection
   CrateLoc( const char* nm, Int_t cra, Int_t slo, Int_t cha )
-    : BdataLoc(nm,cra), slot(slo), chan(cha) { }
+    : BdataLoc(nm,cra), slot(slo), chan(cha) { ResetBit(kIsSetup); }
   CrateLoc() {}
   virtual ~CrateLoc() {}
 

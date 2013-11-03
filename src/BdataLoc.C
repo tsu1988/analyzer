@@ -36,6 +36,12 @@ TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType(RoclenLoc::Class
 TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 6 ));
 // ======= END FIXME: Hall A lib ============================================
 
+// Shorthands
+#define kDefine    THaAnalysisObject::kDefine
+#define kDelete    THaAnalysisObject::kDelete
+#define kOK        THaAnalysisObject::kOK
+#define kInitError THaAnalysisObject::kInitError
+
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
 {
@@ -46,7 +52,7 @@ BdataLoc::~BdataLoc()
   // objects. But that's OK since the kDelete mode is the same for 
   // the entire class hierarchy; it simply removes the name.
 
-  DefineVariables( THaAnalysisObject::kDelete );
+  DefineVariables( kDelete );
 }
 
 //_____________________________________________________________________________
@@ -57,26 +63,15 @@ Int_t BdataLoc::DefineVariables( EMode mode )
   // Note that the apparatus prefix is already part of this object's name,
   // e.g. "D.syncroc1", where "D" is the name of the parent THaDecData object
 
-  Int_t ret = THaAnalysisObject::kOK;
+  if( mode == kDefine && TestBit(kIsSetup) ) return kOK;
+  SetBit( kIsSetup, mode == kDefine );
 
-  switch( mode ) {
-  case THaAnalysisObject::kDefine:
-    {
-      THaVar* var = gHaVars->Define( GetName(), data );
-      if( !var ) {
-	// Check if we are trying to redefine ourselves, if so, succeed with
-	// warning (printed by Define() call above), else fail
-	var = gHaVars->Find( GetName() );
-	if( var == 0 || var->GetValuePointer() != &data ) {
-	  ret = THaAnalysisObject::kInitError;
-	}
-      }
-    }
-    break;
-  case THaAnalysisObject::kDelete:
+  Int_t ret = kOK;
+  if( mode == kDefine ) {
+    if( !gHaVars->Define( GetName(), data ) )
+      ret = kInitError;
+  } else 
     gHaVars->RemoveName( GetName() );
-    break;
-  }
 
   return ret;
 }
@@ -196,28 +191,18 @@ Int_t CrateLocMulti::DefineVariables( EMode mode )
   // For multivalued data (multihit modules), define a variable-sized global
   // variable on the vector<UInt_t> rdata member.
 
-  Int_t ret = THaAnalysisObject::kOK;
+  if( mode == kDefine && TestBit(kIsSetup) ) return kOK;
+  SetBit( kIsSetup, mode == kDefine );
 
-  switch( mode ) {
-  case THaAnalysisObject::kDefine:
-    {
-      TString comment = GetName();
-      comment.Append(" multihit data");
-      THaVar* var = gHaVars->Define( GetName(), comment, rdata );
-      if( !var ) {
-	// Check if we are trying to redefine ourselves, if so, succeed with
-	// warning (printed by Define() call above), else fail
-	var = gHaVars->Find( GetName() );
-	if( var == 0 || var->GetValuePointer() != &rdata ) {
-	  ret = THaAnalysisObject::kInitError;
-	}
-      }
-    }
-    break;
-  case THaAnalysisObject::kDelete:
-    gHaVars->RemoveName( GetName() );
-    break;
-  }
+  Int_t ret = kOK;
+
+  if( mode == kDefine ) {
+    TString comment = GetName();
+    comment.Append(" multihit data");
+    if( !gHaVars->Define( GetName(), comment, rdata ) )
+      ret = kInitError;
+  } else
+    ret = CrateLoc::DefineVariables( mode );
 
   return ret;
 }
