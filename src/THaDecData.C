@@ -317,6 +317,19 @@ void THaDecData::Print( Option_t* opt ) const
        << "   bit pattern = 0x"      << hex << evtypebits << dec
        << endl;
 
+  if( evtypebits != 0 ) {
+    cout << " trigger bits set = ";
+    bool cont = false;
+    for( UInt_t i = 0; i < sizeof(evtypebits)*kBitsPerByte-1; ++i ) {
+      if( TESTBIT(evtypebits,i) ) {
+	if( cont ) cout << ", ";
+	else       cont = true;
+	cout << i;
+      }
+    }
+    cout << endl;
+  }
+
   // Print variables in the order they were defined
   cout << " number of variables: " << fBdataLoc.GetSize() << endl;
   TIter next( &fBdataLoc );
