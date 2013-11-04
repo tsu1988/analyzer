@@ -164,25 +164,46 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   for( BdataLoc::TypeIter_t it = BdataLoc::fgBdataLocTypes().begin();
        !err && it != BdataLoc::fgBdataLocTypes().end(); ++it ) {
     const BdataLoc::BdataLocType& loctype = *it;
+
+    // Get the ROOT class for this type
+    assert( loctype.fClassName && *loctype.fClassName );
+    if( !loctype.fTClass ) {
+      loctype.fTClass = TClass::GetClass( loctype.fClassName );
+      if( !loctype.fTClass ) {
+	// Probably typo in the call to BdataLoc::DoRegister
+	Error( Here(here), "No class defined for data type \"%s\". Programming "
+	       "error. Call expert.", loctype.fClassName );
+	err = -1;
+	break;
+      }
+    }
+    if( !loctype.fTClass->InheritsFrom( BdataLoc::Class() )) {
+      Error( Here(here), "Class %s is not a BdataLoc. Programming error. "
+	     "Call expert.", loctype.fTClass->GetName() );
+      err = -1;
+      break;
+    }
+
     TString dbkey = fPrefix, configstr;
     dbkey += loctype.fDBkey;
-
     Int_t ret = LoadDBvalue( file, date, dbkey, configstr );
-    if( ret ) continue;  // No definitions for this BdataLoc type
+    if( ret ) continue;  // No definitions in database for this BdataLoc type
 
-    TObjArray* params = configstr.Tokenize(" ");
+    // Split the string from the database into values separated by commas,
+    // spaces, and/or tabs
+    TObjArray* params = configstr.Tokenize(", \t");
     if( !params->IsEmpty() ) {
       Int_t nparams = params->GetLast()+1;
       assert( nparams > 0 );   // else bug in IsEmpty() or GetLast()
       
-      if( nparams % loctype.nparams != 0 ) {
+      if( nparams % loctype.fNparams != 0 ) {
 	Error( Here(here), "Incorrect number of parameters in database key "
 	       "%s. Have %d, but must be a multiple of %d. Fix database.",
-	       dbkey.Data(), nparams, loctype.nparams );
+	       dbkey.Data(), nparams, loctype.fNparams );
 	err = -1;
       }
 
-      for( Int_t ip = 0; ip < nparams; ip += loctype.nparams ) {
+      for( Int_t ip = 0; !err && ip < nparams; ip += loctype.fNparams ) {
 	// Prepend prefix to name in parameter array
 	TString& bname = BdataLoc::GetString( params, ip );
 	bname.Prepend(GetPrefix());
@@ -225,12 +246,12 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	// The first parameter is always the name. Note that this object's prefix
 	// was already prepended above.
 	err = item->Configure( params, ip );
-	if( !err && loctype.optptr != 0 ) {
+	if( !err && loctype.fOptptr != 0 ) {
 	  // Optional pointer to some type-specific data
-	  err = item->OptionPtr( loctype.optptr );
+	  err = item->OptionPtr( loctype.fOptptr );
 	}
 	if( err ) {
-	  Int_t in = ip - (ip % loctype.nparams); // index of name
+	  Int_t in = ip - (ip % loctype.fNparams); // index of name
 	  Error( Here(here), "Illegal parameter for variable %s, "
 		 "index = %d, value = %s. Fix database.",
 		 BdataLoc::GetString(params,in).Data(), ip,
@@ -243,6 +264,8 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	  fBdataLoc.Add(item);
 	}
       }
+    } else {
+      Warning( Here(here), "No values for database key %s.", dbkey.Data() );
     }
     delete params;
   }

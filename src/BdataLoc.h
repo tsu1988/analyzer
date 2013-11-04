@@ -25,14 +25,16 @@ public:
   // Helper class for holding info on BdataLoc classes
   struct BdataLocType {
   public:
-    BdataLocType( TClass* cl, const char* key, Int_t np, void* ptr = 0 )
-      : fTClass(cl), fDBkey(key), nparams(np), optptr(ptr) {}
+    BdataLocType( const char* cl, const char* key, Int_t np, void* ptr = 0 )
+      : fClassName(cl), fDBkey(key), fNparams(np), fOptptr(ptr), fTClass(0) {}
+    // The database keys have to be unique, so use them for sorting
     bool operator<( const BdataLocType& rhs ) const { return fDBkey < rhs.fDBkey; }
 
-    TClass*  fTClass;  // ROOT class representing the type
-    TString  fDBkey;   // Database key name to search for definitions
-    Int_t    nparams;  // Number of database parameters for this type
-    void*    optptr;   // Optional pointer to arbitrary data
+    const char*      fClassName; // Name of class to use for this data type
+    const char*      fDBkey;     // Database key name to search for definitions
+    Int_t            fNparams;   // Number of database parameters for this type
+    void*            fOptptr;    // Optional pointer to arbitrary data
+    mutable TClass*  fTClass;    // Pointer to ROOT class representing the type
   };
   typedef std::set<BdataLocType> TypeSet_t;
   typedef TypeSet_t::iterator TypeIter_t;
@@ -99,7 +101,7 @@ public:
 
   virtual void   Load( const THaEvData& evt );
   virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
-  virtual Int_t  GetNparams() const { return fgThisType->nparams; }
+  virtual Int_t  GetNparams() const { return fgThisType->fNparams; }
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate && slot == rhs.slot && chan == rhs.chan); }
@@ -127,7 +129,7 @@ public:
   virtual void    Clear( const Option_t* ="" )  { CrateLoc::Clear(); rdata.clear(); }
   virtual UInt_t  NumHits() const               { return rdata.size(); }
   virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
-  virtual Int_t   GetNparams() const            { return fgThisType->nparams; }
+  virtual Int_t   GetNparams() const            { return fgThisType->fNparams; }
   virtual void    Print( Option_t* opt="" ) const;
 
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
@@ -152,7 +154,7 @@ public:
 
   virtual void   Load( const THaEvData& evt );
   virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
-  virtual Int_t  GetNparams() const { return fgThisType->nparams; }
+  virtual Int_t  GetNparams() const { return fgThisType->fNparams; }
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate &&
@@ -177,7 +179,7 @@ public:
   virtual ~RoclenLoc() {}
 
   virtual void   Load( const THaEvData& evt );
-  virtual Int_t  GetNparams() const { return fgThisType->nparams; }
+  virtual Int_t  GetNparams() const { return fgThisType->fNparams; }
 
 private:
   static TypeIter_t fgThisType;
@@ -200,7 +202,7 @@ public:
   virtual void    Load( const THaEvData& evt );
   virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
-  virtual Int_t   GetNparams() const { return fgThisType->nparams; }
+  virtual Int_t   GetNparams() const { return fgThisType->fNparams; }
   virtual Int_t   OptionPtr( void* ptr );
 
 protected:

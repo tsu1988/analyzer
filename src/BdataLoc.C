@@ -29,13 +29,13 @@ using namespace std;
 typedef BdataLoc::TypeSet_t  TypeSet_t;
 typedef BdataLoc::TypeIter_t TypeIter_t;
 
-TypeIter_t CrateLoc::fgThisType      = DoRegister( BdataLocType( CrateLoc::Class(), "crate", 4 ));
-TypeIter_t CrateLocMulti::fgThisType = DoRegister( BdataLocType( CrateLocMulti::Class(), "multi", 4 ));
-TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType(WordLoc::Class(), "word", 4 ));
-TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType(RoclenLoc::Class(), "roclen", 2 ));
+TypeIter_t CrateLoc::fgThisType      = DoRegister( BdataLocType( "CrateLoc",      "crate",  4 ));
+TypeIter_t CrateLocMulti::fgThisType = DoRegister( BdataLocType( "CrateLocMulti", "multi",  4 ));
+TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType( "WordLoc",       "word",   4 ));
+TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType( "RoclenLoc",     "roclen", 2 ));
 
 // ======= FIXME: Hall A lib ================================================
-TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType(TrigBitLoc::Class(), "bit", 6 ));
+TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType( "TrigBitLoc",    "bit", 6 ));
 // ======= END FIXME: Hall A lib ============================================
 
 // Shorthands
@@ -146,8 +146,8 @@ TypeIter_t BdataLoc::DoRegister( const BdataLocType& info )
 {
   // Add given info in fgBdataLocTypes
 
-  if( !info.fTClass ) {
-    ::Error( "BdataLoc::DoRegister", "Attempt to register NULL class pointer. "
+  if( !info.fClassName ||!*info.fClassName ) {
+    ::Error( "BdataLoc::DoRegister", "Attempt to register empty class name. "
 	     "Coding error. Call expert." );
     return fgBdataLocTypes().end();
   }
@@ -155,8 +155,8 @@ TypeIter_t BdataLoc::DoRegister( const BdataLocType& info )
   pair< TypeIter_t, bool > ins = fgBdataLocTypes().insert(info);
 
   if( !ins.second ) {
-    ::Error( "BdataLoc::DoRegister", "Attempt to register duplicate class "
-	     "\"%s\". Coding error. Call expert.", info.fTClass->GetName() );
+    ::Error( "BdataLoc::DoRegister", "Attempt to register duplicate database "
+	     "key \"%s\". Coding error. Call expert.", info.fDBkey );
     return fgBdataLocTypes().end();
   }
   // NB: std::set guarantees that iterators remain valid on further insertions,
