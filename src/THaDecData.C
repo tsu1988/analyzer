@@ -53,29 +53,19 @@
 
 #include "THaDecData.h"
 #include "THaVarList.h"
-#include "THaVar.h"
 #include "THaGlobals.h"
-#include "THaDetMap.h"
 #include "TDatime.h"
 #include "TClass.h"
-#include "TString.h"
 #include "TObjArray.h"
 #include "TObjString.h"
-#include "TDirectory.h"
 #include "BdataLoc.h"
 #include "THaEvData.h"
-#include "VarDef.h"
 
-#include <fstream>
 #include <iostream>
-#include <cstring>
 #include <cctype>
-#include <vector>
-#include <string>
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
-#include <algorithm>
 
 using namespace std;
 
@@ -145,6 +135,113 @@ Int_t THaDecData::DefineVariables( EMode mode )
 }
 
 //_____________________________________________________________________________
+Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
+				 const TString& configstr, bool re_init )
+{
+  // Define variables for given loctype using parameters in configstr
+
+  static const char* const here = __FUNCTION__;
+
+  Int_t err = 0;
+
+  // Split the string from the database into values separated by commas,
+  // spaces, and/or tabs
+  TObjArray* params = configstr.Tokenize(", \t");
+  if( !params->IsEmpty() ) {
+    Int_t nparams = params->GetLast()+1;
+    assert( nparams > 0 );   // else bug in IsEmpty() or GetLast()
+      
+    if( nparams % loctype.fNparams != 0 ) {
+      Error( Here(here), "Incorrect number of parameters in database key "
+	     "%s%s. Have %d, but must be a multiple of %d. Fix database.",
+	     GetPrefix(), loctype.fDBkey, nparams, loctype.fNparams );
+      err = -1;
+    }
+
+    for( Int_t ip = 0; !err && ip < nparams; ip += loctype.fNparams ) {
+      // Prepend prefix to name in parameter array
+      TString& bname = BdataLoc::GetString( params, ip );
+      bname.Prepend(GetPrefix());
+      BdataLoc* item = static_cast<BdataLoc*>(fBdataLoc.FindObject(bname) );
+      Bool_t already_defined = ( item != 0 );
+      if( already_defined ) {
+	// Name already exists
+	if( re_init ) {
+	  // Changing the variable type during a run makes no sense
+	  if( loctype.fTClass != item->IsA() ) {
+	    Error( Here(here), "Attempt to redefine existing variable %s "
+		   "with different type.\nOld = %s, new = %s. Fix database.",
+		   item->GetName(), item->IsA()->GetName(),
+		   loctype.fTClass->GetName() );
+	    err = -1;
+	    break;
+	  }
+	  if( fDebug>2 ) 
+	    Info( Here(here), "Updating variable %s", bname.Data() );
+	} else {
+	  // Duplicate variable name (i.e. duplicate names in database)
+	  Error( Here(here), "Duplicate variable name %s. Fix database.",
+		 item->GetName() );
+	  err = -1;
+	  break;
+	}
+      } else {
+	// Make a new BdataLoc
+	if( fDebug>2 )
+	  Info( Here(here), "Defining new variable %s",  bname.Data() );
+	item = static_cast<BdataLoc*>( loctype.fTClass->New() );
+	if( !item ) {
+	  Error( Here(here), "Failed to create variable of type %s. Should "
+		 "never happen. Call expert.", loctype.fTClass->GetName() );
+	  err = -1;
+	  break;
+	}
+      }
+      // Configure the new or existing BdataLoc with current database parameters. 
+      // The first parameter is always the name. Note that this object's prefix
+      // was already prepended above.
+      err = item->Configure( params, ip );
+      if( !err && loctype.fOptptr != 0 ) {
+	// Optional pointer to some type-specific data
+	err = item->OptionPtr( loctype.fOptptr );
+      }
+      if( err ) {
+	Int_t in = ip - (ip % loctype.fNparams); // index of name
+	Error( Here(here), "Illegal parameter for variable %s, "
+	       "index = %d, value = %s. Fix database.",
+	       BdataLoc::GetString(params,in).Data(), ip,
+	       BdataLoc::GetString(params,ip).Data() );
+	if( !already_defined )
+	  delete item;
+	break;
+      } else if( !already_defined ) {
+	// Add this BdataLoc to the list to be processed
+	fBdataLoc.Add(item);
+      }
+    }
+  } else {
+    Warning( Here(here), "Empty database key %s%s.",
+	     GetPrefix(), loctype.fDBkey );
+  }
+  delete params;
+
+  return err;
+}
+
+//_____________________________________________________________________________
+FILE* THaDecData::OpenFile( const TDatime& date )
+{ 
+  // Open DecData database file. First look for standard file name,
+  // e.g. "db_D.dat", then for legacy file name "decdata.map"
+
+  FILE* fi = THaApparatus::OpenFile( date );
+  if( fi )
+    return fi;
+  return THaAnalysisObject::OpenFile("decdata.dat", date,
+				     Here("OpenFile()"), "r", fDebug);
+}
+
+//_____________________________________________________________________________
 Int_t THaDecData::ReadDatabase( const TDatime& date )
 {
   // Read THaDecData database
@@ -159,6 +256,12 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   if( !re_init ) {
     fBdataLoc.Clear();
   }
+
+// #ifdef DECDATA_LEGACY_DB
+//   bool old_format = false;
+//   // Check for format tag
+  
+// #endif
 
   Int_t err = 0;
   for( BdataLoc::TypeIter_t it = BdataLoc::fgBdataLocTypes().begin();
@@ -189,85 +292,7 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
     Int_t ret = LoadDBvalue( file, date, dbkey, configstr );
     if( ret ) continue;  // No definitions in database for this BdataLoc type
 
-    // Split the string from the database into values separated by commas,
-    // spaces, and/or tabs
-    TObjArray* params = configstr.Tokenize(", \t");
-    if( !params->IsEmpty() ) {
-      Int_t nparams = params->GetLast()+1;
-      assert( nparams > 0 );   // else bug in IsEmpty() or GetLast()
-      
-      if( nparams % loctype.fNparams != 0 ) {
-	Error( Here(here), "Incorrect number of parameters in database key "
-	       "%s. Have %d, but must be a multiple of %d. Fix database.",
-	       dbkey.Data(), nparams, loctype.fNparams );
-	err = -1;
-      }
-
-      for( Int_t ip = 0; !err && ip < nparams; ip += loctype.fNparams ) {
-	// Prepend prefix to name in parameter array
-	TString& bname = BdataLoc::GetString( params, ip );
-	bname.Prepend(GetPrefix());
-	BdataLoc* item = static_cast<BdataLoc*>(fBdataLoc.FindObject(bname) );
-	Bool_t already_defined = ( item != 0 );
-	if( already_defined ) {
-	  // Name already exists
-	  if( re_init ) {
-	    // Changing the variable type during a run makes no sense
-	    if( loctype.fTClass != item->IsA() ) {
-	      Error( Here(here), "Attempt to redefine existing variable %s "
-		     "with different type.\nOld = %s, new = %s. Fix database.",
-		     item->GetName(), item->IsA()->GetName(),
-		     loctype.fTClass->GetName() );
-	      err = -1;
-	      break;
-	    }
-	    if( fDebug>2 ) 
-	      Info( Here(here), "Updating variable %s", bname.Data() );
-	  } else {
-	    // Duplicate variable name (i.e. duplicate names in database)
-	    Error( Here(here), "Duplicate variable name %s. Fix database.",
-		   item->GetName() );
-	    err = -1;
-	    break;
-	  }
-	} else {
-	  // Make a new BdataLoc
-	  if( fDebug>2 )
-	    Info( Here(here), "Defining new variable %s",  bname.Data() );
-	  item = static_cast<BdataLoc*>( loctype.fTClass->New() );
-	  if( !item ) {
-	    Error( Here(here), "Failed to create variable of type %s. Should "
-		   "never happen. Call expert.", loctype.fTClass->GetName() );
-	    err = -1;
-	    break;
-	  }
-	}
-	// Configure the new or existing BdataLoc with current database parameters. 
-	// The first parameter is always the name. Note that this object's prefix
-	// was already prepended above.
-	err = item->Configure( params, ip );
-	if( !err && loctype.fOptptr != 0 ) {
-	  // Optional pointer to some type-specific data
-	  err = item->OptionPtr( loctype.fOptptr );
-	}
-	if( err ) {
-	  Int_t in = ip - (ip % loctype.fNparams); // index of name
-	  Error( Here(here), "Illegal parameter for variable %s, "
-		 "index = %d, value = %s. Fix database.",
-		 BdataLoc::GetString(params,in).Data(), ip,
-		 BdataLoc::GetString(params,ip).Data() );
-	  if( !already_defined )
-	    delete item;
-	  break;
-	} else if( !already_defined ) {
-	  // Add this BdataLoc to the list to be processed
-	  fBdataLoc.Add(item);
-	}
-      }
-    } else {
-      Warning( Here(here), "No values for database key %s.", dbkey.Data() );
-    }
-    delete params;
+    err = DefineLocType( loctype, configstr, re_init );
   }
 
   fclose(file);

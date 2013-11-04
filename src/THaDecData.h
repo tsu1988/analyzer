@@ -9,6 +9,9 @@
 
 #include "THaApparatus.h"
 #include "THashList.h"
+#include "BdataLoc.h"
+
+class TString;
 
 class THaDecData : public THaApparatus {
   
@@ -32,8 +35,11 @@ protected:
   THashList       fBdataLoc;   // Raw data channels
 
   virtual Int_t   DefineVariables( EMode mode = kDefine );
+  virtual FILE*   OpenFile( const TDatime& date );
   virtual Int_t   ReadDatabase( const TDatime& date );
 
+  Int_t           DefineLocType( const BdataLoc::BdataLocType& loctype,
+				 const TString& configstr, bool re_init );
 
   ClassDef(THaDecData,0)
 };
