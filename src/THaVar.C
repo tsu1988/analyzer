@@ -149,7 +149,7 @@ size_t THaVar::GetTypeSize( VarType itype )
 THaVar::THaVar( const char* name, const char* desc, const void* obj,
 		VarType type, Int_t offset, TMethodCall* method, 
 		const Int_t* count )
-  : TNamed(name,desc), fParsedName(name), fObject(obj), fType(type),
+  : fParsedName(name), fTitle(desc), fObject(obj), fType(type),
     fCount(count), fOffset(offset), fMethod(method)
 {
   // Generic constructor for any kind of THaVar (basic, object, function call)
@@ -184,13 +184,13 @@ THaVar::THaVar( const char* name, const char* desc, const void* obj,
 
 //_____________________________________________________________________________
 THaVar::THaVar( const THaVar& rhs ) :
-  TNamed( rhs ), fParsedName(rhs.fParsedName), fValueP(rhs.fValueP),
-  fType(rhs.fType), fCount(rhs.fCount), fOffset(rhs.fOffset),
-  fMethod(rhs.fMethod)
+  TObject( rhs ), fParsedName(rhs.fParsedName), fTitle(rhs.fTitle),
+  fValueP(rhs.fValueP), fType(rhs.fType), fCount(rhs.fCount),
+  fOffset(rhs.fOffset), fMethod(rhs.fMethod)
 {
   // Copy constructor
 
-  // Make local copies of pointers
+  // Make local copy of heap objects
   if( fMethod ) fMethod = static_cast<TMethodCall*>( rhs.fMethod->Clone() );
 }
 
@@ -200,13 +200,14 @@ THaVar& THaVar::operator=( const THaVar& rhs )
   // Assignment operator. Must be explicit due to limitations of CINT.
 
   if( this != &rhs ) {
-    TNamed::operator=(rhs);
-    fValueP     = rhs.fValueP;  // pointer is not managed by us, so copy ok
+    TObject::operator=(rhs);
     fParsedName = rhs.fParsedName;
+    fTitle      = rhs.fTitle;
+    fValueP     = rhs.fValueP;  // pointer is not managed by us, so copy ok
     fType       = rhs.fType;
     fCount      = rhs.fCount;
     fOffset     = rhs.fOffset;
-    // Make local copies of pointers
+    // Make local copy of heap objects
     delete fMethod;
     fMethod     = rhs.fMethod;
     if( fMethod ) fMethod = static_cast<TMethodCall*>( rhs.fMethod->Clone() );
@@ -220,6 +221,27 @@ THaVar::~THaVar()
   // Destructor
 
   delete fMethod;
+}
+
+//_____________________________________________________________________________
+Int_t THaVar::Compare( const TObject* obj ) const
+{
+  // Compare this against obj by name. Result 0, -1, 1 for equal, less, greater
+  // See TString::CompareTo(const char*)
+
+  if( obj == this ) return 0;
+  if( !obj ) return 1;
+  return fParsedName.String().CompareTo( obj->GetName() );
+}
+
+//_____________________________________________________________________________
+Bool_t THaVar::IsEqual( const TObject* obj ) const
+{
+  // Objects are equal if they are THaVars and their names agree
+
+  if( obj == this ) return kTRUE;
+  if( !obj ) return kFALSE;
+  return fParsedName.String() == obj->GetName();
 }
 
 //_____________________________________________________________________________
@@ -243,8 +265,7 @@ Bool_t THaVar::HasSameSize( const THaVar& rhs ) const
   if( fOffset != -1 )                    // Object arrays
     return ( fObject == rhs.fObject );
   return                                 // All other arrays
-    ( fParsedName.GetNdim() == rhs.fParsedName.GetNdim() &&
-      fParsedName.GetLen()  == rhs.fParsedName.GetLen() );
+    ( fParsedName.HasEqualDims(rhs.fParsedName) );
 }
 
 //_____________________________________________________________________________
@@ -284,7 +305,7 @@ Double_t THaVar::GetValueFromObject( Int_t i ) const
   // Retrieve variable from a ROOT object, either via a function call
   // or from a TSeqCollection
 
-  if( fObject == 0 )
+  if( !fObject )
     return kInvalid;
 
   void* obj;
@@ -606,7 +627,8 @@ void THaVar::Print(Option_t* option) const
 {
   //Print a description of this variable
 
-  TNamed::Print(option);
+  cout << "OBJ: " << IsA()->GetName() << "\t" << GetName() << "\t"
+       << GetTitle() << endl;
 
   if( strcmp( option, "FULL" )) return;
 
@@ -617,9 +639,7 @@ void THaVar::Print(Option_t* option) const
       cout << "=";
     cout << "[";
     if( is_fixed ) {
-      if( !fParsedName.IsArray() )
-	Warning( "THaVar::Print", "Parsed name of fixed-size array is not "
-		 "an array? Should never happen. Call expert." );
+      assert( fParsedName.IsArray() );
       fParsedName.Print("dimonly");
     }
     else
@@ -639,7 +659,6 @@ void THaVar::SetName( const char* name )
 {
   // Set the name of the variable
 
-  TNamed::SetName( name );
   fParsedName = name;
 }
 
@@ -648,8 +667,8 @@ void THaVar::SetNameTitle( const char* name, const char* descript )
 {
   // Set name and description of the variable
 
-  TNamed::SetNameTitle( name, descript );
   fParsedName = name;
+  fTitle      = descript;
 }
 
 //_____________________________________________________________________________

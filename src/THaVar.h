@@ -7,14 +7,14 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "TNamed.h"
+#include "TObject.h"
 #include "THaArrayString.h"
 #include "VarType.h"
 #include <cstddef>
 
 class TMethodCall;
 
-class THaVar : public TNamed {
+class THaVar : public TObject {
   
 public:
   static const Int_t    kInvalidInt;
@@ -28,92 +28,103 @@ public:
 
   THaVar( const char* name, const char* descript, const Double_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueD(&var), fType(kDouble),
+    fParsedName(name), fTitle(descript), fValueD(&var), fType(kDouble),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Float_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueF(&var), fType(kFloat),
+    fParsedName(name), fTitle(descript), fValueF(&var), fType(kFloat),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Long64_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueL(&var), fType(kLong),
+    fParsedName(name), fTitle(descript), fValueL(&var), fType(kLong),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const ULong64_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueX(&var), fType(kULong),
+    fParsedName(name), fTitle(descript), fValueX(&var), fType(kULong),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Int_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueI(&var), fType(kInt),
+    fParsedName(name), fTitle(descript), fValueI(&var), fType(kInt),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UInt_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueU(&var), fType(kUInt),
+    fParsedName(name), fTitle(descript), fValueU(&var), fType(kUInt),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Short_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueS(&var), fType(kShort),
+    fParsedName(name), fTitle(descript), fValueS(&var), fType(kShort),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UShort_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueW(&var), fType(kUShort),
+    fParsedName(name), fTitle(descript), fValueW(&var), fType(kUShort),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Char_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueC(&var), fType(kChar),
+    fParsedName(name), fTitle(descript), fValueC(&var), fType(kChar),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Byte_t& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueB(&var), fType(kByte),
+    fParsedName(name), fTitle(descript), fValueB(&var), fType(kByte),
     fCount(count), fOffset(-1), fMethod(0) {}
 
   THaVar( const char* name, const char* descript, const Double_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueDD(&var), fType(kDoubleP),
+    fParsedName(name), fTitle(descript), fValueDD(&var), fType(kDoubleP),
     fCount(count), fOffset(-1), fMethod(0) {}
 
   THaVar( const char* name, const char* descript, const Float_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueFF(&var), fType(kFloatP),
+    fParsedName(name), fTitle(descript), fValueFF(&var), fType(kFloatP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Long64_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueLL(&var), fType(kLongP),
+    fParsedName(name), fTitle(descript), fValueLL(&var), fType(kLongP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const ULong64_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueXX(&var), fType(kULongP),
+    fParsedName(name), fTitle(descript), fValueXX(&var), fType(kULongP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Int_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueII(&var), fType(kIntP),
+    fParsedName(name), fTitle(descript), fValueII(&var), fType(kIntP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UInt_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueUU(&var), fType(kUIntP),
+    fParsedName(name), fTitle(descript), fValueUU(&var), fType(kUIntP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Short_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueSS(&var), fType(kShortP),
+    fParsedName(name), fTitle(descript), fValueSS(&var), fType(kShortP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const UShort_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueWW(&var), fType(kUShortP),
+    fParsedName(name), fTitle(descript), fValueWW(&var), fType(kUShortP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Char_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueCC(&var), fType(kCharP),
+    fParsedName(name), fTitle(descript), fValueCC(&var), fType(kCharP),
     fCount(count), fOffset(-1), fMethod(0) {}
   THaVar( const char* name, const char* descript, const Byte_t*& var,
 	  const Int_t* count = 0 ) :
-    TNamed(name,descript), fParsedName(name), fValueBB(&var), fType(kByteP),
+    fParsedName(name), fTitle(descript), fValueBB(&var), fType(kByteP),
     fCount(count), fOffset(-1), fMethod(0) {}
 
   THaVar( const char* name, const char* desc, const void* obj,
 	  VarType type, Int_t offset, TMethodCall* method=0, 
 	  const Int_t* count=0 );
 
-  virtual const char*  GetName() const { return fParsedName.GetName(); }
+  // Comparison operations. To keep names unique, only the names are compared
+  virtual Int_t   Compare( const TObject* obj ) const;
+  virtual Bool_t  IsEqual( const TObject* obj ) const;
+  bool operator==( const THaVar& rhs ) const { return IsEqual(&rhs); }
+  bool operator!=( const THaVar& rhs ) const { return !(*this == rhs); }
+  bool operator< ( const THaVar& rhs ) const { return Compare(&rhs) < 0; }
+  bool operator> ( const THaVar& rhs ) const { return Compare(&rhs) > 0; }
+  bool operator<=( const THaVar& rhs ) const { return !(*this > rhs); }
+  bool operator>=( const THaVar& rhs ) const { return !(*this < rhs); }
+
+  virtual const char*  GetName()  const { return fParsedName.GetName(); }
+  virtual const char*  GetTitle() const { return fTitle; }
 
   Int_t           GetLen()       const;
   Int_t           GetNdim()      const            
@@ -131,6 +142,7 @@ public:
   virtual Bool_t  HasSameSize( const THaVar* rhs ) const;
   virtual Int_t   Index( const char* ) const;
   virtual Int_t   Index( const THaArrayString& ) const;
+
   Bool_t          IsArray() const            
     { return ( fCount != 0 || fOffset != -1 ) || IsVector() || fParsedName.IsArray(); }
   Bool_t          IsBasic() const
@@ -139,6 +151,8 @@ public:
     { return ( IsArray() && fType>=kDouble2P && fType <= kObject2P ); }
   Bool_t          IsVector() const
     { return ( fType >= kIntV && fType <= kDoubleV ); }
+
+  virtual Bool_t  IsSortable() const { return kTRUE; }
   virtual void    Print( Option_t* opt="FULL" ) const;
 
   // The following are necessary to initialize empty THaVars such as those in arrays, 
@@ -176,7 +190,7 @@ public:
   void SetVar( const Char_t**& var )   { fValue3C = &var; fType = kChar2P; }
   void SetVar( const Byte_t**& var )   { fValue3B = &var; fType = kByte2P; }
 
-  virtual void    SetName( const char* );
+  virtual void    SetName( const char* name );
   virtual void    SetNameTitle( const char* name, const char* descript );
 
   // Access to detailed information about types defined in VarType.h
@@ -190,6 +204,8 @@ protected:
   Int_t               GetObjArrayLen() const;
 
   THaArrayString      fParsedName; //Variable name and array dimension(s), if any
+  TString             fTitle;      //Description of the variable, if any
+
   union {
     const Double_t*   fValueD;  //Pointers to data (scalar or stack array)
     const Float_t*    fValueF;

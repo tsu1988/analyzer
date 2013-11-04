@@ -20,8 +20,9 @@ public:
     : fName(string), fNdim(0), fDims(0), fStatus(kNotinit) { Parse(string); }
   THaArrayString( const THaArrayString& );
   THaArrayString& operator=( const THaArrayString& );
-  THaArrayString& operator=( const char* rhs )
-  { Parse( rhs ); return *this; }
+  THaArrayString& operator=( const char* rhs ) { Parse( rhs ); return *this; }
+  bool operator==( const THaArrayString& rhs ) const;
+  bool operator!=( const THaArrayString& rhs ) const  { return !(*this ==rhs ); }
   virtual ~THaArrayString();
 
   operator const char*() const { return fName.Data(); }
@@ -30,12 +31,14 @@ public:
   Int_t           GetLen()  const;
   const char*     GetName() const { return fName.Data(); }
   Int_t           GetNdim() const { return fNdim; }
+  Bool_t          HasEqualDims( const THaArrayString& rhs ) const;
   ULong_t         Hash()    const { return fName.Hash(); }
   Bool_t          IsArray() const { return (fNdim > 0); }
   Bool_t          IsError() const { return (fStatus != kOK); }
   virtual Int_t   Parse( const char* string="" );
   virtual void    Print( Option_t* opt="" ) const;
   EStatus         Status()  const { return fStatus; }
+  const TString&  String()  const { return fName; }
 
 protected:
   TString  fName;            //Variable name
@@ -78,6 +81,30 @@ Int_t THaArrayString::GetLen() const
     len *= fDims[i];
   return len;
 }
+
+//_____________________________________________________________________________
+inline
+Bool_t THaArrayString::HasEqualDims( const THaArrayString& rhs ) const
+{
+  // Compare dimensions (fNdim and all fDims) of two THaArrayStrings
+
+  if( fNdim != rhs.fNdim ) return kFALSE;
+  if( fNdim == 0 )         return kTRUE;
+  for( Int_t i=0; i<fNdim; ++i ) {
+    if( GetDim(i) != rhs.GetDim(i) )
+      return kFALSE;
+  }
+  return kTRUE;
+}
+
+//_____________________________________________________________________________
+inline
+bool THaArrayString::operator==( const THaArrayString& rhs ) const
+{
+  if( fName != rhs.fName ) return kFALSE;
+  return HasEqualDims( rhs );
+}
+
 
 #endif
 
