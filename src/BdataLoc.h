@@ -39,10 +39,7 @@ public:
   // Returns set of all defined (i.e. compiled & loaded) BdataLoc classes
   static TypeSet_t& fgBdataLocTypes();
 
-  // Base class constructor
-  BdataLoc( const char* name, Int_t cra )
-    : TNamed(name,name), crate(cra), data(THaAnalysisObject::kBig) { }
-  BdataLoc() {}
+  BdataLoc() {}   // For ROOT TClass & I/O
   virtual ~BdataLoc();
 
   // Main function: extract the defined data from the event
@@ -74,6 +71,10 @@ public:
   static TString& GetString( const TObjArray* params, Int_t pos );
 
 protected:
+  // Abstract base class constructor
+  BdataLoc( const char* name, Int_t cra )
+    : TNamed(name,name), crate(cra), data(THaAnalysisObject::kBig) { }
+
   Int_t   crate;   // Data location: crate number
   UInt_t  data;    // Raw data word
 
