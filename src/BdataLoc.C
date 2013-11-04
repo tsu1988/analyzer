@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <utility>
 #include <iostream>
-#include <iomanip>   // for setw
 
 using namespace std;
 
@@ -35,7 +34,7 @@ TypeIter_t WordLoc::fgThisType       = DoRegister( BdataLocType( "WordLoc",     
 TypeIter_t RoclenLoc::fgThisType     = DoRegister( BdataLocType( "RoclenLoc",     "roclen", 2 ));
 
 // ======= FIXME: Hall A lib ================================================
-TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType( "TrigBitLoc",    "bit", 6 ));
+TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType( "TrigBitLoc",    "bit",    6 ));
 // ======= END FIXME: Hall A lib ============================================
 
 // Shorthands
@@ -43,8 +42,6 @@ TypeIter_t TrigBitLoc::fgThisType    = DoRegister( BdataLocType( "TrigBitLoc",  
 #define kDelete    THaAnalysisObject::kDelete
 #define kOK        THaAnalysisObject::kOK
 #define kInitError THaAnalysisObject::kInitError
-
-static const int kNamePrintWidth = 30;
 
 //_____________________________________________________________________________
 BdataLoc::~BdataLoc()
@@ -169,9 +166,13 @@ void BdataLoc::Print( Option_t* opt ) const
 {
   // Print name and data value
 
-  cout << setw(kNamePrintWidth) << fName
-       << " "                   << data
-       << endl;
+  cout << " " << fName << "\t";
+  if( fName.Length() < 7 ) cout << "\t";
+  TString option(opt);
+  if( option.Contains("FULL") ) {
+    cout << "type = " << GetTypeKey();
+  }
+  cout << "\tdata = " << data << endl;
 }
 
 //_____________________________________________________________________________
@@ -237,10 +238,20 @@ void CrateLocMulti::Print( Option_t* opt ) const
 {
   // Print name and all data values
 
-  cout << setw(kNamePrintWidth) << fName;
-  for( vector<UInt_t>::const_iterator it = rdata.begin();
-       it != rdata.end(); ++it ) {
-    cout << " " << *it;
+  cout << " " << fName << "\t";
+  if( fName.Length() < 7 ) cout << "\t";
+  TString option(opt);
+  if( option.Contains("FULL") ) {
+    cout << "type = " << GetTypeKey();
+  }
+  cout << "\tdata = ";
+  if( rdata.empty() )
+    cout << "(no hits)";
+  else {
+    for( vector<UInt_t>::const_iterator it = rdata.begin();
+	 it != rdata.end(); ++it ) {
+      cout << " " << *it;
+    }
   }
   cout << endl;
 }

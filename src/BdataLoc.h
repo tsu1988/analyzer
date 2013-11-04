@@ -49,8 +49,9 @@ public:
 
   // Initialization from TObjString parameters in TObjArray
   virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
-  // Number of parameters needed for initialization
+  // Type-specific data
   virtual Int_t   GetNparams() const = 0;
+  virtual const char* GetTypeKey() const = 0;
   // Optional data passed in via generic pointer
   virtual Int_t   OptionPtr( void* ) { return 0; }
 
@@ -101,7 +102,8 @@ public:
 
   virtual void   Load( const THaEvData& evt );
   virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
-  virtual Int_t  GetNparams() const { return fgThisType->fNparams; }
+  virtual Int_t  GetNparams() const       { return fgThisType->fNparams; }
+  virtual const char* GetTypeKey() const  { return fgThisType->fDBkey; };
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate && slot == rhs.slot && chan == rhs.chan); }
@@ -126,10 +128,11 @@ public:
 
   virtual void    Load( const THaEvData& evt );
 
-  virtual void    Clear( const Option_t* ="" )  { CrateLoc::Clear(); rdata.clear(); }
-  virtual UInt_t  NumHits() const               { return rdata.size(); }
-  virtual UInt_t  Get( Int_t i = 0 ) const      { return rdata.at(i); }
-  virtual Int_t   GetNparams() const            { return fgThisType->fNparams; }
+  virtual void    Clear( const Option_t* ="" ) { CrateLoc::Clear(); rdata.clear(); }
+  virtual UInt_t  NumHits() const              { return rdata.size(); }
+  virtual UInt_t  Get( Int_t i = 0 ) const     { return rdata.at(i); }
+  virtual Int_t   GetNparams() const           { return fgThisType->fNparams; }
+  virtual const char* GetTypeKey() const       { return fgThisType->fDBkey; };
   virtual void    Print( Option_t* opt="" ) const;
 
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
@@ -154,7 +157,8 @@ public:
 
   virtual void   Load( const THaEvData& evt );
   virtual Int_t  Configure( const TObjArray* params, Int_t start = 0 );
-  virtual Int_t  GetNparams() const { return fgThisType->fNparams; }
+  virtual Int_t  GetNparams() const       { return fgThisType->fNparams; }
+  virtual const char* GetTypeKey() const  { return fgThisType->fDBkey; };
 
   // virtual Bool_t operator==( const BdataLoc& rhs ) const
   // { return (crate == rhs.crate &&
@@ -179,7 +183,8 @@ public:
   virtual ~RoclenLoc() {}
 
   virtual void   Load( const THaEvData& evt );
-  virtual Int_t  GetNparams() const { return fgThisType->fNparams; }
+  virtual Int_t  GetNparams() const       { return fgThisType->fNparams; }
+  virtual const char* GetTypeKey() const  { return fgThisType->fDBkey; };
 
 private:
   static TypeIter_t fgThisType;
@@ -202,7 +207,8 @@ public:
   virtual void    Load( const THaEvData& evt );
   virtual Int_t   Configure( const TObjArray* params, Int_t start = 0 );
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
-  virtual Int_t   GetNparams() const { return fgThisType->fNparams; }
+  virtual Int_t   GetNparams() const      { return fgThisType->fNparams; }
+  virtual const char* GetTypeKey() const  { return fgThisType->fDBkey; };
   virtual Int_t   OptionPtr( void* ptr );
 
 protected:

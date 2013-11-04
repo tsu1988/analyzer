@@ -906,7 +906,8 @@ bool THaAnalysisObject::IsTag( const char* buf )
 }
 
 //_____________________________________________________________________________
-static Int_t ReadDBline( FILE* file, char* buf, size_t bufsiz, string& line )
+Int_t THaAnalysisObject::ReadDBline( FILE* file, char* buf, size_t bufsiz,
+				     string& line )
 {
   // Get a text line from the database file 'file'. Ignore all comments
   // (anything after a #). Trim trailing whitespace. Concatenate continuation

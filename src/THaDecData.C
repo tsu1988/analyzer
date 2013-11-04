@@ -67,6 +67,8 @@
 #include <cstdio>
 #include <cassert>
 
+#define DECDATA_LEGACY_DB
+
 using namespace std;
 
 static Int_t kInitHashCapacity = 100;
@@ -242,6 +244,94 @@ FILE* THaDecData::OpenFile( const TDatime& date )
 }
 
 //_____________________________________________________________________________
+#ifdef DECDATA_LEGACY_DB
+#include <map>
+
+static Int_t CheckDBFormat( FILE* file )
+{
+  // Check database format. Similar to emacs, all formats greater than v1
+  // are expected to have an identifier comment "# Format: v2" on the first
+  // line. If this cannot be found, format version 1 is assumed.
+
+  const size_t bufsiz = 80;
+  char* buf = new char[bufsiz];
+  rewind(file);
+  const char* s = fgets(buf,bufsiz,file);
+  if( !s )
+    return 1;
+  TString line(buf);
+  delete [] buf;
+  Ssiz_t pos = line.Index("Format:",0,TString::kIgnoreCase);
+  if( pos == kNPOS )
+    return 1;
+  pos += 7;
+  while( pos < line.Length() && isspace(line(pos)) ) pos++;
+  if( pos >= line.Length() )
+    return 1;
+  if( tolower(line(pos)) != 'v' )
+    return 1;
+  pos++;
+  if( pos >= line.Length() )
+    return 1;
+  TString line2 = line(pos,line.Length() );
+  Int_t fmt = line2.Atoi();
+  if( fmt == 0 )
+    fmt = 1;
+  return fmt;
+}
+
+//_____________________________________________________________________________
+static Int_t ReadOldFormatDB( FILE* file, map<TString,TString>& configstr_map )
+{
+  // Read old-style THaDecData database file and put results into a map from
+  // database key to value (simulating the new-style key/value database info).
+  // Old-style "crate" objects are all assumed to be multihit channels, even
+  // though they usually are not.
+
+  const size_t bufsiz = 256;
+  char* buf = new char[bufsiz];
+  string dbline;
+  const int nkeys = 3;
+  TString confkey[nkeys] = { "multi", "word", "bit" };
+  TString confval[nkeys];
+  // Read all non-comment lines
+  rewind(file);
+  while( THaAnalysisObject::ReadDBline(file, buf, bufsiz, dbline) != EOF ) {
+    if( dbline.empty() ) continue;
+    // Tokenize each line read
+    TString line( dbline.c_str() );
+    TObjArray* params = line.Tokenize(" \t");
+    if( params->IsEmpty() || params->GetLast() < 4 ) continue;
+    // Determine data type
+    bool is_slot = ( BdataLoc::GetString(params,1) == "crate" );
+    int idx = is_slot ? 0 : 1;
+    TString name = BdataLoc::GetString(params,0);
+    // TrigBits are crate types with special names
+    if( is_slot && name.BeginsWith("bit") ) {
+      if( name.Length() > 3 ) {
+	TString name2 = name(3,name.Length());
+	if( name2.IsDigit() && name2.Atoi() < 32 )
+	  idx = 2;
+      }
+    }
+    confval[idx] += name;
+    confval[idx] += " ";
+    for( int i = 2; i < 5; ++ i ) {
+      confval[idx] += BdataLoc::GetString(params,i).Data();
+      confval[idx] += " ";
+    }
+  }
+  delete [] buf;
+  // Put the retrieved strings into the key/value map
+  for( int i = 0; i < nkeys; ++ i ) {
+    if( !confval[i].IsNull() )
+      configstr_map[confkey[i]] = confval[i];
+  }
+  return 0;
+}
+#endif
+
+//_____________________________________________________________________________
 Int_t THaDecData::ReadDatabase( const TDatime& date )
 {
   // Read THaDecData database
@@ -257,11 +347,12 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
     fBdataLoc.Clear();
   }
 
-// #ifdef DECDATA_LEGACY_DB
-//   bool old_format = false;
-//   // Check for format tag
-  
-// #endif
+#ifdef DECDATA_LEGACY_DB
+  bool old_format = (CheckDBFormat(file) == 1);
+  map<TString,TString> configstr_map;
+  if( old_format )
+    ReadOldFormatDB( file, configstr_map );
+#endif
 
   Int_t err = 0;
   for( BdataLoc::TypeIter_t it = BdataLoc::fgBdataLocTypes().begin();
@@ -287,11 +378,25 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
       break;
     }
 
-    TString dbkey = fPrefix, configstr;
-    dbkey += loctype.fDBkey;
-    Int_t ret = LoadDBvalue( file, date, dbkey, configstr );
-    if( ret ) continue;  // No definitions in database for this BdataLoc type
-
+    TString configstr;
+#ifdef DECDATA_LEGACY_DB
+    // Retrieve old-format database parameters read above for this type
+    if( old_format ) {
+      map<TString,TString>::const_iterator found =
+	configstr_map.find(loctype.fDBkey);
+      if( found == configstr_map.end() )
+	continue;
+      else
+	configstr = found->second;
+    } else
+#endif
+    {
+      // Read key/value database format
+      TString dbkey = loctype.fDBkey;
+      dbkey.Prepend( GetPrefix() );
+      if( LoadDBvalue( file, date, dbkey, configstr ) != 0 )
+	continue;  // No definitions in database for this BdataLoc type
+    }
     err = DefineLocType( loctype, configstr, re_init );
   }
 
@@ -379,7 +484,7 @@ void THaDecData::Print( Option_t* opt ) const
   }
 
   // Print variables in the order they were defined
-  cout << " number of variables: " << fBdataLoc.GetSize() << endl;
+  cout << " number of user variables: " << fBdataLoc.GetSize() << endl;
   TIter next( &fBdataLoc );
   while( TObject* obj = next() ) {
     obj->Print(opt);
