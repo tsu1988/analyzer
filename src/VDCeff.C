@@ -21,8 +21,20 @@
 
 #include "VDCeff.h"
 #include "VarDef.h"
+#include "TObjArray.h"
+#include "TH1F.h"
+
+#include <stdexcept>
+#include <memory>
 
 using namespace std;
+
+//_____________________________________________________________________________
+VDCeff::VDCvar_t::~VDCvar_t()
+{
+  delete hist_nhit;
+  delete hist_eff;
+}
 
 //_____________________________________________________________________________
 VDCeff::VDCeff( const char* name, const char* description )
@@ -57,12 +69,13 @@ Int_t VDCeff::DefineVariables( EMode mode )
   if( mode == kDefine && fIsSetup ) return kOK;
   fIsSetup = ( mode == kDefine );
 
-  RVarDef vars[] = {
-    { "A",  "Result A", "fResultA" },
-    { "B",  "Result B", "fResultB" },
-    { 0 }
-  };
-  return DefineVarsFromList( vars, mode );
+  // RVarDef vars[] = {
+  //   { "A",  "Result A", "fResultA" },
+  //   { "B",  "Result B", "fResultB" },
+  //   { 0 }
+  // };
+  // return DefineVarsFromList( vars, mode );
+  return kOK;
 }
 
 //_____________________________________________________________________________
@@ -138,14 +151,14 @@ Int_t VDCeff::Process( const THaEvData& evdata )
 {
   // Update VDC efficiency histograms with current event data
 
-  //FIXME: make configurable
-  static const string VdcVars[] = {"L.vdc.u1.wire", "L.vdc.u2.wire", 
-				   "L.vdc.v1.wire", "L.vdc.v2.wire", 
-				   "R.vdc.u1.wire", "R.vdc.u2.wire", 
-				   "R.vdc.v1.wire", "R.vdc.v2.wire"};
+  // static const string VdcVars[] = {"L.vdc.u1.wire", "L.vdc.u2.wire", 
+  // 				   "L.vdc.v1.wire", "L.vdc.v2.wire", 
+  // 				   "R.vdc.u1.wire", "R.vdc.u2.wire", 
+  // 				   "R.vdc.v1.wire", "R.vdc.v2.wire"};
   
   if( !IsOK() ) return -1;
 
+#if 0
   const Int_t nwire = 400;
   //FIXME: really push 3.2kB on the stack every event?
   Int_t wire[nwire];
@@ -262,6 +275,8 @@ Int_t VDCeff::Process( const THaEvData& evdata )
 
 // }
 
+#endif
+
   fDataValid = true;
   return 0;
 }
@@ -269,15 +284,77 @@ Int_t VDCeff::Process( const THaEvData& evdata )
 //_____________________________________________________________________________
 Int_t VDCeff::ReadDatabase( const TDatime& date )
 {
-  // Read database - names of the variables containing wire spectra
+  // Read database. Gets the VDC variables containing wire spectra.
+
+  const char* const here = __FUNCTION__;
+  const char* const separators = ", \t";
+  const Int_t NPAR = 3;
 
   FILE* f = OpenFile( date );
   if( !f ) return kFileError;
 
+  TString configstr;
+  fCycle = 500;
+  fMaxNwire = 400;
+  fMaxOcc = 0.25;
 
+  Int_t status = kOK;
+  try {
+      const DBRequest request[] = {
+      { "vdcvars",    &configstr,   kTString },
+      { "cycle",      &fCycle,      kInt,     0, 1 },
+      { "maxocc",     &fMaxOcc,     kDouble,  0, 1 },
+      { 0 }
+    };
+    status = LoadDB( f, date, request, fPrefix );
+  }
+  catch(...) {
+    fclose(f);
+    throw;
+  }
   fclose(f);
-  return kOK;
+  if( status != kOK ) {
+    return status;
+  }
 
+  if( configstr.Length() == 0 ) {
+    Error( Here(here), "No VDC variables defined. Fix database." );
+    return kInitError;
+  };
+  // Parse variables at set up definition structure for each
+  auto_ptr<TObjArray> vdcvars( configstr.Tokenize(separators) );
+  Int_t nparams = vdcvars->GetLast()+1;
+  if( nparams == 0 ) {
+    Error( Here(here), "No VDC variable names in vdcvars = %s. Fix database.",
+	   configstr.Data() );
+    return kInitError;
+  }
+  if( nparams % NPAR != 0 ) {
+    Error( Here(here), "Incorrect number of parameters in vdcvars. "
+	   "Have %d, but must be a multiple of %d. Fix database.",
+	   nparams, NPAR );
+    return kInitError;
+  }
+  fVDCvar.clear();
+  const TObjArray* params = vdcvars.get();
+  for( Int_t ip = 0; ip < nparams; ip += NPAR ) {
+    const TString& name     = GetObjArrayString(params,ip);
+    const TString& histname = GetObjArrayString(params,ip+1);
+    Int_t nwire             = GetObjArrayString(params,ip+2).Atoi();
+    if( nwire <= 0 || nwire > kMaxShort ) {
+      Error( Here(here), "Illegal number of wires = %d for VDC variable %s. "
+	     "Fix database.", nwire, name.Data() ); 
+      return kInitError;
+    }
+    fVDCvar.push_back( VDCvar_t(name, histname, nwire) );
+    VDCvar_t& it = fVDCvar.back();
+    it.ncnt.reserve( it.nwire );
+    it.nhit.reserve( it.nwire );
+    if( fDebug>2 )
+      Info( Here(here), "Defining VDC variable %s", name.Data() );
+  }
+
+  return kOK;
 }
   
 //_____________________________________________________________________________
