@@ -66,6 +66,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
+#include <memory>
 
 #define DECDATA_LEGACY_DB
 
@@ -142,25 +143,26 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 {
   // Define variables for given loctype using parameters in configstr
 
-  static const char* const here = __FUNCTION__;
+  const char* const here = __FUNCTION__;
 
   Int_t err = 0;
 
   // Split the string from the database into values separated by commas,
   // spaces, and/or tabs
-  TObjArray* params = configstr.Tokenize(", \t");
-  if( !params->IsEmpty() ) {
-    Int_t nparams = params->GetLast()+1;
+  auto_ptr<TObjArray> config( configstr.Tokenize(", \t") );
+  if( !config->IsEmpty() ) {
+    Int_t nparams = config->GetLast()+1;
     assert( nparams > 0 );   // else bug in IsEmpty() or GetLast()
       
     if( nparams % loctype.fNparams != 0 ) {
       Error( Here(here), "Incorrect number of parameters in database key "
 	     "%s%s. Have %d, but must be a multiple of %d. Fix database.",
 	     GetPrefix(), loctype.fDBkey, nparams, loctype.fNparams );
-      err = -1;
+      return -1;
     }
 
-    for( Int_t ip = 0; !err && ip < nparams; ip += loctype.fNparams ) {
+    TObjArray* params = config.get();
+    for( Int_t ip = 0; ip < nparams; ip += loctype.fNparams ) {
       // Prepend prefix to name in parameter array
       TString& bname = GetObjArrayString( params, ip );
       bname.Prepend(GetPrefix());
@@ -175,8 +177,7 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 		   "with different type.\nOld = %s, new = %s. Fix database.",
 		   item->GetName(), item->IsA()->GetName(),
 		   loctype.fTClass->GetName() );
-	    err = -1;
-	    break;
+	    return -1;
 	  }
 	  if( fDebug>2 ) 
 	    Info( Here(here), "Updating variable %s", bname.Data() );
@@ -184,8 +185,7 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 	  // Duplicate variable name (i.e. duplicate names in database)
 	  Error( Here(here), "Duplicate variable name %s. Fix database.",
 		 item->GetName() );
-	  err = -1;
-	  break;
+	  return -1;
 	}
       } else {
 	// Make a new BdataLoc
@@ -195,8 +195,7 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 	if( !item ) {
 	  Error( Here(here), "Failed to create variable of type %s. Should "
 		 "never happen. Call expert.", loctype.fTClass->GetName() );
-	  err = -1;
-	  break;
+	  return -1;
 	}
       }
       // Configure the new or existing BdataLoc with current database parameters. 
@@ -225,7 +224,6 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
     Warning( Here(here), "Empty database key %s%s.",
 	     GetPrefix(), loctype.fDBkey );
   }
-  delete params;
 
   return err;
 }
