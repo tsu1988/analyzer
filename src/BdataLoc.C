@@ -101,15 +101,6 @@ Int_t BdataLoc::CheckConfigureParams( const TObjArray* params, Int_t start )
 }
 
 //_____________________________________________________________________________
-TString& BdataLoc::GetString( const TObjArray* params, Int_t pos )
-{
-  // Get the string at index pos in the given parameter array. Assumes
-  // that parameters have been checked.
-
-  return (static_cast<TObjString*>((*params)[pos]))->String();
-}
-
-//_____________________________________________________________________________
 Int_t BdataLoc::Configure( const TObjArray* params, Int_t start )
 {
   // Initialize this object from the TObjString parameters given in the params

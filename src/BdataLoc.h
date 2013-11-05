@@ -71,7 +71,8 @@ public:
   virtual Int_t   DefineVariables( EMode mode = THaAnalysisObject::kDefine );
    
   // Helper function for parameter parsing
-  static TString& GetString( const TObjArray* params, Int_t pos );
+  static TString& GetString( const TObjArray* params, Int_t pos )
+  { return THaAnalysisObject::GetObjArrayString(params,pos); }
 
 protected:
   // Abstract base class constructor

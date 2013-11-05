@@ -24,6 +24,7 @@
 #include "TError.h"
 #include "TVector3.h"
 #include "TSystem.h"
+#include "TObjArray.h"
 
 #include <cstring>
 #include <cctype>
@@ -1489,6 +1490,14 @@ vector<string> THaAnalysisObject::vsplit(const string& s)
       }
   }
   return ret;
+}
+
+//_____________________________________________________________________________
+TString& THaAnalysisObject::GetObjArrayString( const TObjArray* array, Int_t i )
+{
+  // Get the string at index i in the given TObjArray
+
+  return (static_cast<TObjString*>(array->At(i)))->String();
 }
 
 //_____________________________________________________________________________

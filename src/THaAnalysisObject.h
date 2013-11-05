@@ -21,6 +21,7 @@ class TList;
 class TVector3;
 class THaRunBase;
 class THaOutput;
+class TObjArray;
 
 const char* Here( const char* here, const char* prefix = NULL );
 
@@ -101,6 +102,7 @@ public:
 
   // Generic utility functions
   static std::vector<std::string> vsplit( const std::string& s );
+  static TString& GetObjArrayString( const TObjArray* params, Int_t pos );
 
   // Geometry utility functions
   static  void    GeoToSph( Double_t  th_geo, Double_t  ph_geo,

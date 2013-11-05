@@ -162,7 +162,7 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 
     for( Int_t ip = 0; !err && ip < nparams; ip += loctype.fNparams ) {
       // Prepend prefix to name in parameter array
-      TString& bname = BdataLoc::GetString( params, ip );
+      TString& bname = GetObjArrayString( params, ip );
       bname.Prepend(GetPrefix());
       BdataLoc* item = static_cast<BdataLoc*>(fBdataLoc.FindObject(bname) );
       Bool_t already_defined = ( item != 0 );
@@ -211,8 +211,8 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 	Int_t in = ip - (ip % loctype.fNparams); // index of name
 	Error( Here(here), "Illegal parameter for variable %s, "
 	       "index = %d, value = %s. Fix database.",
-	       BdataLoc::GetString(params,in).Data(), ip,
-	       BdataLoc::GetString(params,ip).Data() );
+	       GetObjArrayString(params,in).Data(), ip,
+	       GetObjArrayString(params,ip).Data() );
 	if( !already_defined )
 	  delete item;
 	break;
@@ -247,37 +247,41 @@ FILE* THaDecData::OpenFile( const TDatime& date )
 #ifdef DECDATA_LEGACY_DB
 #include <map>
 
-static Int_t CheckDBFormat( FILE* file )
+static Int_t CheckDBVersion( FILE* file )
 {
-  // Check database format. Similar to emacs, all formats greater than v1
-  // are expected to have an identifier comment "# Format: v2" on the first
-  // line. If this cannot be found, format version 1 is assumed.
+  // Check database version. Similar to emacs mode specs, versions are
+  // determined by an identifier comment "# Version: 2" on the first line
+  // (within first 80 chars). If no such tag is found, version 1 is assumed.
 
-  const size_t bufsiz = 80;
+  const TString identifier("Version:");
+
+  const size_t bufsiz = 82;
   char* buf = new char[bufsiz];
   rewind(file);
   const char* s = fgets(buf,bufsiz,file);
-  if( !s )
+  if( !s ) // No first line? Not our problem...
     return 1;
   TString line(buf);
   delete [] buf;
-  Ssiz_t pos = line.Index("Format:",0,TString::kIgnoreCase);
+  Ssiz_t pos = line.Index(identifier,0,TString::kIgnoreCase);
   if( pos == kNPOS )
     return 1;
-  pos += 7;
+  pos += identifier.Length();
   while( pos < line.Length() && isspace(line(pos)) ) pos++;
   if( pos >= line.Length() )
     return 1;
-  if( tolower(line(pos)) != 'v' )
-    return 1;
-  pos++;
-  if( pos >= line.Length() )
-    return 1;
   TString line2 = line(pos,line.Length() );
-  Int_t fmt = line2.Atoi();
-  if( fmt == 0 )
-    fmt = 1;
-  return fmt;
+  Int_t vers = line2.Atoi();
+  if( vers == 0 )
+    vers = 1;
+  return vers;
+}
+
+//_____________________________________________________________________________
+inline
+static TString& GetString( const TObjArray* params, Int_t pos )
+{
+  return THaAnalysisObject::GetObjArrayString(params,pos);
 }
 
 //_____________________________________________________________________________
@@ -303,9 +307,9 @@ static Int_t ReadOldFormatDB( FILE* file, map<TString,TString>& configstr_map )
     TObjArray* params = line.Tokenize(" \t");
     if( params->IsEmpty() || params->GetLast() < 4 ) continue;
     // Determine data type
-    bool is_slot = ( BdataLoc::GetString(params,1) == "crate" );
+    bool is_slot = ( GetString(params,1) == "crate" );
     int idx = is_slot ? 0 : 1;
-    TString name = BdataLoc::GetString(params,0);
+    TString name = GetString(params,0);
     // TrigBits are crate types with special names
     if( is_slot && name.BeginsWith("bit") ) {
       if( name.Length() > 3 ) {
@@ -317,7 +321,7 @@ static Int_t ReadOldFormatDB( FILE* file, map<TString,TString>& configstr_map )
     confval[idx] += name;
     confval[idx] += " ";
     for( int i = 2; i < 5; ++ i ) {
-      confval[idx] += BdataLoc::GetString(params,i).Data();
+      confval[idx] += GetString(params,i).Data();
       confval[idx] += " ";
     }
   }
@@ -348,7 +352,7 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
   }
 
 #ifdef DECDATA_LEGACY_DB
-  bool old_format = (CheckDBFormat(file) == 1);
+  bool old_format = (CheckDBVersion(file) == 1);
   map<TString,TString> configstr_map;
   if( old_format )
     ReadOldFormatDB( file, configstr_map );
@@ -386,8 +390,7 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 	configstr_map.find(loctype.fDBkey);
       if( found == configstr_map.end() )
 	continue;
-      else
-	configstr = found->second;
+      configstr = found->second;
     } else
 #endif
     {
