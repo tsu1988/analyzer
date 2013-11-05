@@ -1,4 +1,79 @@
-//TODO: This will become a PhysicsModule
+//*-- Author :    Ole Hansen   04-Nov-13
+
+//////////////////////////////////////////////////////////////////////////
+//                                                                      //
+// VDCeff                                                               //
+//                                                                      //
+// VDC hit efficiency calculation. Since the VDC records clusters       //
+// of hits, the efficiency can be estimated quite well without          //
+// tracking information. If in a group of three adjacent wires          //
+// the two outer wires have a hit, check if the middle wire has a hit   //
+// as well. The hit efficiency for that wire, then, is the probability  //
+// that there is a hit. Of course, noise and overlapping clusters       //
+// cause errors in this calculation, assumed to be small.               //
+//                                                                      //
+// This module reads a list of global variable names for VDC hit        //
+// spectra (wire numbers) from the database. For each variable, it      //
+// sets up a hit efficiency histogram which is updated every 500        //
+// events (configurable, if desired).                                   //
+//                                                                      //
+//////////////////////////////////////////////////////////////////////////
+
+#include "VDCeff.h"
+#include "VarDef.h"
+
+using namespace std;
+
+//_____________________________________________________________________________
+VDCeff::VDCeff( const char* name, const char* description )
+  : THaPhysicsModule(name,description)
+{
+  // Normal constructor. 
+
+}
+
+//_____________________________________________________________________________
+VDCeff::~VDCeff()
+{
+  // Destructor
+
+  RemoveVariables();
+}
+
+//_____________________________________________________________________________
+void VDCeff::Clear( Option_t* opt )
+{
+  // Clear event-by-event data
+
+  THaPhysicsModule::Clear(opt);
+
+}
+
+//_____________________________________________________________________________
+Int_t VDCeff::DefineVariables( EMode mode )
+{
+  // Define/delete global variables.
+
+  if( mode == kDefine && fIsSetup ) return kOK;
+  fIsSetup = ( mode == kDefine );
+
+  RVarDef vars[] = {
+    { "A",  "Result A", "fResultA" },
+    { "B",  "Result B", "fResultB" },
+    { 0 }
+  };
+  return DefineVarsFromList( vars, mode );
+}
+
+//_____________________________________________________________________________
+THaAnalysisObject::EStatus VDCeff::Init( const TDatime& run_time )
+{
+
+  // Standard initialization. Calls this object's ReadDatabase(),
+  // ReadRunDatabase(), and DefineVariables()
+  // (see THaAnalysisObject::Init)
+  if( THaPhysicsModule::Init( run_time ) != kOK )
+    return fStatus;
 
 //======= VDCEff stuff ==================
 
@@ -37,23 +112,6 @@
 //   { 0 }
 // };
 
-// Int_t  THaDecData::fgVdcEffFirst = 2;
-
-//_____________________________________________________________________________
-// Int_t THaDecData::End( THaRunBase* )
-// {
-//   WriteHist();
-//   return 0;
-// }
-
-// //_____________________________________________________________________________
-// void THaDecData::WriteHist()
-// {
-//   //  cout << "Writing Bob Dec Data histos"<<endl<<flush;
-//   for (vector<TH1F*>::iterator it = hist.begin(); it != hist.end(); ++it)
-//     (*it)->Write();
-// }
-
 // //_____________________________________________________________________________
 //   void THaDecData::BookHist()
 // {
@@ -72,128 +130,127 @@
   // if( fgVdcEffFirst == 0 )
   //   fgVdcEffFirst = 1;
 
-// Decode():
-  // FIXME: so what guarantees that the VDC wire variables are filled here?
-  // The order in which the apparatuses are added to gHaApps, right? THE PAIN
-
-  // VdcEff();
+  return fStatus;
+}
 
 //_____________________________________________________________________________
-// FIXME: make VdcEff separate module, and make it a physics module
-// void THaDecData::VdcEff( )
-// { 
-//   // Update VDC efficiency histograms with current event data
+Int_t VDCeff::Process( const THaEvData& evdata )
+{
+  // Update VDC efficiency histograms with current event data
 
-//   //FIXME: make configurable
-//   static const string VdcVars[] = {"L.vdc.u1.wire", "L.vdc.u2.wire", 
-// 				   "L.vdc.v1.wire", "L.vdc.v2.wire", 
-// 				   "R.vdc.u1.wire", "R.vdc.u2.wire", 
-// 				   "R.vdc.v1.wire", "R.vdc.v2.wire"};
+  //FIXME: make configurable
+  static const string VdcVars[] = {"L.vdc.u1.wire", "L.vdc.u2.wire", 
+				   "L.vdc.v1.wire", "L.vdc.v2.wire", 
+				   "R.vdc.u1.wire", "R.vdc.u2.wire", 
+				   "R.vdc.v1.wire", "R.vdc.v2.wire"};
   
-//   const Int_t nwire = 400;
-//   //FIXME: really push 3.2kB on the stack every event?
-//   Int_t wire[nwire];
-//   Int_t hitwire[nwire];   // lookup to avoid O(N^3) algorithm // really??
+  if( !IsOK() ) return -1;
+
+  const Int_t nwire = 400;
+  //FIXME: really push 3.2kB on the stack every event?
+  Int_t wire[nwire];
+  Int_t hitwire[nwire];   // lookup to avoid O(N^3) algorithm // really??
 
   
-//   //FIXME: these static variables prevent multiple instances of this object!
-//   // use member variables
-//   static Int_t cnt = 0;
-//   static Double_t xcnt[8*nwire],eff[8*nwire];
-//   static THaVar* varp[8];
-//   if (fgVdcEffFirst>0) {
-//     if( fgVdcEffFirst>1) {
-//       cnt = 0;
-//       memset(eff,0,8*nwire*sizeof(eff[0]));
-//       memset(xcnt,0,8*nwire*sizeof(xcnt[0]));
-//     }
-//     for( Int_t i = 0; i<8; ++i ) {
-//       varp[i] = gHaVars->Find(VdcVars[i].c_str());
-//     }
-//     fgVdcEffFirst = 0;
-//   }
+  //FIXME: these static variables prevent multiple instances of this object!
+  // use member variables
+  static Int_t cnt = 0;  // Event counter
+  static Double_t xcnt[8*nwire],eff[8*nwire];
+  static THaVar* varp[8];
+  if (fgVdcEffFirst>0) {
+    if( fgVdcEffFirst>1) {
+      cnt = 0;
+      memset(eff,0,8*nwire*sizeof(eff[0]));
+      memset(xcnt,0,8*nwire*sizeof(xcnt[0]));
+    }
+    for( Int_t i = 0; i<8; ++i ) {
+      varp[i] = gHaVars->Find(VdcVars[i].c_str());
+    }
+    fgVdcEffFirst = 0;
+  }
 
-// #ifdef WITH_DEBUG
-//   if (fDebug>4) 
-//     cout << "\n *************** \n Vdc Effic "<<endl;
-// #endif
+#ifdef WITH_DEBUG
+  if (fDebug>4) 
+    cout << "\n *************** \n Vdc Effic "<<endl;
+#endif
 
-//   for (Int_t ipl = 0; ipl < 8; ++ipl) {
+  for (Int_t ipl = 0; ipl < 8; ++ipl) {
 
-//     Int_t nhit = 0;
-//     THaVar* pvar = varp[ipl];
-// #ifdef WITH_DEBUG
-//      if (fDebug>4)
-//       cout << "plane "<<ipl<<"  "<<VdcVars[ipl]<<" $$$ "<<pvar<<endl;
-// #endif
-//      if (!pvar) continue;
-//      memset(wire,0,nwire*sizeof(wire[0]));
-//      memset(hitwire,0,nwire*sizeof(hitwire[0]));
+    Int_t nhit = 0;
+    THaVar* pvar = varp[ipl];
+#ifdef WITH_DEBUG
+     if (fDebug>4)
+      cout << "plane "<<ipl<<"  "<<VdcVars[ipl]<<" $$$ "<<pvar<<endl;
+#endif
+     if (!pvar) continue;
+     memset(wire,0,nwire*sizeof(wire[0]));
+     memset(hitwire,0,nwire*sizeof(hitwire[0]));
 
-//      Int_t n = pvar->GetLen();
-//      nhit = n;
-//      hist[ipl]->Fill(nhit);
-//      if (n < 0) n = 0;
-//      if (n > nwire) n = nwire;
-// #ifdef WITH_DEBUG
-//      if (fDebug>4)
-//        cout << "nwire "<<n<<"  "<<nwire<<"  "<<nhit<<endl;
-// #endif
+     Int_t n = pvar->GetLen();
+     nhit = n;
+     hist[ipl]->Fill(nhit);
+     if (n < 0) n = 0;
+     if (n > nwire) n = nwire;
+#ifdef WITH_DEBUG
+     if (fDebug>4)
+       cout << "nwire "<<n<<"  "<<nwire<<"  "<<nhit<<endl;
+#endif
 
-//      for (Int_t i = 0; i < n; ++i) {
-//        wire[i] = (Int_t) pvar->GetValue(i);
-//        if (wire[i]>=0 && wire[i]<nwire)
-// 	 hitwire[wire[i]]=1;
-// #ifdef WITH_DEBUG
-//        if (fDebug>4)
-//          cout << "wire "<<i<<"  "<<wire[i]<<endl;
-// #endif
-//      }
+     for (Int_t i = 0; i < n; ++i) {
+       wire[i] = (Int_t) pvar->GetValue(i);
+       if (wire[i]>=0 && wire[i]<nwire)
+	 hitwire[wire[i]]=1;
+#ifdef WITH_DEBUG
+       if (fDebug>4)
+         cout << "wire "<<i<<"  "<<wire[i]<<endl;
+#endif
+     }
 
-// // The following does not assume that wire[] is ordered.
-// //FIXME: but we can order it
-//      for (Int_t i = 0; i < n; ++i) {
-//        // look for neighboring hit at +2 wires
-//        Int_t ngh2=wire[i]+2;
-//        if (wire[i]<0 || ngh2>=nwire) continue;
+// The following does not assume that wire[] is ordered.
+//FIXME: but we can order it
+     for (Int_t i = 0; i < n; ++i) {
+       // look for neighboring hit at +2 wires
+       Int_t ngh2=wire[i]+2;
+       if (wire[i]<0 || ngh2>=nwire) continue;
        
-//        if (hitwire[ngh2]) {
-// 	 Int_t awire = wire[i]+1;
-// #ifdef WITH_DEBUG
-// 	 if (fDebug>4) 
-// 	   cout << "wire eff "<<i<<"  "<<awire<<endl;
-// #endif
-// 	 if (awire>=0 && awire<nwire) { //FIXME:  always true
-// 	   xcnt[ipl*nwire+awire] = xcnt[ipl*nwire+awire] + 1;
+       if (hitwire[ngh2]) {
+	 Int_t awire = wire[i]+1;
+#ifdef WITH_DEBUG
+	 if (fDebug>4) 
+	   cout << "wire eff "<<i<<"  "<<awire<<endl;
+#endif
+	 if (awire>=0 && awire<nwire) { //FIXME:  always true
+	   xcnt[ipl*nwire+awire] = xcnt[ipl*nwire+awire] + 1;
 	   
-// 	   if ( hitwire[awire] ) {
-// 	     eff[ipl*nwire+awire] = eff[ipl*nwire+awire] + 1;
-// 	   } else {
-// 	     //FIXME: is this a joke?
-// 	     eff[ipl*nwire+awire] = eff[ipl*nwire+awire] + 0;
-// 	   }
-// 	 }
-//        }
-//      }
+	   if ( hitwire[awire] ) {
+	     eff[ipl*nwire+awire] = eff[ipl*nwire+awire] + 1;
+	   } else {
+	     //FIXME: is this a joke?
+	     eff[ipl*nwire+awire] = eff[ipl*nwire+awire] + 0;
+	   }
+	 }
+       }
+     }
      
-//      if ((cnt%500) == 0) {
+     if ((cnt%500) == 0) {
 
-//        // FIXME: why reset?
-//        hist[ipl+8]->Reset();
-//        for (Int_t i = 0; i < nwire; ++i) {
+       // FIXME: why reset?
+       hist[ipl+8]->Reset();
+       for (Int_t i = 0; i < nwire; ++i) {
 
-//          Double_t xeff = -1;
-//          if (xcnt[ipl*nwire+i] != 0) {
-// 	   xeff = eff[ipl*nwire+i]/xcnt[ipl*nwire+i];
-// 	 }
-// #ifdef WITH_DEBUG
-//          if (fDebug>4) 
-// 	   cout << "Efficiency "<<i<<"  "<<xcnt[ipl*nwire+i]<<"  "<<xeff<<endl;
-// #endif
-//          if (xeff > 0) hist[ipl+8]->Fill(i,xeff);
-//        }
-//      }
+         Double_t xeff = -1;
+         if (xcnt[ipl*nwire+i] != 0) {
+	   xeff = eff[ipl*nwire+i]/xcnt[ipl*nwire+i];
+	 }
+#ifdef WITH_DEBUG
+         if (fDebug>4) 
+	   cout << "Efficiency "<<i<<"  "<<xcnt[ipl*nwire+i]<<"  "<<xeff<<endl;
+#endif
+         if (xeff > 0) hist[ipl+8]->Fill(i,xeff);
+       }
+     }
 
+  }
 //   }
 //   ++cnt;
 //   // FIXME: repeated WriteHist seems to cause problems with splits files
@@ -204,3 +261,44 @@
 //   //  if ((cnt%10)==0) Print();
 
 // }
+
+  fDataValid = true;
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t VDCeff::ReadDatabase( const TDatime& date )
+{
+  // Read database - names of the variables containing wire spectra
+
+  FILE* f = OpenFile( date );
+  if( !f ) return kFileError;
+
+
+  fclose(f);
+  return kOK;
+
+}
+  
+//_____________________________________________________________________________
+ClassImp(VDCeff)
+
+
+
+// Int_t  THaDecData::fgVdcEffFirst = 2;
+
+//_____________________________________________________________________________
+// Int_t THaDecData::End( THaRunBase* )
+// {
+//   WriteHist();
+//   return 0;
+// }
+
+// //_____________________________________________________________________________
+// void THaDecData::WriteHist()
+// {
+//   //  cout << "Writing Bob Dec Data histos"<<endl<<flush;
+//   for (vector<TH1F*>::iterator it = hist.begin(); it != hist.end(); ++it)
+//     (*it)->Write();
+// }
+
