@@ -89,7 +89,7 @@ THaDecData::~THaDecData()
   // Destructor. Delete data location objects and global variables.
 
   fBdataLoc.Clear();
-  DefineVariables( kDelete );
+  RemoveVariables();
 }
 
 //_____________________________________________________________________________
