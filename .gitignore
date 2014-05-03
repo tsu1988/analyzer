@@ -1,0 +1,44 @@
+# Compiled stuff
+*.[od]
+*.os
+lib*.so*
+analyzer
+
+# Generated files
+*Dict.[Ch]
+*Dict.so
+ha_compiledata.h
+cppcheck_report.txt
+ChangeLog
+
+# Editor lint
+.#*
+*~
+
+# Helpers
+/fix-filedates.sh
+
+# Standalone distribution support files
+/hana_scaler/scaler.map
+
+# Work directory clutter, test files, replay output etc.
+/db*.dat
+*.root
+*.odef
+*.cdef
+*.png
+*.patch
+
+#scons stuff
+config.log
+*.pyc
+*Dict.C
+.sconsign.dblite
+.sconf_temp/
+dist/
+
+#eclipse stuff
+.project
+.cproject
+.pydevproject
+.settings/
