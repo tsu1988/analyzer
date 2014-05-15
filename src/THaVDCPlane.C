@@ -30,9 +30,12 @@
 #include "THaApparatus.h"
 #include "THaTriggerTime.h"
 
-#include <cstring>
 #include <vector>
+#include <set>
+#include <algorithm>
+#include <utility>
 #include <iostream>
+#include <cstring>
 #include <cassert>
 
 #ifdef CLUST_RAWDATA_HACK
@@ -41,6 +44,7 @@
 
 using namespace std;
 
+#define ALL(c) (c).begin(), (c).end()
 
 //_____________________________________________________________________________
 THaVDCPlane::THaVDCPlane( const char* name, const char* description,
@@ -553,6 +557,7 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
 
   fHits->Sort();
 
+#ifdef WITH_DEBUG
   if ( fDebug > 3 ) {
     printf("\nVDC %s:\n",GetPrefix());
     int ncol=4;
@@ -575,6 +580,7 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
       printf("\n");
     }
   }
+#endif
 
   return 0;
 
@@ -625,20 +631,69 @@ private:
 //_____________________________________________________________________________
 Int_t THaVDCPlane::FindClusters()
 {
-  // Reconstruct clusters in a VDC plane
+  // Find clusters of hits in a VDC plane.
   // Assumes that the wires are numbered such that increasing wire numbers
   // correspond to decreasing physical position.
-  // Ignores possibility of overlapping clusters
+
+  assert( GetNClusters() == 0 );   // should have already called Clear()
+
+  typedef set<THaVDCHit*,THaVDCHit::ByWireThenTime> Hset_t;
+  typedef vector<THaVDCHit*> Vhit_t;
 
   TimeCut timecut(fVDC,this);
 
-// #ifndef NDEBUG
-//   // bugcheck
-//   bool only_fastest_hit = false;
-//   if( fVDC )
-//     only_fastest_hit = fVDC->TestBit(THaVDC::kOnlyFastest);
-// #endif
+  Int_t nHits = GetNHits();   // Number of hits in the plane
+  Hset_t blob;                // All hits in a region of interest
+  for( Int_t i = 0; i < nHits; ) {
+    THaVDCHit* hit = GetHit(i);
+    assert(hit);
+    if( !hit or !timecut(hit) ) {
+      ++i;
+      continue;
+    }
 
+    // First hit of a new region
+#ifndef NDEBUG
+    pair<Hset_t::iterator,bool> ins =
+#endif
+    blob.insert(hit);
+    assert( ins.second );  // else hits not unique
+
+    // Add hits to region
+    Int_t nwires = 1;
+    while( ++i < nHits ) {
+      THaVDCHit* nextHit = GetHit(i);
+      assert( nextHit );    // else bug in Decode
+      if( !nextHit || !timecut(nextHit) )
+	continue;
+      Int_t ndif = nextHit->GetWireNum() - hit->GetWireNum();
+      assert( ndif >= 0 );  // else hits not sorted correctly
+      // A gap of more than fNMaxGap wires unambiguously separates
+      // regions of interest
+      if( ndif > fNMaxGap+1 )
+	break;
+#ifndef NDEBUG
+      ins =
+#endif
+      blob.insert(nextHit);
+      assert( ins.second ); // else hits not unique
+      if( ndif > 0 )
+	++nwires;    // unique wires
+    }
+    assert( i <= nHits );
+    // We have a region of interest
+    if( nwires >= fMinClustSize ) {
+
+    }
+
+    blob.clear();
+  }
+
+
+  return 0;
+}
+//----- OLD ---
+#if 0
   Int_t nHits     = GetNHits();   // Number of hits in the plane
   Int_t nUsed = 0;                // Number of wires used in clustering
   Int_t nLastUsed = -1;
@@ -770,6 +825,7 @@ Int_t THaVDCPlane::FindClusters()
 
   return nextClust;  // return the number of clusters found
 }
+#endif
 
 //_____________________________________________________________________________
 Int_t THaVDCPlane::FitTracks()
