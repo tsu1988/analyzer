@@ -31,9 +31,10 @@
 #include "THaTriggerTime.h"
 
 #include <vector>
-#include <set>
 #include <algorithm>
+#include <numeric>
 #include <utility>
+#include <stdexcept>
 #include <iostream>
 #include <cstring>
 #include <cassert>
@@ -43,8 +44,58 @@
 #endif
 
 using namespace std;
+using namespace VDC;
 
 #define ALL(c) (c).begin(), (c).end()
+
+// Helpers
+//___________________________________________________________________________
+template< typename VectorElem > inline void
+NthCombination( UInt_t n, const std::vector<std::vector<VectorElem> >& vec,
+		std::vector<VectorElem>& selected )
+{
+  // Get the n-th combination of the elements in "vec" and
+  // put result in "selected". selected[k] is one of the
+  // vec[k].size() elements in the k-th plane.
+  //
+  // This function is equivalent to vec.size() nested/recursive loops
+  // over the elements of each of the vectors in vec.
+
+  using std::vector;
+
+  assert( !vec.empty() );
+
+  UInt_t vsiz = vec.size(), k;
+  selected.resize( vsiz );
+  typename vector< vector<VectorElem> >::const_iterator iv = vec.begin();
+  typename vector<VectorElem>::iterator is = selected.begin();
+  while( iv != vec.end() ) {
+    typename std::vector<VectorElem>::size_type npt = (*iv).size();
+    assert(npt);
+    if( npt == 1 )
+      k = 0;
+    else {
+      k = n % npt;
+      n /= npt;
+    }
+    // Copy the selected element
+    (*is) = (*iv)[k];
+    ++iv;
+    ++is;
+  }
+}
+
+//___________________________________________________________________________
+template< typename Container > struct SizeMul :
+  public std::binary_function< typename Container::size_type, Container,
+			       typename Container::size_type >
+{
+  // Function object to get the product of the sizes of the containers in a
+  // container, ignoring empty ones
+  typedef typename Container::size_type csiz_t;
+  csiz_t operator() ( csiz_t val, const Container& c ) const
+  { return ( c.empty() ? val : val * c.size() ); }
+};
 
 //_____________________________________________________________________________
 THaVDCPlane::THaVDCPlane( const char* name, const char* description,
@@ -97,12 +148,11 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
 {
   // Allocate TClonesArray objects and load plane parameters from database
 
+  const char* const here = __FUNCTION__;
+
   FILE* file = OpenFile( date );
   if( !file ) return kFileError;
 
-  // Use default values until ready to read from database
-
-  static const char* const here = "ReadDatabase";
   const int LEN = 100;
   char buff[LEN];
 
@@ -636,13 +686,9 @@ Int_t THaVDCPlane::FindClusters()
 
   assert( GetNClusters() == 0 );   // should have already called Clear()
 
-  typedef set<THaVDCHit*,THaVDCHit::ByWireThenTime> Hset_t;
-  typedef vector<THaVDCHit*> Vhit_t;
-
   TimeCut timecut(fVDC,this);
 
   Int_t nHits = GetNHits();   // Number of hits in the plane
-  Hset_t blob;                // All hits in a region of interest
   for( Int_t i = 0; i < nHits; ) {
     THaVDCHit* hit = GetHit(i);
     assert(hit);
@@ -650,13 +696,9 @@ Int_t THaVDCPlane::FindClusters()
       ++i;
       continue;
     }
-
     // First hit of a new region
-#ifndef NDEBUG
-    pair<Hset_t::iterator,bool> ins =
-#endif
-    blob.insert(hit);
-    assert( ins.second );  // else hits not unique
+    vector<Vhit_t>
+      region( 1, Vhit_t(1,hit) ); // All hits in a region of interest
 
     // Add hits to region
     Int_t nwires = 1;
@@ -671,21 +713,36 @@ Int_t THaVDCPlane::FindClusters()
       // regions of interest
       if( ndif > fNMaxGap+1 )
 	break;
-#ifndef NDEBUG
-      ins =
-#endif
-      blob.insert(nextHit);
-      assert( ins.second ); // else hits not unique
+      // Add hit to appropriate array of hits on given wire number
+      if( ndif == 0 ) {
+	assert( nextHit->GetWireNum() == region.back().back()->GetWireNum() );
+	region.back().push_back(nextHit);
+      } else {
+	region.push_back( Vhit_t(1,nextHit) );
+      }
       if( ndif > 0 )
 	++nwires;    // unique wires
+      hit = nextHit;
     }
     assert( i <= nHits );
     // We have a region of interest
     if( nwires >= fMinClustSize ) {
+      UInt_t ncombos;
+      try {
+	ncombos = accumulate( ALL(region), (UInt_t)1, SizeMul<Vhit_t>() );
+      }
+      catch( overflow_error ) {
+	continue;
+      }
+      for( UInt_t i = 0; i < ncombos; ++i ) {
+	Vhit_t selected;
+	NthCombination( i, region, selected );
+	assert( selected.size() == region.size() );
 
+
+      }
     }
 
-    blob.clear();
   }
 
 
