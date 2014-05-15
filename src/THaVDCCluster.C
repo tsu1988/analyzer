@@ -22,11 +22,14 @@
 #include "TDecompBase.h"
 
 #include <iostream>
+#include <cassert>
 
 using namespace std;
 
 const Double_t VDC::kBig = 1e38;  // Arbitrary large value
-static const Int_t kDefaultNHit = 16;
+static const Vhit_t::size_type kDefaultNHit = 16;
+
+#define ALL(c) (c).begin(), (c).end()
 
 //_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( THaVDCPlane* owner )
@@ -43,17 +46,66 @@ THaVDCCluster::THaVDCCluster( THaVDCPlane* owner )
 }
 
 //_____________________________________________________________________________
+THaVDCCluster::THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner )
+  : fHits(hits), fPlane(owner), fPointPair(0), fTrack(0), fTrkNum(0),
+    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig),
+    fInt(kBig), fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig),
+    fPivot(0), fTimeCorrection(0), fFitOK(false), fChi2(kBig), fNDoF(0.0)
+{
+  // Constructor
+
+  if( fHits.size() < kDefaultNHit ) {
+    fHits.reserve(kDefaultNHit);
+    fCoord.reserve(kDefaultNHit);
+  } else {
+    fCoord.reserve(fHits.size());
+  }
+  SetClsNums();
+}
+
+//_____________________________________________________________________________
 void THaVDCCluster::AddHit( THaVDCHit* hit )
 {
   // Add a hit to the cluster
 
   assert( hit );
-
   fHits.push_back( hit );
+
   if( fClsBeg > hit->GetWireNum() )
     fClsBeg = hit->GetWireNum();
   if( fClsEnd < hit->GetWireNum() )
     fClsEnd = hit->GetWireNum();
+}
+
+//_____________________________________________________________________________
+void THaVDCCluster::SetHits( const Vhit_t& hits )
+{
+  // Assign all hits in the given vector to the cluster
+
+  fHits.assign( ALL(hits) );
+  SetClsNums();
+}
+
+//_____________________________________________________________________________
+void THaVDCCluster::SetClsNums()
+{
+  // Set wire number range of this cluster
+
+  Vhit_t::size_type nhits = fHits.size();
+  if( nhits == 0 ) {
+    fClsBeg = kMaxInt;
+    fClsEnd = -1;
+  } else {
+    // We don't assume the hits are sorted
+    for( Vhit_t::size_type i = 0; i < nhits; ++i ) {
+      THaVDCHit* hit = fHits[i];
+      assert( hit );
+      if( fClsBeg > hit->GetWireNum() )
+	fClsBeg = hit->GetWireNum();
+      if( fClsEnd < hit->GetWireNum() )
+	fClsEnd = hit->GetWireNum();
+    }
+  }
 }
 
 //_____________________________________________________________________________

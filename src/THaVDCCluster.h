@@ -43,19 +43,21 @@ class THaVDCCluster : public TObject {
 public:
 
   THaVDCCluster( THaVDCPlane* owner = 0 );
+  THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner = 0 );
   virtual ~THaVDCCluster() {}
 
   enum EMode { kSimple, kWeighted, kT0 };
 
-  virtual void   AddHit( THaVDCHit* hit );
-  virtual void   EstTrackParameters();
-  virtual void   ConvertTimeToDist();
-  virtual void   FitTrack( EMode mode = kT0 );
-  virtual void   ClearFit();
-  virtual void   CalcChisquare(Double_t& chi2, Int_t& nhits) const;
+  void           AddHit( THaVDCHit* hit );
+  void           SetHits( const Vhit_t& hits );
+  void           EstTrackParameters();
+  void           ConvertTimeToDist();
+  void           FitTrack( EMode mode = kT0 );
+  void           ClearFit();
+  void           CalcChisquare(Double_t& chi2, Int_t& nhits) const;
   chi2_t         CalcDist();    // calculate global track to wire distances
 
-  // TObject functions redefined
+  // TObject function overrides
   virtual void   Clear( Option_t* opt="" );
   virtual Int_t  Compare( const TObject* obj ) const;
   virtual Bool_t IsSortable() const        { return kTRUE; }
@@ -126,6 +128,8 @@ protected:
   chi2_t CalcChisquare( Double_t slope, Double_t icpt, Double_t d0 ) const;
   void   Linear3DFit( Double_t& slope, Double_t& icpt, Double_t& d0 ) const;
   Int_t  LinearClusterFitWithT0();
+
+  void   SetClsNums();
 
   ClassDef(THaVDCCluster,0)          // A group of VDC hits
 };
