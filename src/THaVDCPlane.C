@@ -51,8 +51,10 @@ using namespace VDC;
 // Helpers
 //___________________________________________________________________________
 template< typename VectorElem > inline void
-NthCombination( UInt_t n, const std::vector<std::vector<VectorElem> >& vec,
-		std::vector<VectorElem>& selected )
+NthCombination( UInt_t n,
+		typename vector<vector<VectorElem> >::const_iterator iv,
+		typename vector<vector<VectorElem> >::const_iterator ie,
+		vector<VectorElem>& selected )
 {
   // Get the n-th combination of the elements in "vec" and
   // put result in "selected". selected[k] is one of the
@@ -61,17 +63,14 @@ NthCombination( UInt_t n, const std::vector<std::vector<VectorElem> >& vec,
   // This function is equivalent to vec.size() nested/recursive loops
   // over the elements of each of the vectors in vec.
 
-  using std::vector;
+  assert( ie-iv > 0 );
 
-  assert( !vec.empty() );
-
-  UInt_t vsiz = vec.size(), k;
-  selected.resize( vsiz );
-  typename vector< vector<VectorElem> >::const_iterator iv = vec.begin();
+  selected.resize( ie-iv );
   typename vector<VectorElem>::iterator is = selected.begin();
-  while( iv != vec.end() ) {
-    typename std::vector<VectorElem>::size_type npt = (*iv).size();
+  while( iv != ie ) {
+    typename vector<VectorElem>::size_type npt = (*iv).size();
     assert(npt);
+    UInt_t k;
     if( npt == 1 )
       k = 0;
     else {
@@ -737,7 +736,7 @@ Int_t THaVDCPlane::FindClusters()
       }
       for( UInt_t i = 0; i < ncombos; ++i ) {
 	Vhit_t selected;
-	NthCombination( i, region, selected );
+	NthCombination( i, ALL(region), selected );
 	assert( selected.size() == region.size() );
 
 
