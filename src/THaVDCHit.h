@@ -7,7 +7,6 @@
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "TObject.h"
 #include "THaVDCWire.h"
 #include <cstdio>
 #include <cassert>
@@ -21,7 +20,7 @@ public:
       ftrDist(kBig), fTrkNum(0), fClsNum(-1) {}
   virtual ~THaVDCHit() {}
 
-  virtual Double_t ConvertTimeToDist(Double_t slope);
+  virtual Double_t ConvertTimeToDist( Double_t slope, Double_t t0 = 0 );
   Int_t  Compare ( const TObject* obj ) const;
   Bool_t IsSortable () const { return kTRUE; }
 

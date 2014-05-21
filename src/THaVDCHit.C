@@ -8,27 +8,20 @@
 
 #include "THaVDCHit.h"
 #include "THaVDCTimeToDistConv.h"
+#include <cassert>
 
 const Double_t THaVDCHit::kBig = 1.e38; // Arbitrary large value
 
 //_____________________________________________________________________________
-Double_t THaVDCHit::ConvertTimeToDist(Double_t slope)
+Double_t THaVDCHit::ConvertTimeToDist( Double_t slope, Double_t t0 )
 {
   // Converts TDC time to drift distance
-  // Takes the (estimated) slope of the track as an argument
+  // Takes the (estimated) slope and time offset of the track as arguments
 
-  THaVDCTimeToDistConv* ttdConv = (fWire) ? fWire->GetTTDConv() : NULL;
+  assert( fWire->GetTTDConv() );  // set up in VDCPlane::ReadDatabase
 
-  if (ttdConv) {
-    // If a time to distance algorithm exists, use it to convert the TDC time
-    // to the drift distance
-    fDist = ttdConv->ConvertTimeToDist(fTime, slope, &fdDist);
-    return fDist;
-  }
-
-  Error("ConvertTimeToDist()", "No Time to dist algorithm available");
-  return 0.0;
-
+  fDist = fWire->GetTTDConv()->ConvertTimeToDist( fTime-t0, slope, &fdDist );
+  return fDist;
 }
 
 //_____________________________________________________________________________
@@ -47,12 +40,8 @@ Int_t THaVDCHit::Compare( const TObject* obj ) const
   if( obj == this )
     return 0;
 
-#ifndef NDEBUG
-  const THaVDCHit* other = dynamic_cast<const THaVDCHit*>( obj );
-  assert( other );
-#else
+  assert( dynamic_cast<const THaVDCHit*>(obj) );
   const THaVDCHit* other = static_cast<const THaVDCHit*>( obj );
-#endif
 
   ByWireThenTime isless;
   if( isless( this, other ) )
