@@ -24,8 +24,8 @@ using namespace VDC;
 
 class THaVDCClusterFitter : public THaVDCCluster {
 public:
-  THaVDCClusterFitter( THaVDCPlane* owner = 0 );
-  THaVDCClusterFitter( const Vhit_t& hits, THaVDCPlane* owner = 0 );
+  THaVDCClusterFitter( THaVDCPlane* owner );
+  THaVDCClusterFitter( const Vhit_t& hits, THaVDCPlane* owner );
   virtual ~THaVDCClusterFitter() {}
 
   enum EMode { kSimple, kWeighted, kLinearT0, kT0 };
