@@ -112,7 +112,6 @@ void THaVDCCluster::Clear( const Option_t* )
 
   fHits.clear();
   fPivot   = 0;
-  fPlane   = 0;
   fPointPair = 0;
   fTrack   = 0;
   fTrkNum  = 0;
