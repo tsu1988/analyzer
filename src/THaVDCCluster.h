@@ -17,16 +17,9 @@ class THaVDCPointPair;
 class THaTrack;
 
 namespace VDC {
-  struct FitCoord_t {
-    FitCoord_t( Double_t _x, Double_t _y, Double_t _w = 1.0, Int_t _s = 1 )
-      : x(_x), y(_y), w(_w), s(_s) {}
-    Double_t x, y, w;
-    Int_t s;
-  };
   typedef std::pair<Double_t,Int_t>  chi2_t;
   typedef THaVDCPointPair VDCpp_t;
   typedef std::vector<THaVDCHit*> Vhit_t;
-  typedef std::vector<FitCoord_t> Vcoord_t;
 
   extern const Double_t kBig;
 
@@ -46,14 +39,9 @@ public:
   THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner = 0 );
   virtual ~THaVDCCluster() {}
 
-  enum EMode { kSimple, kWeighted, kLinearT0, kT0 };
-
   void           AddHit( THaVDCHit* hit );
   void           SetHits( const Vhit_t& hits );
   void           SwapHits( Vhit_t& hits );
-  void           EstTrackParameters();
-  void           ConvertTimeToDist();
-  void           FitTrack( EMode mode = kT0 );
   void           ClearFit();
   void           CalcChisquare(Double_t& chi2, Int_t& nhits) const;
   chi2_t         CalcDist();    // calculate global track to wire distances
@@ -120,18 +108,7 @@ protected:
   Int_t          fClsBeg; 	     // Starting wire number
   Int_t          fClsEnd;            // Ending wire number
 
-  // Workspace for fitting routines
-  Vcoord_t       fCoord;             // coordinates to be fit
-
   void   CalcLocalDist();     // calculate the local track to wire distances
-
-  void   FitSimpleTrack( Bool_t weighted = false );
-  void   FitNLTrack();        // Non-linear 3-parameter fit
-
-  chi2_t CalcChisquare( Double_t slope, Double_t icpt, Double_t d0 ) const;
-  void   Linear3DFit( Double_t& slope, Double_t& icpt, Double_t& d0 ) const;
-  Int_t  LinearClusterFitWithT0();
-
   void   SetBegEnd();
 
   ClassDef(THaVDCCluster,0)          // A group of VDC hits
