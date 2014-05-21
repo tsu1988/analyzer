@@ -51,8 +51,7 @@ public:
   { assert( i>=0 && i<GetNHits() );
     return static_cast<THaVDCHit*>( fHits->UncheckedAt(i) ); }
 
-  Int_t          GetNWiresHit()      const { return fNWiresHit; }
-  Int_t          GetNpass()      const { return fNpass; }
+  UInt_t         GetNWiresHit()      const { return fNWiresHit; }
 
   Double_t       GetZ()              const { return fZ; }
   Double_t       GetWBeg()           const { return fWBeg; }
@@ -64,7 +63,7 @@ public:
   Double_t       GetDriftVel()       const { return fDriftVel; }
   Double_t       GetMinTime()        const { return fMinTime; }
   Double_t       GetMaxTime()        const { return fMaxTime; }
-  Double_t       GetMaxTdiff()        const { return fMaxTdiff; }
+  Double_t       GetMaxTdiff()       const { return fMaxTdiff; }
   Double_t       GetT0Resolution()   const { return fT0Resolution; }
 
 //   Double_t GetT0() const { return fT0; }
@@ -78,16 +77,15 @@ protected:
   TClonesArray*  fHits;      // Fired wires
   TClonesArray*  fClusters;  // Clusters
 
-  Int_t fNHits;      // Total number of hits (including multihits)
-  Int_t fNWiresHit;  // Number of wires with one or more hits
+  UInt_t fNHits;      // Total number of hits (including multihits)
+  UInt_t fNWiresHit;  // Number of wires with one or more hits
 
   // Parameters, read from database
-  Int_t fMinClustSize;       // Minimum number of wires needed for a cluster
-  Int_t fMaxClustSpan;       // Maximum size of cluster in wire spacings
-  Int_t fNMaxGap;            // Max gap in wire numbers in a cluster
-  Int_t fMinTime, fMaxTime;  // Min and Max limits of TDC times for clusters
-  Int_t fFlags;              // Analysis control flags
-  Int_t fNpass;              // Number of hit passes
+  UInt_t fMinClustSize;      // Minimum number of wires needed for a cluster
+  UInt_t fMaxClustSpan;      // Maximum size of cluster in wire spacings
+  UInt_t fNMaxGap;           // Max gap in wire numbers in a cluster
+  Int_t  fMinTime, fMaxTime; // Min and Max limits of TDC times for clusters
+  Int_t  fFlags;             // Analysis control flags
 
   Double_t fMinTdiff, fMaxTdiff;  // Min and Max limits of times between wires in cluster
 
