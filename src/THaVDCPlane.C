@@ -18,7 +18,7 @@
 #include "THaVDCPlane.h"
 #include "THaVDCWire.h"
 #include "THaVDCChamber.h"
-#include "THaVDCCluster.h"
+#include "THaVDCClusterFitter.h"
 #include "THaVDCHit.h"
 #include "THaDetMap.h"
 #include "THaVDCAnalyticTTDConv.h"
@@ -31,6 +31,7 @@
 #include "THaTriggerTime.h"
 
 #include <vector>
+#include <set>
 #include <algorithm>
 #include <numeric>
 #include <utility>
@@ -47,6 +48,8 @@ using namespace std;
 using namespace VDC;
 
 #define ALL(c) (c).begin(), (c).end()
+
+typedef vector<Vhit_t> Region_t;
 
 // Helpers
 //___________________________________________________________________________
@@ -68,9 +71,8 @@ NthCombination( UInt_t n,
   selected.resize( ie-iv );
   typename vector<VectorElem>::iterator is = selected.begin();
   while( iv != ie ) {
-    typename vector<VectorElem>::size_type npt = (*iv).size();
+    typename vector<VectorElem>::size_type npt = (*iv).size(), k;
     assert(npt);
-    UInt_t k;
     if( npt == 1 )
       k = 0;
     else {
@@ -96,11 +98,30 @@ template< typename Container > struct SizeMul :
   { return ( c.empty() ? val : val * c.size() ); }
 };
 
+//___________________________________________________________________________
+// Cluster candidate sorting functor
+struct CandidateSorter :
+  public std::binary_function< THaVDCCluster, THaVDCCluster, bool >
+{
+  bool operator() ( const THaVDCCluster& a, const THaVDCCluster& b ) const
+  {
+    // Sort by NDoF (largest first), then pivot wire number (lowest first),
+    // then chi2 of the fit. The goal is to pick the best chi2 for each
+    // distinct pivot choice. Different pivots usually (not always, though)
+    // indicate distinct clusters.
+    if( a.GetNDoF() != b.GetNDoF() )
+      return (a.GetNDoF() > b.GetNDoF());
+    if( a.GetPivotWireNum() != b.GetPivotWireNum() )
+      return (a.GetPivotWireNum() < b.GetPivotWireNum());
+    return (a.GetChi2() < b.GetChi2());
+  }
+};
+
 //_____________________________________________________________________________
 THaVDCPlane::THaVDCPlane( const char* name, const char* description,
 			  THaDetectorBase* parent )
-  : THaSubDetector(name,description,parent), /*fTable(0),*/ fTTDConv(0),
-    fVDC(0), fglTrg(0)
+  : THaSubDetector(name,description,parent), /*fTable(0),*/
+    fMinTdiff(0), fMaxTdiff(0), fTTDConv(0), fVDC(0), fglTrg(0)
 {
   // Constructor
 
@@ -108,9 +129,6 @@ THaVDCPlane::THaVDCPlane( const char* name, const char* description,
   fHits     = new TClonesArray("THaVDCHit", 20 );
   fClusters = new TClonesArray("THaVDCCluster", 5 );
   fWires    = new TClonesArray("THaVDCWire", 368 );
-
-  fNpass = 0;
-  fMinTdiff = fMaxTdiff = 0.0;
 
   fVDC = dynamic_cast<THaVDC*>( GetMainDetector() );
 }
@@ -677,6 +695,14 @@ private:
 };
 
 //_____________________________________________________________________________
+static inline Region_t::size_type Span( Region_t::const_iterator start,
+					Region_t::const_iterator end )
+{
+  assert( start < end );
+  return (*(end-1)).front()->GetWireNum() - (*start).front()->GetWireNum();
+}
+
+//_____________________________________________________________________________
 Int_t THaVDCPlane::FindClusters()
 {
   // Find clusters of hits in a VDC plane.
@@ -696,11 +722,10 @@ Int_t THaVDCPlane::FindClusters()
       continue;
     }
     // First hit of a new region
-    vector<Vhit_t>
-      region( 1, Vhit_t(1,hit) ); // All hits in a region of interest
+    Region_t region( 1, Vhit_t(1,hit) ); // All hits in a region of interest
 
     // Add hits to region
-    Int_t nwires = 1;
+    Vhit_t::size_type nwires = 1;
     while( ++i < nHits ) {
       THaVDCHit* nextHit = GetHit(i);
       assert( nextHit );    // else bug in Decode
@@ -710,40 +735,70 @@ Int_t THaVDCPlane::FindClusters()
       assert( ndif >= 0 );  // else hits not sorted correctly
       // A gap of more than fNMaxGap wires unambiguously separates
       // regions of interest
-      if( ndif > fNMaxGap+1 )
+      if( static_cast<UInt_t>(ndif) > fNMaxGap+1 )
 	break;
       // Add hit to appropriate array of hits on given wire number
       if( ndif == 0 ) {
+	assert( !(region.empty() || region.back().empty()) );
 	assert( nextHit->GetWireNum() == region.back().back()->GetWireNum() );
 	region.back().push_back(nextHit);
       } else {
 	region.push_back( Vhit_t(1,nextHit) );
-      }
-      if( ndif > 0 )
 	++nwires;    // unique wires
+      }
       hit = nextHit;
     }
     assert( i <= nHits );
+    assert( nwires == region.size() );
+
+    if( nwires < fMinClustSize )
+      continue;
+
     // We have a region of interest
-    if( nwires >= fMinClustSize ) {
-      UInt_t ncombos;
-      try {
-	ncombos = accumulate( ALL(region), (UInt_t)1, SizeMul<Vhit_t>() );
-      }
-      catch( overflow_error ) {
-	continue;
-      }
-      for( UInt_t i = 0; i < ncombos; ++i ) {
-	Vhit_t selected;
-	NthCombination( i, ALL(region), selected );
-	assert( selected.size() == region.size() );
+    typedef set<THaVDCCluster,CandidateSorter> ClustSet_t;
+    ClustSet_t candidates;
+    for( Region_t::size_type slice_size = fMinClustSize;
+	 slice_size <= fMaxClustSpan+1; ++slice_size ) {
+      for( Region_t::const_iterator start = region.begin(); ; ++start ) {
+	Region_t::const_iterator end = start+slice_size;
+	if( end > region.end() || Span(start, end) > fMaxClustSpan )
+	  break;
 
+	UInt_t ncombos;
+	try {
+	  ncombos = accumulate( start, end, (UInt_t)1, SizeMul<Vhit_t>() );
+	}
+	catch( overflow_error ) {
+	  continue;
+	}
+	THaVDCClusterFitter clust(this);
+	//	clust.SetMaxT0(...);
+	for( UInt_t i = 0; i < ncombos; ++i ) {
+	  NthCombination( i, start, end, clust.GetHits() );
+	  assert( clust.GetSize() == static_cast<Int_t>(slice_size) );
 
+	  clust.ClearFit();
+	  clust.ConvertTimeToDist();
+	  clust.FitTrack( THaVDCClusterFitter::kLinearT0 );
+	  if( !clust.IsFitOK() ||
+	      TMath::Abs(clust.GetT0()) > GetT0Resolution() ||
+	      clust.GetPivot() == clust.GetHits().front()   ||
+	      clust.GetPivot() == clust.GetHits().back() )
+	    continue;
+
+	  clust.ConvertTimeToDist( clust.GetT0() );
+	  clust.FitTrack( THaVDCClusterFitter::kT0 );
+	  if( !clust.IsFitOK() )
+	    continue;
+
+	  // Save/sort cluster candidates in a set. Note that the insertion will
+	  // default-copy-construct a THaVDCCluster from the THaVDCClusterFitter
+	  candidates.insert( clust );
+	}
       }
     }
 
   }
-
 
   return 0;
 }
@@ -899,10 +954,12 @@ Int_t THaVDCPlane::FitTracks()
     // clusters, i.e. either the rough guess from
     // THaVDCCluster::EstTrackParameters or the global slope from
     // THaVDC::ConstructTracks
-    clust->ConvertTimeToDist();
 
-    // Fit drift distances to get intercept, slope.
-    clust->FitTrack();
+    //FIXME: this is now done when clusters are built
+    // clust->ConvertTimeToDist();
+
+    // // Fit drift distances to get intercept, slope.
+    // clust->FitTrack();
 
 #ifdef CLUST_RAWDATA_HACK
     // HACK: write out cluster info for small-t0 clusters in u1
