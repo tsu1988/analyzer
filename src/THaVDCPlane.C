@@ -99,7 +99,19 @@ template< typename Container > struct SizeMul :
 };
 
 //___________________________________________________________________________
-// Cluster candidate sorting functor
+// Cluster candidate sorting functors
+struct CandidateRawSorter :
+  public std::binary_function< THaVDCCluster, THaVDCCluster, bool >
+{
+  bool operator() ( const THaVDCCluster& a, const THaVDCCluster& b ) const
+  {
+    // Sort by chi2/dof of the fit
+    assert( a.GetNDoF() > 0 && b.GetNDoF() > 0 );
+    return ( a.GetChi2()/a.GetNDoF() < b.GetChi2()/b.GetNDoF() );
+  }
+};
+
+//___________________________________________________________________________
 struct CandidateSorter :
   public std::binary_function< THaVDCCluster, THaVDCCluster, bool >
 {
@@ -755,8 +767,8 @@ Int_t THaVDCPlane::FindClusters()
       continue;
 
     // We have a region of interest
-    typedef set<THaVDCCluster,CandidateSorter> ClustSet_t;
-    ClustSet_t candidates;
+    typedef set<THaVDCCluster,CandidateRawSorter> ClustRawSet_t;
+    ClustRawSet_t candidates;
     for( Region_t::size_type slice_size = fMinClustSize;
 	 slice_size <= fMaxClustSpan+1; ++slice_size ) {
       for( Region_t::const_iterator start = region.begin(); ; ++start ) {
@@ -774,10 +786,10 @@ Int_t THaVDCPlane::FindClusters()
 	THaVDCClusterFitter clust(this);
 	//	clust.SetMaxT0(...);
 	for( UInt_t i = 0; i < ncombos; ++i ) {
+	  clust.Clear();
 	  NthCombination( i, start, end, clust.GetHits() );
 	  assert( clust.GetSize() == static_cast<Int_t>(slice_size) );
 
-	  clust.ClearFit();
 	  clust.ConvertTimeToDist();
 	  clust.FitTrack( THaVDCClusterFitter::kLinearT0 );
 	  if( !clust.IsFitOK() ||
@@ -786,10 +798,12 @@ Int_t THaVDCPlane::FindClusters()
 	      clust.GetPivot() == clust.GetHits().back() )
 	    continue;
 
+	  clust.ClearFit();
 	  clust.ConvertTimeToDist( clust.GetT0() );
 	  clust.FitTrack( THaVDCClusterFitter::kT0 );
 	  if( !clust.IsFitOK() )
 	    continue;
+	  clust.SetBegEnd();
 
 	  // Save/sort cluster candidates in a set. Note that the insertion will
 	  // default-copy-construct a THaVDCCluster from the THaVDCClusterFitter
@@ -797,6 +811,21 @@ Int_t THaVDCPlane::FindClusters()
 	}
       }
     }
+    // Attempt to group the fitted chi2/dof into "reasonable" and "bad" fits
+    // using a clustering algorithm
+
+    // For each given pivot wire, eliminate candidates whose hits are merely
+    // subsets of another candidate's hits.
+    // Doing this here ensures that the superset has a reasonable chi2/dof, too.
+    // FIXME: What if the superset shares a hit with a neighboring pivot wire
+    // cluster, but a subset doesn't? Then there is an ambiguity that needs to
+    // be resolved later
+
+    // Any ambiguities in assigning hits to clusters should result in a list
+    // of possibilities that must be resolved later. How? ClusterGroups?
+
+    // THaVDCCluster* clust =
+    //   new ( (*fClusters)[nextClust++] ) THaVDCCluster(this);
 
   }
 
