@@ -34,9 +34,8 @@ using namespace VDC;
 class THaVDCCluster : public TObject {
 
 public:
-
-  THaVDCCluster( THaVDCPlane* owner = 0 );
-  THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner = 0 );
+  THaVDCCluster( THaVDCPlane* owner );
+  THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner );
   virtual ~THaVDCCluster() {}
 
   void           AddHit( THaVDCHit* hit );
@@ -77,10 +76,8 @@ public:
   Bool_t         IsFitOK()           const { return fFitOK; }
   Bool_t         IsUsed()            const { return (fTrack != 0); }
 
-  void           SetPlane( THaVDCPlane* plane )     { fPlane = plane; }
-  void           SetIntercept( Double_t intercept ) { fInt = intercept; }
+  void           SetBegEnd();
   void           SetSlope( Double_t slope)          { fSlope = slope;}
-  void           SetPivot( THaVDCHit* piv)          { fPivot = piv; }
   void           SetTimeCorrection( Double_t dt )   { fTimeCorrection = dt; }
   void           SetPointPair( VDCpp_t* pp )        { fPointPair = pp; }
   void           SetTrack( THaTrack* track );
@@ -109,7 +106,6 @@ protected:
   Int_t          fClsEnd;            // Ending wire number
 
   void   CalcLocalDist();     // calculate the local track to wire distances
-  void   SetBegEnd();
 
   ClassDef(THaVDCCluster,0)          // A group of VDC hits
 };
