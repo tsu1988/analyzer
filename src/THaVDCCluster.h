@@ -46,10 +46,11 @@ public:
   THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner = 0 );
   virtual ~THaVDCCluster() {}
 
-  enum EMode { kSimple, kWeighted, kT0 };
+  enum EMode { kSimple, kWeighted, kLinearT0, kT0 };
 
   void           AddHit( THaVDCHit* hit );
   void           SetHits( const Vhit_t& hits );
+  void           SwapHits( Vhit_t& hits );
   void           EstTrackParameters();
   void           ConvertTimeToDist();
   void           FitTrack( EMode mode = kT0 );
@@ -65,8 +66,10 @@ public:
 
   //Get and Set Functions
   THaVDCHit*     GetHit(Int_t i)     const { return fHits[i]; }
+  Vhit_t&        GetHits()                 { return fHits; }
   THaVDCPlane*   GetPlane()          const { return fPlane; }
   Int_t          GetSize ()          const { return fHits.size(); }
+  Int_t          GetSpan()           const { return fClsEnd-fClsBeg; }
   Double_t       GetSlope()          const { return fSlope; }
   Double_t       GetLocalSlope()     const { return fLocalSlope; }
   Double_t       GetSigmaSlope()     const { return fSigmaSlope; }
@@ -76,11 +79,11 @@ public:
   Int_t          GetPivotWireNum()   const;
   Double_t       GetTimeCorrection() const { return fTimeCorrection; }
   Double_t       GetT0()             const { return fT0; }
+  Double_t       GetSigmaT0()        const { return fSigmaT0; }
   VDCpp_t*       GetPointPair()      const { return fPointPair; }
   THaTrack*      GetTrack()          const { return fTrack; }
   Int_t          GetTrackIndex()     const;
   Int_t          GetTrkNum()         const { return fTrkNum; }
-  Double_t       GetSigmaT0()        const { return fSigmaT0; }
   Double_t       GetChi2()           const { return fChi2; }
   Double_t       GetNDoF()           const { return fNDoF; }
   Bool_t         IsFitOK()           const { return fFitOK; }
@@ -129,7 +132,7 @@ protected:
   void   Linear3DFit( Double_t& slope, Double_t& icpt, Double_t& d0 ) const;
   Int_t  LinearClusterFitWithT0();
 
-  void   SetClsNums();
+  void   SetBegEnd();
 
   ClassDef(THaVDCCluster,0)          // A group of VDC hits
 };
