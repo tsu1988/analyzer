@@ -27,7 +27,7 @@
 using namespace std;
 
 const Double_t VDC::kBig = 1e38;  // Arbitrary large value
-static const Vhit_t::size_type kDefaultNHit = 16;
+const Vhit_t::size_type kDefaultNHit = 16;
 
 #define ALL(c) (c).begin(), (c).end()
 
@@ -37,7 +37,7 @@ THaVDCCluster::THaVDCCluster( THaVDCPlane* owner )
     fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig),
     fInt(kBig), fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig),
     fPivot(0), fTimeCorrection(0),
-    fFitOK(false), fChi2(kBig), fNDoF(0.0), fClsBeg(kMaxInt), fClsEnd(-1)
+    fFitOK(false), fChi2(kBig), fNDoF(0.0), fClsBeg(kMaxInt-1), fClsEnd(-1)
 {
   // Constructor
 
@@ -54,13 +54,8 @@ THaVDCCluster::THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner )
 {
   // Constructor
 
-  if( fHits.size() < kDefaultNHit ) {
-    fHits.reserve(kDefaultNHit);
-    fCoord.reserve(kDefaultNHit);
-  } else {
-    fCoord.reserve(fHits.size());
-  }
-  SetClsNums();
+  fCoord.reserve(fHits.size());
+  SetBegEnd();
 }
 
 //_____________________________________________________________________________
@@ -83,21 +78,31 @@ void THaVDCCluster::SetHits( const Vhit_t& hits )
   // Assign all hits in the given vector to the cluster
 
   fHits.assign( ALL(hits) );
-  SetClsNums();
+  SetBegEnd();
 }
 
 //_____________________________________________________________________________
-void THaVDCCluster::SetClsNums()
+void THaVDCCluster::SwapHits( Vhit_t& hits )
+{
+  // Swap all hits in the given vector with the ones currently in the cluster.
+  // This is more efficient than SetHits, but invalidates the input vector.
+
+  fHits.swap( hits );
+  SetBegEnd();
+}
+
+//_____________________________________________________________________________
+void THaVDCCluster::SetBegEnd()
 {
   // Set wire number range of this cluster
 
-  Vhit_t::size_type nhits = fHits.size();
+  Int_t nhits = GetSize();
   if( nhits == 0 ) {
-    fClsBeg = kMaxInt;
+    fClsBeg = kMaxInt-1;
     fClsEnd = -1;
   } else {
     // We don't assume the hits are sorted
-    for( Vhit_t::size_type i = 0; i < nhits; ++i ) {
+    for( Int_t i = 0; i < nhits; ++i ) {
       THaVDCHit* hit = fHits[i];
       assert( hit );
       if( fClsBeg > hit->GetWireNum() )
@@ -285,8 +290,10 @@ void THaVDCCluster::FitTrack( EMode mode )
   case kWeighted:
     FitSimpleTrack(true);
     break;
+  case kLinearT0:
+    LinearClusterFitWithT0();
+    break;
   case kT0:
-    //LinearClusterFitWithT0();
     FitNLTrack();
     break;
   }
