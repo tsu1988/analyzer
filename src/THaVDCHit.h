@@ -11,6 +11,15 @@
 #include <cstdio>
 #include <cassert>
 #include <functional>
+#include <list>
+
+class THaVDCCluster;
+
+namespace VDC {
+  typedef std::list<THaVDCCluster*> LClust_t;
+  extern const Double_t kBig;
+}
+using namespace VDC;
 
 class THaVDCHit : public TObject {
 
@@ -45,6 +54,11 @@ public:
   void     SetTrkNum(Int_t num)       { fTrkNum = num; }
   void     SetClsNum(Int_t num)       { fClsNum = num; }
 
+  // Support for cluster list
+  void             AddCluster( THaVDCCluster* cl ) { fClusters.push_back(cl); }
+  LClust_t&        GetClusters()                   { return fClusters; }
+  const LClust_t&  GetClusters() const             { return fClusters; }
+
   // Functor for ordering hits
   struct ByWireThenTime :
     public std::binary_function< THaVDCHit*, THaVDCHit*, bool >
@@ -59,8 +73,6 @@ public:
   };
 
 protected:
-  static const Double_t kBig;  //! Arbitrary lrg number indicating invalid data
-
   THaVDCWire* fWire;     // Wire on which the hit occurred
   Int_t       fRawTime;  // TDC value (channels)
   Double_t    fTime;     // Raw drift time, corrected for trigger time (s)
@@ -70,6 +82,7 @@ protected:
   Double_t    fltrDist;  // (Perpendicular) distance from the local track (m)
   Int_t       fTrkNum;   // Number of the track using this hit (0 = unused)
   Int_t       fClsNum;   // Number of the cluster using this hit (-1 = unused)
+  LClust_t    fClusters; // All clusters using this hit
 
  private:
   THaVDCHit( const THaVDCHit& );

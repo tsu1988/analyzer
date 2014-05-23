@@ -26,11 +26,11 @@ const Vhit_t::size_type kDefaultNHit = 16;
 
 //_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( THaVDCPlane* owner )
-  : fPlane(owner), fPointPair(0), fTrack(0), fTrkNum(0),
-    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig),
-    fInt(kBig), fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig),
-    fPivot(0), fTimeCorrection(0),
-    fFitOK(false), fChi2(kBig), fNDoF(0.0), fClsBeg(kMaxInt-1), fClsEnd(-1)
+  : fPlane(owner), fPointPair(0), fTrack(0), fTrkNum(0), fSlope(kBig),
+    fLocalSlope(kBig), fSigmaSlope(kBig), fInt(kBig), fSigmaInt(kBig),
+    fT0(kBig), fSigmaT0(kBig), fPivot(0), fTimeCorrection(0),
+    fFitOK(false), fChi2(kBig), fNDoF(0), fClsBeg(kMaxInt-1), fClsEnd(-1),
+    fSharedHits(kUndefined), fHitsClaimed(false)
 {
   // Constructor
 
@@ -40,13 +40,75 @@ THaVDCCluster::THaVDCCluster( THaVDCPlane* owner )
 //_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner )
   : fHits(hits), fPlane(owner), fPointPair(0), fTrack(0), fTrkNum(0),
-    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig),
-    fInt(kBig), fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig),
-    fPivot(0), fTimeCorrection(0), fFitOK(false), fChi2(kBig), fNDoF(0.0)
+    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig), fInt(kBig),
+    fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig), fPivot(0), fTimeCorrection(0),
+    fFitOK(false), fChi2(kBig), fNDoF(0), fSharedHits(kUndefined),
+    fHitsClaimed(false)
 {
   // Constructor
 
   SetBegEnd();
+}
+
+//_____________________________________________________________________________
+THaVDCCluster::THaVDCCluster( const THaVDCCluster& rhs )
+  : fHits(rhs.fHits), fPlane(rhs.fPlane), fPointPair(rhs.fPointPair),
+    fTrack(rhs.fTrack), fTrkNum(rhs.fTrkNum), fSlope(rhs.fSlope),
+    fLocalSlope(rhs.fLocalSlope), fSigmaSlope(rhs.fSigmaSlope), fInt(rhs.fInt),
+    fSigmaInt(rhs.fSigmaInt), fT0(rhs.fT0), fSigmaT0(rhs.fSigmaT0),
+    fPivot(rhs.fPivot), fTimeCorrection(rhs.fTimeCorrection),
+    fFitOK(rhs.fFitOK), fChi2(rhs.fChi2), fNDoF(rhs.fNDoF),
+    fClsBeg(rhs.fClsBeg), fClsEnd(rhs.fClsEnd), fSharedHits(rhs.fSharedHits)
+{
+  // Copy constructor. If hits have been claimed by the source cluster,
+  // this cluster will claim them too.
+
+  if( rhs.fHitsClaimed )
+    ClaimHits();
+}
+
+//_____________________________________________________________________________
+THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
+{
+  // Assignment operator. If hits have been claimed by us, they are released.
+  // If hits have been claimed by the source, this cluster will claim them too.
+
+  if( this != &rhs ) {
+    if( fHitsClaimed )
+      ReleaseHits();
+    fHits           = rhs.fHits;
+    fPlane          = rhs.fPlane;
+    fPointPair      = rhs.fPointPair;
+    fTrack          = rhs.fTrack;
+    fTrkNum         = rhs.fTrkNum;
+    fSlope          = rhs.fSlope;
+    fLocalSlope     = rhs.fLocalSlope;
+    fSigmaSlope     = rhs.fSigmaSlope;
+    fInt            = rhs.fInt;
+    fSigmaInt       = rhs.fSigmaInt;
+    fT0             = rhs.fT0;
+    fSigmaT0        = rhs.fSigmaT0;
+    fPivot          = rhs.fPivot;
+    fTimeCorrection = rhs.fTimeCorrection;
+    fFitOK          = rhs.fFitOK;
+    fChi2           = rhs.fChi2;
+    fNDoF           = rhs.fNDoF;
+    fClsBeg         = rhs.fClsBeg;
+    fClsEnd         = rhs.fClsEnd;
+    fSharedHits     = rhs.fSharedHits;
+    if( rhs.fHitsClaimed )
+      ClaimHits();
+  }
+  return *this;
+}
+
+//_____________________________________________________________________________
+THaVDCCluster::~THaVDCCluster()
+{
+  // Destructor
+
+  if( fHitsClaimed )
+    ReleaseHits();
 }
 
 //_____________________________________________________________________________
@@ -109,6 +171,8 @@ void THaVDCCluster::Clear( const Option_t* )
 {
   // Clear the contents of the cluster and reset status
 
+  if( fHitsClaimed )
+    ReleaseHits();
   fHits.clear();
   fPivot   = 0;
   fPointPair = 0;
@@ -116,6 +180,7 @@ void THaVDCCluster::Clear( const Option_t* )
   fTrkNum  = 0;
   fClsBeg  = -1;
   fClsEnd  = kMaxInt;
+  fSharedHits = kUndefined;
 }
 
 //_____________________________________________________________________________
@@ -279,7 +344,6 @@ void THaVDCCluster::CalcChisquare(Double_t& chi2, Int_t& nhits ) const
   }
 }
 
-
 //_____________________________________________________________________________
 void THaVDCCluster::Print( Option_t* ) const
 {
@@ -290,35 +354,35 @@ void THaVDCCluster::Print( Option_t* ) const
   cout << "Size: " << GetSize() << endl;
 
   cout << "Wire numbers:";
-  for( int i = 0; i < GetSize(); i++ ) {
+  for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetWireNum();
     if( fHits[i] == fPivot )
       cout << "*";
   }
   cout << endl;
   cout << "Wire raw times:";
-  for( int i = 0; i < GetSize(); i++ ) {
+  for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetRawTime();
     if( fHits[i] == fPivot )
       cout << "*";
   }
   cout << endl;
   cout << "Wire times:";
-  for( int i = 0; i < GetSize(); i++ ) {
+  for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetTime();
     if( fHits[i] == fPivot )
       cout << "*";
   }
   cout << endl;
   cout << "Wire positions:";
-  for( int i = 0; i < GetSize(); i++ ) {
+  for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetPos();
     if( fHits[i] == fPivot )
       cout << "*";
   }
   cout << endl;
   cout << "Wire drifts:";
-  for( int i = 0; i < GetSize(); i++ ) {
+  for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetDist();
     if( fHits[i] == fPivot )
       cout << "*";
@@ -334,5 +398,63 @@ void THaVDCCluster::Print( Option_t* ) const
 
 }
 
-///////////////////////////////////////////////////////////////////////////////
+//_____________________________________________________________________________
+void THaVDCCluster::ReleaseHits()
+{
+  // Un-associate all hits of this cluster
+
+  assert( fHitsClaimed );   // logic error in caller
+  for( Int_t i = 0; i < GetSize(); ++i ) {
+    LClust_t& lst = GetHit(i)->GetClusters();
+    for( LClust_t::iterator it = lst.begin(); it != lst.end(); ) {
+      if( *it == this )
+	it = lst.erase(it);
+      else
+	++it;
+    }
+  }
+  fHitsClaimed = false;
+}
+
+//_____________________________________________________________________________
+void THaVDCCluster::ClaimHits()
+{
+  // Associate all hits of this cluster
+
+  assert( !fHitsClaimed );   // logic error in caller
+  for( Int_t i = 0; i < GetSize(); ++i ) {
+    GetHit(i)->GetClusters().push_back(this);
+  }
+  fHitsClaimed = true;
+}
+
+//_____________________________________________________________________________
+Bool_t THaVDCCluster::HasSharedHits() const
+{
+  // Test if this cluster's hits are shared with any other cluster that has
+  // a different pivot. Uses the cluster lists stored with the hits.
+
+  if( fSharedHits != kUndefined )   // Cached result
+    return ( fSharedHits == kTrue );
+
+  for( Int_t i = 0; i < GetSize(); ++i ) {
+    const LClust_t& lst = GetHit(i)->GetClusters();
+    assert( !lst.empty() );
+    if( lst.size() == 1 ) {
+      assert( lst.front() == this );  // else cluster list incorrectly built
+      continue;
+    }
+    for( LClust_t::const_iterator it = lst.begin(); it != lst.end(); ++it ) {
+      if( (*it)->GetPivot() == GetPivot() )
+	continue;
+      assert( *it != this );
+      fSharedHits = kTrue;
+      return true;
+    }
+  }
+  fSharedHits = kFalse;
+  return false;
+}
+
+//_____________________________________________________________________________
 ClassImp(THaVDCCluster)
