@@ -10,8 +10,6 @@
 #include "THaVDCTimeToDistConv.h"
 #include <cassert>
 
-const Double_t THaVDCHit::kBig = 1.e38; // Arbitrary large value
-
 //_____________________________________________________________________________
 Double_t THaVDCHit::ConvertTimeToDist( Double_t slope, Double_t t0 )
 {
