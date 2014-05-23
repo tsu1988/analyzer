@@ -20,7 +20,6 @@ namespace VDC {
   typedef std::pair<Double_t,Int_t>  chi2_t;
   typedef THaVDCPointPair VDCpp_t;
   typedef std::vector<THaVDCHit*> Vhit_t;
-
   extern const Double_t kBig;
 
   inline chi2_t operator+( chi2_t a, const chi2_t& b ) {
@@ -36,7 +35,9 @@ class THaVDCCluster : public TObject {
 public:
   THaVDCCluster( THaVDCPlane* owner );
   THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner );
-  virtual ~THaVDCCluster() {}
+  THaVDCCluster( const THaVDCCluster& rhs );
+  THaVDCCluster& operator=( const THaVDCCluster& rhs );
+  virtual ~THaVDCCluster();
 
   void           AddHit( THaVDCHit* hit );
   void           SetHits( const Vhit_t& hits );
@@ -54,6 +55,7 @@ public:
   //Get and Set Functions
   THaVDCHit*     GetHit(Int_t i)     const { return fHits[i]; }
   Vhit_t&        GetHits()                 { return fHits; }
+  const Vhit_t&  GetHits()           const { return fHits; }
   THaVDCPlane*   GetPlane()          const { return fPlane; }
   Int_t          GetSize ()          const { return fHits.size(); }
   Int_t          GetSpan()           const { return fClsEnd-fClsBeg; }
@@ -73,6 +75,7 @@ public:
   Int_t          GetTrkNum()         const { return fTrkNum; }
   Double_t       GetChi2()           const { return fChi2; }
   Double_t       GetNDoF()           const { return fNDoF; }
+  Bool_t         HasSharedHits()     const;
   Bool_t         IsFitOK()           const { return fFitOK; }
   Bool_t         IsUsed()            const { return (fTrack != 0); }
 
@@ -81,6 +84,9 @@ public:
   void           SetTimeCorrection( Double_t dt )   { fTimeCorrection = dt; }
   void           SetPointPair( VDCpp_t* pp )        { fPointPair = pp; }
   void           SetTrack( THaTrack* track );
+
+  void           ReleaseHits();
+  void           ClaimHits();
 
 protected:
   Vhit_t         fHits;              // Hits associated w/this cluster
@@ -104,6 +110,10 @@ protected:
   Double_t       fNDoF;              // NDoF in local chi2 calculation
   Int_t          fClsBeg; 	     // Starting wire number
   Int_t          fClsEnd;            // Ending wire number
+
+  enum EBool3 { kUndefined, kFalse, kTrue };
+  mutable EBool3 fSharedHits;        // Cache for HasSharedHits
+  Bool_t         fHitsClaimed;       // If true, ClaimHits has run
 
   void   CalcLocalDist();     // calculate the local track to wire distances
 
