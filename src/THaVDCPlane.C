@@ -100,19 +100,7 @@ template< typename Container > struct SizeMul :
 };
 
 //___________________________________________________________________________
-// Cluster candidate sorting functors
-struct CandidateRawSorter :
-  public std::binary_function< THaVDCCluster, THaVDCCluster, bool >
-{
-  bool operator() ( const THaVDCCluster& a, const THaVDCCluster& b ) const
-  {
-    // Sort by chi2/dof of the fit
-    assert( a.GetNDoF() > 0 && b.GetNDoF() > 0 );
-    return ( a.GetChi2()/a.GetNDoF() < b.GetChi2()/b.GetNDoF() );
-  }
-};
-
-//___________________________________________________________________________
+// Cluster candidate sorting functor
 struct CandidateSorter :
   public std::binary_function< THaVDCCluster, THaVDCCluster, bool >
 {
@@ -148,6 +136,9 @@ private:
   Option_t* m_opt;
 };
 
+typedef set<THaVDCCluster,CandidateSorter> ClustSet_t;
+typedef ClustSet_t::const_iterator clust_iter_t;
+
 //_____________________________________________________________________________
 THaVDCPlane::THaVDCPlane( const char* name, const char* description,
 			  THaDetectorBase* parent )
@@ -162,6 +153,38 @@ THaVDCPlane::THaVDCPlane( const char* name, const char* description,
   fWires    = new TClonesArray("THaVDCWire", 368 );
 
   fVDC = dynamic_cast<THaVDC*>( GetMainDetector() );
+}
+
+//_____________________________________________________________________________
+THaVDCPlane::~THaVDCPlane()
+{
+  // Destructor.
+
+  if( fIsSetup )
+    RemoveVariables();
+  delete fWires;
+  delete fHits;
+  delete fClusters;
+  delete fTTDConv;
+//   delete [] fTable;
+}
+
+//_____________________________________________________________________________
+THaVDCCluster* THaVDCPlane::AddCluster( const THaVDCCluster& newCluster )
+{
+  // Add given cluster to the fClusters TClonesArray
+
+  assert( GetNClusters() >= 0 );
+  return new ( (*fClusters)[GetNClusters()] ) THaVDCCluster(newCluster);
+}
+
+//_____________________________________________________________________________
+void THaVDCPlane::Clear( Option_t* )
+{
+  // Clears the contents of the and hits and clusters
+  fNHits = fNWiresHit = 0;
+  fHits->Clear();
+  fClusters->Clear();
 }
 
 //_____________________________________________________________________________
@@ -547,29 +570,6 @@ Int_t THaVDCPlane::DefineVariables( EMode mode )
 }
 
 //_____________________________________________________________________________
-THaVDCPlane::~THaVDCPlane()
-{
-  // Destructor.
-
-  if( fIsSetup )
-    RemoveVariables();
-  delete fWires;
-  delete fHits;
-  delete fClusters;
-  delete fTTDConv;
-//   delete [] fTable;
-}
-
-//_____________________________________________________________________________
-void THaVDCPlane::Clear( Option_t* )
-{
-  // Clears the contents of the and hits and clusters
-  fNHits = fNWiresHit = 0;
-  fHits->Clear();
-  fClusters->Clear();
-}
-
-//_____________________________________________________________________________
 Int_t THaVDCPlane::Decode( const THaEvData& evData )
 {
   // Converts the raw data into hit information
@@ -750,7 +750,7 @@ Int_t THaVDCPlane::FindClusters()
   // Assumes that the wires are numbered such that increasing wire numbers
   // correspond to decreasing physical position.
 
-  assert( GetNClusters() == 0 );   // should have already called Clear()
+  assert( GetNClusters() == 0 );   // Clear() already called
 
   TimeCut timecut(fVDC,this);
 
@@ -796,8 +796,9 @@ Int_t THaVDCPlane::FindClusters()
       continue;
 
     // We have a region of interest
-    typedef set<THaVDCCluster,CandidateSorter> ClustRawSet_t;
-    ClustRawSet_t candidates;
+    ClustSet_t candidates;
+    Bool_t multi_pivot = false;
+    THaVDCHit* prev_pivot = 0;
     for( Region_t::size_type slice_size = fMinClustSize;
 	 slice_size <= fMaxClustSpan+1; ++slice_size ) {
       for( Region_t::const_iterator start = region.begin(); ; ++start ) {
@@ -842,6 +843,10 @@ Int_t THaVDCPlane::FindClusters()
 
 	  clust.SetBegEnd();
 
+	  if( prev_pivot && prev_pivot != clust.GetPivot() )
+	    multi_pivot = true;
+	  prev_pivot = clust.GetPivot();
+
 	  // Save/sort cluster candidates in a set. Note that the insertion will
 	  // default-copy-construct a THaVDCCluster from the THaVDCClusterFitter
 	  candidates.insert( clust );
@@ -854,159 +859,44 @@ Int_t THaVDCPlane::FindClusters()
 #endif
     // For each given pivot wire, eliminate candidates whose hits are merely
     // subsets of another candidate's hits.
-    // Doing this here ensures that the superset has a reasonable chi2/dof, too.
-    // FIXME: What if the superset shares a hit with a neighboring pivot wire
-    // cluster, but a subset doesn't? Then there is an ambiguity that needs to
-    // be resolved later
-
-    // Any ambiguities in assigning hits to clusters should result in a list
-    // of possibilities that must be resolved later. How? ClusterGroups?
-    // Answer: if the superset that causes elimination has any shared hits
-    // with clusters with different pivots, keep both the superset and the
-    // largest subset without shared hits. Hit sharing ambiguities can be
-    // taken care of very effectively in THaVDC::ConstructTracks (TODO!)
-
-    // THaVDCCluster* clust =
-    //   new ( (*fClusters)[nextClust++] ) THaVDCCluster(this);
-
+    for( clust_iter_t it = candidates.begin(); it != candidates.end(); ) {
+      const THaVDCCluster& topCluster = *it;
+      AddCluster( topCluster );
+      THaVDCHit* curPivot = topCluster.GetPivot();
+      Bool_t shared_hits = multi_pivot && topCluster.HasSharedHits();
+      while( ++it != candidates.end() && (*it).GetPivot() == curPivot ) {
+	const THaVDCCluster& nextCluster = *it;
+	assert( nextCluster.GetSize() <= topCluster.GetSize() );
+	//TODO: assert cluster hit vectors are ordered
+	if( nextCluster.GetSize() == topCluster.GetSize() ) {
+	  // Same-size clusters. nextCluster has larger chi2 than topCluster.
+	  // We keep it nevertheless because the global slope from combining
+	  // it with other clusters may give a better overall chi2.
+	  assert( !includes( ALL(topCluster.GetHits()), ALL(nextCluster.GetHits()),
+			     THaVDCHit::ByWireThenTime() ));
+	  assert( nextCluster.GetNDoF() == topCluster.GetNDoF() );
+	  assert( nextCluster.GetChi2() > topCluster.GetChi2() );
+	  AddCluster( nextCluster );
+	}
+	else if( !includes( ALL(topCluster.GetHits()), ALL(nextCluster.GetHits()),
+			    THaVDCHit::ByWireThenTime() )) {
+	  AddCluster( nextCluster );
+	}
+	else if( shared_hits ) {
+	  AddCluster( nextCluster );
+	  if( !nextCluster.HasSharedHits() )
+	    shared_hits = false;
+	}
+      }
+    }
+    //TODO:
+    // - add watertight CommitHits logic
+    // - fix cluster fit routines
+    // - implement hit sharing detection in THaVDC::ConstructTracks
   }
 
-  return 0;
+  return GetNClusters();  // return the number of clusters found
 }
-//----- OLD ---
-#if 0
-  Int_t nHits     = GetNHits();   // Number of hits in the plane
-  Int_t nUsed = 0;                // Number of wires used in clustering
-  Int_t nLastUsed = -1;
-  Int_t nextClust = 0;            // Current cluster number
-  assert( GetNClusters() == 0 );
-
-  vector <THaVDCHit *> clushits;
-  Double_t deltat;
-  Bool_t falling;
-
-  fNpass = 0;
-
-  Int_t nwires, span;
-  UInt_t j;
-
-  //  Loop while we're making new clusters
-  while( nLastUsed != nUsed ){
-     fNpass++;
-     nLastUsed = nUsed;
-     //Loop through all TDC hits
-     for( Int_t i = 0; i < nHits; ) {
-       clushits.clear();
-       falling = kTRUE;
-
-       THaVDCHit* hit = GetHit(i);
-       assert(hit);
-
-       if( !timecut(hit) ) {
-	       ++i;
-	       continue;
-       }
-       if( hit->GetClsNum() != -1 )
-       	  { ++i; continue; }
-       // Ensures we don't use this to try and start a new
-       // cluster
-       hit->SetClsNum(-3);
-
-       // Consider this hit the beginning of a potential new cluster.
-       // Find the end of the cluster.
-       span = 0;
-       nwires = 1;
-       while( ++i < nHits ) {
-	  THaVDCHit* nextHit = GetHit(i);
-	  assert( nextHit );    // should never happen, else bug in Decode
-	  if( !timecut(nextHit) )
-		  continue;
-	  if(    nextHit->GetClsNum() != -1   // -1 is virgin
-	      && nextHit->GetClsNum() != -3 ) // -3 was considered to start
-		  			      //a clus but is not in cluster
-		  continue;
-	  Int_t ndif = nextHit->GetWireNum() - hit->GetWireNum();
-	  // Do not consider adding hits from a wire that was already
-	  // added
-	  if( ndif == 0 ) { continue; }
-	  assert( ndif >= 0 );
-	  // The cluster ends when we encounter a gap in wire numbers.
-	  // TODO: cluster should also end if
-	  //  DONE (a) it is too big
-	  //  DONE (b) drift times decrease again after initial fall/rise (V-shape)
-	  //  DONE (c) Enforce reasonable changes in wire-to-wire V-shape
-
-	  // Times are sorted by earliest first when on same wire
-	  deltat = nextHit->GetTime() - hit->GetTime();
-
-	  span += ndif;
-	  if( ndif > fNMaxGap+1 || span > fMaxClustSpan ){
-		  break;
-	  }
-
-	  // Make sure the time structure is sensible
-	  // If this cluster is rising, wire with falling time
-	  // should not be associated in the cluster
-	  if( !falling ){
-		  if( deltat < fMinTdiff*ndif ||
-		      deltat > fMaxTdiff*ndif )
-		  { continue; }
-	  }
-
-	  if( falling ){
-		  // Step is too big, can't be associated
-		  if( deltat < -fMaxTdiff*ndif ){ continue; }
-		  if( deltat > 0.0 ){
-			  // if rise is reasonable and we don't
-			  // have a monotonically increasing cluster
-			  if( deltat < fMaxTdiff*ndif && span > 1 ){
-				  // now we're rising
-				  falling = kFALSE;
-			  } else {
-				  continue;
-			  }
-		  }
-	  }
-
-	  nwires++;
-	  if( clushits.size() == 0 ){
-		  clushits.push_back(hit);
-		  hit->SetClsNum(-2);
-		  nUsed++;
-	  }
-	  clushits.push_back(nextHit);
-	  nextHit->SetClsNum(-2);
-	  nUsed++;
-	  hit = nextHit;
-       }
-       assert( i <= nHits );
-       // Make a new cluster if it is big enough
-       // If not, the hits of this i-iteration are ignored
-       // Also, make sure that we did indeed see the time
-       // spectrum turn around at some point
-       if( nwires >= fMinClustSize && !falling ) {
-	  THaVDCCluster* clust =
-	     new ( (*fClusters)[nextClust++] ) THaVDCCluster(this);
-
-	  for( j = 0; j < clushits.size(); j++ ){
-	     clushits[j]->SetClsNum(nextClust-1);
-	     clust->AddHit( clushits[j] );
-	  }
-
-	  assert( clust->GetSize() > 0 && clust->GetSize() >= nwires );
-	  // This is a good cluster candidate. Estimate its position/slope
-	  clust->EstTrackParameters();
-       } //end new cluster
-
-     } //end loop over hits
-
-  } // end passes over hits
-
-  assert( GetNClusters() == nextClust );
-
-  return nextClust;  // return the number of clusters found
-}
-#endif
 
 //_____________________________________________________________________________
 Int_t THaVDCPlane::FitTracks()
