@@ -51,6 +51,7 @@ using namespace VDC;
 
 typedef vector<Vhit_t> Region_t;
 
+//TODO: put some of these into a common header file
 // Helpers
 //___________________________________________________________________________
 template< typename VectorElem > inline void
@@ -117,23 +118,41 @@ struct CandidateSorter :
 {
   bool operator() ( const THaVDCCluster& a, const THaVDCCluster& b ) const
   {
-    // Sort by NDoF (largest first), then pivot wire number (lowest first),
-    // then chi2 of the fit. The goal is to pick the best chi2 for each
-    // distinct pivot choice. Different pivots usually (not always, though)
-    // indicate distinct clusters.
-    if( a.GetNDoF() != b.GetNDoF() )
-      return (a.GetNDoF() > b.GetNDoF());
+    // Sort by pivot wire number (lowest first), then NDoF (largest first),
+    // then chi2 of the fit
     if( a.GetPivotWireNum() != b.GetPivotWireNum() )
       return (a.GetPivotWireNum() < b.GetPivotWireNum());
+    if( a.GetNDoF() != b.GetNDoF() )
+      return (a.GetNDoF() > b.GetNDoF());
     return (a.GetChi2() < b.GetChi2());
   }
+};
+
+//_____________________________________________________________________________
+struct PrintObj {
+public:
+  PrintObj( Option_t* opt="" ) : m_opt(opt) {}
+  template< typename T >
+  void operator() ( const T& obj ) const { obj.Print(m_opt); }
+private:
+  Option_t* m_opt;
+};
+
+//_____________________________________________________________________________
+struct PrintObjP {
+public:
+  PrintObjP( Option_t* opt="" ) : m_opt(opt) {}
+  template< typename T >
+  void operator() ( const T* obj ) const { obj->Print(m_opt); }
+private:
+  Option_t* m_opt;
 };
 
 //_____________________________________________________________________________
 THaVDCPlane::THaVDCPlane( const char* name, const char* description,
 			  THaDetectorBase* parent )
   : THaSubDetector(name,description,parent), /*fTable(0),*/
-    fMinTdiff(0), fMaxTdiff(0), fTTDConv(0), fVDC(0), fglTrg(0)
+    fClustChi2Cut(3), fTTDConv(0), fVDC(0), fglTrg(0)
 {
   // Constructor
 
@@ -178,6 +197,7 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
   // Allocate TClonesArray objects and load plane parameters from database
 
   const char* const here = __FUNCTION__;
+  const char* const action = "Fix database.";
 
   FILE* file = OpenFile( date );
   if( !file ) return kFileError;
@@ -344,16 +364,16 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
   if( found ) {
     if( fscanf(file, "%lf %lf", &fTDCRes, &fT0Resolution) != 2) {
       Error( Here(here), "Error reading TDC scale and T0 resolution\n"
-	     "Line = %s\nFix database.", buff );
+	     "Line = %s\n%s", buff, action );
       fclose(file);
       return kInitError;
     }
     fgets(buff, LEN, file); // Read to end of line
-    if( fscanf( file, "%d %d %d %d %d %lf %lf", &fMinClustSize, &fMaxClustSpan,
-		&fNMaxGap, &fMinTime, &fMaxTime, &fMinTdiff, &fMaxTdiff ) != 7 ) {
+    if( fscanf( file, "%d %d %d %d %d %lf", &fMinClustSize, &fMaxClustSpan,
+		&fNMaxGap, &fMinTime, &fMaxTime, &fClustChi2Cut ) != 6 ) {
       Error( Here(here), "Error reading min_clust_size, max_clust_span, "
-	     "max_gap, min_time or max_time.\nLine = %s\nFix database.",
-	     buff );
+	     "max_gap, min_time or max_time, chi2_cut.\nLine = %s\n%s",
+	     buff, action );
       fclose(file);
       return kInitError;
     }
@@ -368,8 +388,8 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
 		 &A1[0], &A1[1], &A1[2], &A1[3],
 		 &A2[0], &A2[1], &A2[2], &A2[3], &dtime ) != 9) {
 	Error( Here(here), "Error reading THaVDCAnalyticTTDConv parameters\n"
-	       "Line = %s\nExpect 9 floating point numbers. Fix database.",
-	       buff );
+	       "Line = %s\nExpect 9 floating point numbers. %s",
+	       buff, action );
 	fclose(file);
 	return kInitError;
       } else {
@@ -385,9 +405,8 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
     Double_t h, w;
 
     if( fscanf(file, "%lf %lf", &h, &w) != 2) {
-	Error( Here(here), "Error reading height/width parameters\n"
-	       "Line = %s\nExpect 2 floating point numbers. Fix database.",
-	       buff );
+	Error( Here(here), "Error reading height/width parameters\nLine = %s\n"
+	       "Expecting 2 floating point numbers. %s", buff, action );
 	fclose(file);
 	return kInitError;
       } else {
@@ -398,34 +417,43 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
     fgets(buff, LEN, file); // Read to end of line
     // Sanity checks
     if( fMinClustSize < 1 || fMinClustSize > 6 ) {
-      Error( Here(here), "Invalid min_clust_size = %d, must be betwwen 1 and "
-	     "6. Fix database.", fMinClustSize );
+      Error( Here(here), "Invalid min_clust_size = %d, must be between "
+	     "1 and 6. %s", fMinClustSize, action );
       fclose(file);
       return kInitError;
     }
     if( fMaxClustSpan < 2 || fMaxClustSpan > 12 ) {
-      Error( Here(here), "Invalid max_clust_span = %d, must be betwwen 1 and "
-	     "12. Fix database.", fMaxClustSpan );
+      Error( Here(here), "Invalid max_clust_span = %d, must be between "
+	     "1 and 12. %s", fMaxClustSpan, action );
       fclose(file);
       return kInitError;
     }
     if( fNMaxGap < 0 || fNMaxGap > 2 ) {
-      Error( Here(here), "Invalid max_gap = %d, must be betwwen 0 and 2. "
-	     "Fix database.", fNMaxGap );
+      Error( Here(here), "Invalid max_gap = %d, must be between "
+	     "0 and 2. %s", fNMaxGap, action );
       fclose(file);
       return kInitError;
     }
     if( fMinTime < 0 || fMinTime > 4095 ) {
-      Error( Here(here), "Invalid min_time = %d, must be betwwen 0 and 4095. "
-	     "Fix database.", fMinTime );
+      Error( Here(here), "Invalid min_time = %d, must be between "
+	     "0 and 4095. %s", fMinTime, action );
       fclose(file);
       return kInitError;
     }
     if( fMaxTime < 1 || fMaxTime > 4096 || fMinTime >= fMaxTime ) {
       Error( Here(here), "Invalid max_time = %d. Must be between 1 and 4096 "
-	     "and >= min_time = %d. Fix database.", fMaxTime, fMinTime );
+	     "and >= min_time = %d. %s", fMaxTime, fMinTime, action );
       fclose(file);
       return kInitError;
+    }
+    if( fClustChi2Cut == 0 ) {
+      Warning( Here(here), "Zero chi2_cut makes no sense and will give no "
+	       "tracks. %s", action );
+    }
+    if( fClustChi2Cut < 0 ) {
+      Warning( Here(here), "Negative chi2_cut = %lf changed to positive. %s",
+	       fClustChi2Cut, action );
+      fClustChi2Cut = TMath::Abs(fClustChi2Cut);
     }
   } else {
     Warning( Here(here), "No database section \"%s\" or \"%s\" found. "
@@ -437,6 +465,7 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
     fNMaxGap = 0;
     fMinTime = 800;
     fMaxTime = 2200;
+    fClustChi2Cut = 3.;
 
     if( THaVDCAnalyticTTDConv* analytic_conv =
 	dynamic_cast<THaVDCAnalyticTTDConv*>(fTTDConv) ) {
@@ -767,7 +796,7 @@ Int_t THaVDCPlane::FindClusters()
       continue;
 
     // We have a region of interest
-    typedef set<THaVDCCluster,CandidateRawSorter> ClustRawSet_t;
+    typedef set<THaVDCCluster,CandidateSorter> ClustRawSet_t;
     ClustRawSet_t candidates;
     for( Region_t::size_type slice_size = fMinClustSize;
 	 slice_size <= fMaxClustSpan+1; ++slice_size ) {
@@ -803,6 +832,14 @@ Int_t THaVDCPlane::FindClusters()
 	  clust.FitTrack( THaVDCClusterFitter::kT0 );
 	  if( !clust.IsFitOK() )
 	    continue;
+	  // Reject apparently bad fits. A hard cut like this always eats
+	  // into the tracking efficiency. The better the time-to-distance
+	  // conversion, the more efficient this cut will be, so careful
+	  // calibrations are important
+	  assert( clust.GetNDoF() > 0 );
+	  if( clust.GetChi2()/clust.GetNDoF() > fClustChi2Cut )
+	    continue;
+
 	  clust.SetBegEnd();
 
 	  // Save/sort cluster candidates in a set. Note that the insertion will
@@ -811,9 +848,10 @@ Int_t THaVDCPlane::FindClusters()
 	}
       }
     }
-    // Attempt to group the fitted chi2/dof into "reasonable" and "bad" fits
-    // using a clustering algorithm
-
+#ifdef WITH_DEBUG
+    if( fDebug > 2 )
+      for_each( ALL(candidates), PrintObj() );
+#endif
     // For each given pivot wire, eliminate candidates whose hits are merely
     // subsets of another candidate's hits.
     // Doing this here ensures that the superset has a reasonable chi2/dof, too.
@@ -823,6 +861,10 @@ Int_t THaVDCPlane::FindClusters()
 
     // Any ambiguities in assigning hits to clusters should result in a list
     // of possibilities that must be resolved later. How? ClusterGroups?
+    // Answer: if the superset that causes elimination has any shared hits
+    // with clusters with different pivots, keep both the superset and the
+    // largest subset without shared hits. Hit sharing ambiguities can be
+    // taken care of very effectively in THaVDC::ConstructTracks (TODO!)
 
     // THaVDCCluster* clust =
     //   new ( (*fClusters)[nextClust++] ) THaVDCCluster(this);
