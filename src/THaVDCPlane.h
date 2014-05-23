@@ -117,6 +117,8 @@ protected:
   virtual Int_t ReadDatabase( const TDatime& date );
   virtual Int_t DefineVariables( EMode mode = kDefine );
 
+  THaVDCCluster* AddCluster( const THaVDCCluster& newCluster );
+
   ClassDef(THaVDCPlane,0)             // VDCPlane class
 };
 
