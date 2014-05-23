@@ -63,7 +63,6 @@ public:
   Double_t       GetDriftVel()       const { return fDriftVel; }
   Double_t       GetMinTime()        const { return fMinTime; }
   Double_t       GetMaxTime()        const { return fMaxTime; }
-  Double_t       GetMaxTdiff()       const { return fMaxTdiff; }
   Double_t       GetT0Resolution()   const { return fT0Resolution; }
 
 //   Double_t GetT0() const { return fT0; }
@@ -87,7 +86,9 @@ protected:
   Int_t  fMinTime, fMaxTime; // Min and Max limits of TDC times for clusters
   Int_t  fFlags;             // Analysis control flags
 
-  Double_t fMinTdiff, fMaxTdiff;  // Min and Max limits of times between wires in cluster
+  Double_t fClustChi2Cut;    // Max chi2/dof allowed for keeping clusters
+
+  //  Double_t fMinTdiff, fMaxTdiff;  // Min and Max limits of times between wires in cluster
 
   Double_t fZ;            // Z coordinate of plane in U1 coord sys (m)
   Double_t fWBeg;         // Position of 1-st wire in E-arm coord sys (m)
