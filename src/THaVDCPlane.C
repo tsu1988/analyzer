@@ -147,10 +147,9 @@ THaVDCPlane::THaVDCPlane( const char* name, const char* description,
 {
   // Constructor
 
-  // Since TCloneArrays can resize, the size here is fairly unimportant
-  fHits     = new TClonesArray("THaVDCHit", 20 );
-  fClusters = new TClonesArray("THaVDCCluster", 5 );
-  fWires    = new TClonesArray("THaVDCWire", 368 );
+  fWires.reserve(368);
+  fHits.reserve(100);
+  fClusters.reserve(20);
 
   fVDC = dynamic_cast<THaVDC*>( GetMainDetector() );
 }
@@ -162,9 +161,6 @@ THaVDCPlane::~THaVDCPlane()
 
   if( fIsSetup )
     RemoveVariables();
-  delete fWires;
-  delete fHits;
-  delete fClusters;
   delete fTTDConv;
 //   delete [] fTable;
 }
@@ -172,10 +168,11 @@ THaVDCPlane::~THaVDCPlane()
 //_____________________________________________________________________________
 THaVDCCluster* THaVDCPlane::AddCluster( const THaVDCCluster& newCluster )
 {
-  // Add given cluster to the fClusters TClonesArray
+  // Add given cluster to the fClusters array
 
   assert( GetNClusters() >= 0 );
-  return new ( (*fClusters)[GetNClusters()] ) THaVDCCluster(newCluster);
+  fClusters.push_back( newCluster );
+  return &fClusters.back();
 }
 
 //_____________________________________________________________________________
@@ -183,8 +180,8 @@ void THaVDCPlane::Clear( Option_t* )
 {
   // Clears the contents of the and hits and clusters
   fNHits = fNWiresHit = 0;
-  fHits->Clear();
-  fClusters->Clear();
+  fHits.clear();
+  fClusters.clear();
 }
 
 //_____________________________________________________________________________
@@ -217,7 +214,7 @@ void THaVDCPlane::MakePrefix()
 //_____________________________________________________________________________
 Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
 {
-  // Allocate TClonesArray objects and load plane parameters from database
+  // Load wire and plane parameters from database. Populate wire array.
 
   const char* const here = __FUNCTION__;
   const char* const action = "Fix database.";
@@ -250,6 +247,7 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
   }
 
   //Found the entry for this plane, so read data
+  fWires.clear();
   Int_t nWires = 0;    // Number of wires to create
   Int_t prev_first = 0, prev_nwires = 0;
   // Set up the detector map
@@ -335,10 +333,9 @@ Int_t THaVDCPlane::ReadDatabase( const TDatime& date )
   // Now initialize wires (those wires... too lazy to initialize themselves!)
   // Caution: This may not correspond at all to actual wire channels!
   for (int i = 0; i < nWires; i++) {
-    THaVDCWire* wire = new((*fWires)[i])
-      THaVDCWire( i, fWBeg+i*fWSpac, wire_offsets[i], fTTDConv );
+    fWires.push_back( THaVDCWire(i, fWBeg+i*fWSpac, wire_offsets[i], fTTDConv) );
     if( wire_nums[i] < 0 )
-      wire->SetFlag(1);
+      fWires.back().SetFlag(1);
   }
   delete [] wire_offsets;
   delete [] wire_nums;
@@ -544,7 +541,7 @@ Int_t THaVDCPlane::DefineVariables( EMode mode )
     { "trdist", "Dist. from track",           "fHits.THaVDCHit.ftrDist" },
     { "ltrdist","Dist. from local track",     "fHits.THaVDCHit.fltrDist" },
     { "trknum", "Track number (0=unused)",    "fHits.THaVDCHit.fTrkNum" },
-    { "clsnum", "Cluster number (-1=unused)",    "fHits.THaVDCHit.fClsNum" },
+    { "clsnum", "Cluster number (-1=unused)", "fHits.THaVDCHit.fClsNum" },
     { "nclust", "Number of clusters",         "GetNClusters()" },
     { "clsiz",  "Cluster sizes",              "fClusters.THaVDCCluster.fSize" },
     { "clpivot","Cluster pivot wire num",     "fClusters.THaVDCCluster.GetPivotWireNum()" },
@@ -640,8 +637,10 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
 	  if( only_fastest_hit ) {
 	    if( data > max_data )
 	      max_data = data;
-	  } else
-	    new( (*fHits)[nextHit++] )  THaVDCHit( wire, data, time );
+	  } else {
+	    fHits.push_back( THaVDCHit(wire, data, time) );
+	    nextHit++;
+	  }
 	}
 
     // Count all hits and wires with hits
@@ -654,7 +653,8 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
       if( only_fastest_hit && max_data>0 ) {
 	Double_t xdata = static_cast<Double_t>(max_data) + 0.5;
 	Double_t time = fTDCRes * (toff - xdata) - evtT0;
-	new( (*fHits)[nextHit++] ) THaVDCHit( wire, max_data, time );
+	fHits.push_back( THaVDCHit(wire, max_data, time) );
+	nextHit++;
       }
     } // End channel index loop
   } // End slot loop
@@ -662,7 +662,7 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
   // Sort the hits in order of increasing wire number and (for the same wire
   // number) increasing time (NOT rawtime)
 
-  fHits->Sort();
+  sort( ALL(fHits) );
 
 #ifdef WITH_DEBUG
   if ( fDebug > 3 ) {
@@ -677,7 +677,7 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
       for (int c=0; c<ncol; c++) {
 	int ind = c*nextHit/ncol+i;
 	if (ind < nextHit) {
-	  THaVDCHit* hit = static_cast<THaVDCHit*>(fHits->At(ind));
+	  THaVDCHit* hit = GetHit(ind);
 	  printf("     %3d    %5d ",hit->GetWireNum(),hit->GetRawTime());
 	} else {
 	  //	  printf("\n");
@@ -848,7 +848,7 @@ Int_t THaVDCPlane::FindClusters()
 	  prev_pivot = clust.GetPivot();
 
 	  // Save/sort cluster candidates in a set. Note that the insertion will
-	  // default-copy-construct a THaVDCCluster from the THaVDCClusterFitter
+	  // copy-construct a THaVDCCluster from the THaVDCClusterFitter
 	  candidates.insert( clust );
 	}
       }
@@ -905,7 +905,7 @@ Int_t THaVDCPlane::FitTracks()
 
   Int_t nClust = GetNClusters();
   for (int i = 0; i < nClust; i++) {
-    THaVDCCluster* clust = static_cast<THaVDCCluster*>( (*fClusters)[i] );
+    THaVDCCluster* clust = GetCluster(i);
     if( !clust ) continue;
 
     // Convert drift times to distances.
