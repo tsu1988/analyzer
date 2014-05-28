@@ -10,14 +10,18 @@
 #include "THaSubDetector.h"
 #include "THaVDCWire.h"
 #include "THaVDCCluster.h"
-#include "TClonesArray.h"
 #include "THaVDCHit.h"
 #include <cassert>
+#include <vector>
 
 class THaEvData;
 class THaVDCTimeToDistConv;
 class THaTriggerTime;
 class THaVDC;
+
+typedef std::vector<THaVDCWire>    VWires_t;
+typedef std::vector<THaVDCHit>     VHits_t;
+typedef std::vector<THaVDCCluster> VClusters_t;
 
 class THaVDCPlane : public THaSubDetector {
 
@@ -33,24 +37,29 @@ public:
   virtual Int_t   FitTracks();                // Clusters -> tracks
 
   //Get and Set functions
-  Int_t          GetNClusters()      const { return fClusters->GetLast()+1; }
-  TClonesArray*  GetClusters()       const { return fClusters; }
-  THaVDCCluster* GetCluster(Int_t i) const
-  { assert( i>=0 && i<GetNClusters() );
-    return static_cast<THaVDCCluster*>( fClusters->UncheckedAt(i) ); }
+  Int_t              GetNClusters()      const { return fClusters.size(); }
+  const VClusters_t& GetClusters()       const { return fClusters; }
+  THaVDCCluster*     GetCluster(Int_t i)
+  {
+    assert( i>=0 && i<GetNClusters() );
+    return &fClusters[i];
+  }
 
-  Int_t          GetNWires()         const { return fWires->GetLast()+1; }
-  TClonesArray*  GetWires()          const { return fWires; }
-  THaVDCWire*    GetWire(Int_t i)    const
-  { assert( i>=0 && i<GetNWires() );
-    return static_cast<THaVDCWire*>( fWires->UncheckedAt(i) ); }
+  Int_t              GetNWires()         const { return fWires.size(); }
+  const VWires_t&    GetWires()          const { return fWires; }
+  THaVDCWire*        GetWire(Int_t i)
+  {
+    assert( i>=0 && i<GetNWires() );
+    return &fWires[i];
+  }
 
-  Int_t          GetNHits()          const { return fHits->GetLast()+1; }
-  TClonesArray*  GetHits()           const { return fHits; }
-  THaVDCHit*     GetHit(Int_t i)     const
-  { assert( i>=0 && i<GetNHits() );
-    return static_cast<THaVDCHit*>( fHits->UncheckedAt(i) ); }
-
+  Int_t              GetNHits()          const { return fHits.size(); }
+  const VHits_t&     GetHits()           const { return fHits; }
+  THaVDCHit*         GetHit(Int_t i)
+  {
+    assert( i>=0 && i<GetNHits() );
+    return &fHits[i];
+  }
   UInt_t         GetNWiresHit()      const { return fNWiresHit; }
 
   Double_t       GetZ()              const { return fZ; }
@@ -71,13 +80,12 @@ public:
 
 protected:
 
-  //Use TClonesArray::GetLast()+1 to get the number of wires, hits, & clusters
-  TClonesArray*  fWires;     // Wires
-  TClonesArray*  fHits;      // Fired wires
-  TClonesArray*  fClusters;  // Clusters
+  VWires_t    fWires;        // Wires
+  VHits_t     fHits;         // Fired wires
+  VClusters_t fClusters;     // Clusters
 
-  UInt_t fNHits;      // Total number of hits (including multihits)
-  UInt_t fNWiresHit;  // Number of wires with one or more hits
+  UInt_t      fNHits;        // Total number of hits (including multihits)
+  UInt_t      fNWiresHit;    // Number of wires with one or more hits
 
   // Parameters, read from database
   UInt_t fMinClustSize;      // Minimum number of wires needed for a cluster

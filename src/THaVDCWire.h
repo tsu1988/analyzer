@@ -15,7 +15,7 @@ class THaVDCWire : public TObject {
 public:
 
   THaVDCWire( Int_t num=0, Double_t pos=0.0, Double_t offset=0.0,
-	      THaVDCTimeToDistConv* ttd=NULL ) :
+	      THaVDCTimeToDistConv* ttd=0 ) :
     fNum(num), fFlag(0), fPos(pos), fTOffset(offset), fTTDConv(ttd) {}
   virtual ~THaVDCWire() {}
 
@@ -38,10 +38,6 @@ protected:
   Double_t fPos;                       //Position within the plane
   Double_t fTOffset;                      //Timing Offset
   THaVDCTimeToDistConv* fTTDConv;     //!Time to Distance Converter
-
-private:
-  THaVDCWire( const THaVDCWire& );
-  THaVDCWire& operator=( const THaVDCWire& );
 
   ClassDef(THaVDCWire,1)             // VDCWire class
 };
