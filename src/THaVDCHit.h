@@ -72,6 +72,10 @@ public:
     }
   };
 
+  bool operator<( const THaVDCHit& rhs ) const {
+    return ( Compare(&rhs) == -1 );
+  }
+
 protected:
   THaVDCWire* fWire;     // Wire on which the hit occurred
   Int_t       fRawTime;  // TDC value (channels)
@@ -83,10 +87,6 @@ protected:
   Int_t       fTrkNum;   // Number of the track using this hit (0 = unused)
   Int_t       fClsNum;   // Number of the cluster using this hit (-1 = unused)
   LClust_t    fClusters; // All clusters using this hit
-
- private:
-  THaVDCHit( const THaVDCHit& );
-  THaVDCHit& operator=( const THaVDCHit& );
 
   ClassDef(THaVDCHit,2)             // VDCHit class
 };
