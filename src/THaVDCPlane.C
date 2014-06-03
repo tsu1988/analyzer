@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <numeric>
 #include <utility>
+#include <functional>
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -116,27 +117,9 @@ struct CandidateSorter :
   }
 };
 
-//_____________________________________________________________________________
-struct PrintObj {
-public:
-  PrintObj( Option_t* opt="" ) : m_opt(opt) {}
-  template< typename T >
-  void operator() ( const T& obj ) const { obj.Print(m_opt); }
-private:
-  Option_t* m_opt;
-};
-
-//_____________________________________________________________________________
-struct PrintObjP {
-public:
-  PrintObjP( Option_t* opt="" ) : m_opt(opt) {}
-  template< typename T >
-  void operator() ( const T* obj ) const { obj->Print(m_opt); }
-private:
-  Option_t* m_opt;
-};
-
-typedef set<THaVDCCluster,CandidateSorter> ClustSet_t;
+// Though extremely unlikely, two clusters may end up with the same ndof and
+// chi2 of their fits, so this needs to be a multiset
+typedef multiset<THaVDCCluster,CandidateSorter> ClustSet_t;
 typedef ClustSet_t::const_iterator clust_iter_t;
 
 //_____________________________________________________________________________
@@ -736,11 +719,14 @@ private:
 };
 
 //_____________________________________________________________________________
-static inline Region_t::size_type Span( Region_t::const_iterator start,
-					Region_t::const_iterator end )
+static inline UInt_t Span( Region_t::const_iterator start,
+			   Region_t::const_iterator end )
 {
   assert( start < end );
-  return (*(end-1)).front()->GetWireNum() - (*start).front()->GetWireNum();
+  Int_t diff =
+    (*(end-1)).front()->GetWireNum() - (*start).front()->GetWireNum();
+  assert( diff >= 0 );
+  return diff;
 }
 
 //_____________________________________________________________________________
@@ -767,6 +753,7 @@ Int_t THaVDCPlane::FindClusters()
 
     // Add hits to region
     Vhit_t::size_type nwires = 1;
+    Bool_t multi_hit = false;
     while( ++i < nHits ) {
       THaVDCHit* nextHit = GetHit(i);
       assert( nextHit );    // else bug in Decode
@@ -783,6 +770,7 @@ Int_t THaVDCPlane::FindClusters()
 	assert( !(region.empty() || region.back().empty()) );
 	assert( nextHit->GetWireNum() == region.back().back()->GetWireNum() );
 	region.back().push_back(nextHit);
+	multi_hit = true;
       } else {
 	region.push_back( Vhit_t(1,nextHit) );
 	++nwires;    // unique wires
@@ -797,22 +785,32 @@ Int_t THaVDCPlane::FindClusters()
 
     // We have a region of interest
     ClustSet_t candidates;
+    UInt_t region_span = Span(ALL(region));
+    Bool_t simple_case = !multi_hit && (region_span <= fMaxClustSpan);
     Bool_t multi_pivot = false;
+    Bool_t go = true;
     THaVDCHit* prev_pivot = 0;
-    for( Region_t::size_type slice_size = fMinClustSize;
-	 slice_size <= fMaxClustSpan+1; ++slice_size ) {
-      for( Region_t::const_iterator start = region.begin(); ; ++start ) {
-	Region_t::const_iterator end = start+slice_size;
-	if( end > region.end() || Span(start, end) > fMaxClustSpan )
-	  break;
+    for( UInt_t slice_size = min(fMaxClustSpan,region_span)+1;
+	 slice_size >= fMinClustSize && go; --slice_size ) {
+      for( Region_t::const_iterator start = region.begin(),
+	     end = start+slice_size; end <= region.end() && go;
+	   ++start, ++end ) {
 
-	UInt_t ncombos;
-	try {
+	UInt_t ncombos = 1;
+	if( multi_hit ) {
+	  try {
+	    ncombos = accumulate( start, end, (UInt_t)1, SizeMul<Vhit_t>() );
+	  }
+	  catch( overflow_error ) {
+	    continue;
+	  }
+	}
+#ifndef NDEBUG
+	else {
 	  ncombos = accumulate( start, end, (UInt_t)1, SizeMul<Vhit_t>() );
+	  assert( ncombos == 1 );
 	}
-	catch( overflow_error ) {
-	  continue;
-	}
+#endif
 	THaVDCClusterFitter clust(this);
 	//	clust.SetMaxT0(...);
 	for( UInt_t i = 0; i < ncombos; ++i ) {
@@ -848,14 +846,25 @@ Int_t THaVDCPlane::FindClusters()
 	  prev_pivot = clust.GetPivot();
 
 	  // Save/sort cluster candidates in a set. Note that the insertion will
-	  // copy-construct a THaVDCCluster from the THaVDCClusterFitter
-	  candidates.insert( clust );
+	  // copy-construct a THaVDCCluster from the THaVDCClusterFitter.
+	  // The set will contain clusters that are sorted by CandidateSorter.
+	  clust_iter_t ins = candidates.insert( clust );
+	  (*ins).ClaimHits();
+
+	  // Accelerate things for the simple case: no multihits (-> one pivot),
+	  // a region small enough so that there is only one top-level slice,
+	  // and a successful fit over that top-level slice (=full region)
+	  if( simple_case && slice_size == region_span+1 ) {
+	    go = false;
+	    break;
+	  }
 	}
       }
     }
+    assert( !multi_pivot || multi_hit  );  // multi_pivot only if multi_hit
 #ifdef WITH_DEBUG
     if( fDebug > 2 )
-      for_each( ALL(candidates), PrintObj() );
+      for_each( ALL(candidates), bind2nd(mem_fun_ref(&THaVDCCluster::Print),"") );
 #endif
     // For each given pivot wire, eliminate candidates whose hits are merely
     // subsets of another candidate's hits.
@@ -890,10 +899,12 @@ Int_t THaVDCPlane::FindClusters()
       }
     }
     //TODO:
-    // - add watertight CommitHits logic
     // - fix cluster fit routines
     // - implement hit sharing detection in THaVDC::ConstructTracks
   }
+
+  // Now that all clusters are built, we can safely let them claim their hits
+  for_each( ALL(fClusters), mem_fun_ref(&THaVDCCluster::ClaimHits) );
 
   return GetNClusters();  // return the number of clusters found
 }
