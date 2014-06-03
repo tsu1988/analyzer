@@ -75,7 +75,6 @@ public:
   Int_t          GetTrkNum()         const { return fTrkNum; }
   Double_t       GetChi2()           const { return fChi2; }
   Double_t       GetNDoF()           const { return fNDoF; }
-  Bool_t         HasSharedHits()     const;
   Bool_t         IsFitOK()           const { return fFitOK; }
   Bool_t         IsUsed()            const { return (fTrack != 0); }
 
@@ -85,8 +84,10 @@ public:
   void           SetPointPair( VDCpp_t* pp )        { fPointPair = pp; }
   void           SetTrack( THaTrack* track );
 
-  void           ReleaseHits();
-  void           ClaimHits();
+  // Hit association
+  void           ReleaseHits() const;
+  void           ClaimHits()   const;
+  Bool_t         HasSharedHits( Bool_t force_check = false ) const;
 
 protected:
   Vhit_t         fHits;              // Hits associated w/this cluster
@@ -113,7 +114,7 @@ protected:
 
   enum EBool3 { kUndefined, kFalse, kTrue };
   mutable EBool3 fSharedHits;        // Cache for HasSharedHits
-  Bool_t         fHitsClaimed;       // If true, ClaimHits has run
+  mutable Bool_t fHitsClaimed;       // If true, ClaimHits has run
 
   void   CalcLocalDist();     // calculate the local track to wire distances
 
