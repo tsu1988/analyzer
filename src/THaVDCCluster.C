@@ -58,20 +58,19 @@ THaVDCCluster::THaVDCCluster( const THaVDCCluster& rhs )
     fSigmaInt(rhs.fSigmaInt), fT0(rhs.fT0), fSigmaT0(rhs.fSigmaT0),
     fPivot(rhs.fPivot), fTimeCorrection(rhs.fTimeCorrection),
     fFitOK(rhs.fFitOK), fChi2(rhs.fChi2), fNDoF(rhs.fNDoF),
-    fClsBeg(rhs.fClsBeg), fClsEnd(rhs.fClsEnd), fSharedHits(rhs.fSharedHits)
+    fClsBeg(rhs.fClsBeg), fClsEnd(rhs.fClsEnd), fSharedHits(kUndefined),
+    fHitsClaimed(false)
 {
-  // Copy constructor. If hits have been claimed by the source cluster,
-  // this cluster will claim them too.
-
-  if( rhs.fHitsClaimed )
-    ClaimHits();
+  // Copy constructor. Claiming of hits needs to be done manually. This is
+  // important to prevent HasSharedHits from reporting false duplicates.
 }
 
 //_____________________________________________________________________________
 THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
 {
   // Assignment operator. If hits have been claimed by us, they are released.
-  // If hits have been claimed by the source, this cluster will claim them too.
+  // If hits have been claimed by the source, this cluster will not auto-
+  // matically claim them.
 
   if( this != &rhs ) {
     if( fHitsClaimed )
@@ -95,9 +94,7 @@ THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
     fNDoF           = rhs.fNDoF;
     fClsBeg         = rhs.fClsBeg;
     fClsEnd         = rhs.fClsEnd;
-    fSharedHits     = rhs.fSharedHits;
-    if( rhs.fHitsClaimed )
-      ClaimHits();
+    fSharedHits     = kUndefined;
   }
   return *this;
 }
@@ -399,7 +396,7 @@ void THaVDCCluster::Print( Option_t* ) const
 }
 
 //_____________________________________________________________________________
-void THaVDCCluster::ReleaseHits()
+void THaVDCCluster::ReleaseHits() const
 {
   // Un-associate all hits of this cluster
 
@@ -413,29 +410,34 @@ void THaVDCCluster::ReleaseHits()
 	++it;
     }
   }
+  fSharedHits = kUndefined;
   fHitsClaimed = false;
 }
 
 //_____________________________________________________________________________
-void THaVDCCluster::ClaimHits()
+void THaVDCCluster::ClaimHits() const
 {
   // Associate all hits of this cluster
 
-  assert( !fHitsClaimed );   // logic error in caller
+  assert( !fHitsClaimed && fSharedHits == kUndefined ); // else logic error in caller
   for( Int_t i = 0; i < GetSize(); ++i ) {
-    GetHit(i)->GetClusters().push_back(this);
+    GetHit(i)->GetClusters().push_back(const_cast<THaVDCCluster*>(this));
   }
   fHitsClaimed = true;
 }
 
 //_____________________________________________________________________________
-Bool_t THaVDCCluster::HasSharedHits() const
+Bool_t THaVDCCluster::HasSharedHits( Bool_t force_check ) const
 {
   // Test if this cluster's hits are shared with any other cluster that has
   // a different pivot. Uses the cluster lists stored with the hits.
 
-  if( fSharedHits != kUndefined )   // Cached result
-    return ( fSharedHits == kTrue );
+  assert( fHitsClaimed );  // cluster must have claimed its own hits
+
+  if( force_check )
+    fSharedHits = kUndefined;
+  else if( fSharedHits != kUndefined )   // Cached result
+    return ( kTrue == fSharedHits );
 
   for( Int_t i = 0; i < GetSize(); ++i ) {
     const LClust_t& lst = GetHit(i)->GetClusters();
