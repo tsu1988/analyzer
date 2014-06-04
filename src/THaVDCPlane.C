@@ -903,9 +903,6 @@ Int_t THaVDCPlane::FindClusters()
     // - implement hit sharing detection in THaVDC::ConstructTracks
   }
 
-  // Now that all clusters are built, we can safely let them claim their hits
-  for_each( ALL(fClusters), mem_fun_ref(&THaVDCCluster::ClaimHits) );
-
   return GetNClusters();  // return the number of clusters found
 }
 
