@@ -74,6 +74,8 @@ public:
   Double_t       GetMaxTime()        const { return fMaxTime; }
   Double_t       GetT0Resolution()   const { return fT0Resolution; }
 
+  Bool_t         IsReversed()        const { return (GetWSpac() < 0); }
+
 //   Double_t GetT0() const { return fT0; }
 //   Int_t GetNumBins() const { return fNumBins; }
 //   Float_t *GetTable() const { return fTable; }
