@@ -71,6 +71,15 @@ public:
       return ( a->GetTime() < b->GetTime() );
     }
   };
+  struct ByTime :
+    public std::binary_function< THaVDCHit*, THaVDCHit*, bool >
+  {
+    bool operator() ( const THaVDCHit* a, const THaVDCHit* b ) const
+    {
+      assert( a && b );
+      return ( a->GetTime() < b->GetTime() );
+    }
+  };
 
   bool operator<( const THaVDCHit& rhs ) const {
     return ( Compare(&rhs) == -1 );
