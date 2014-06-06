@@ -59,15 +59,15 @@ public:
   LClust_t&        GetClusters()                   { return fClusters; }
   const LClust_t&  GetClusters() const             { return fClusters; }
 
-  // Functor for ordering hits
-  struct ByWireThenTime :
-    public std::binary_function< THaVDCHit*, THaVDCHit*, bool >
+  // Functors for ordering pointers to hits
+  struct ByPosThenTime :
+    public std::binary_function< const THaVDCHit*, const THaVDCHit*, bool >
   {
     bool operator() ( const THaVDCHit* a, const THaVDCHit* b ) const
     {
       assert( a && b );
-      if( a->GetWireNum() != b->GetWireNum() )
-	return ( a->GetWireNum() < b->GetWireNum() );
+      if( a->GetWireNum() != b->GetWireNum() )  // Same wire num <=> same pos
+	return ( a->GetPos() < b->GetPos() );
       return ( a->GetTime() < b->GetTime() );
     }
   };
@@ -81,6 +81,7 @@ public:
     }
   };
 
+  // Default sorting of hits: ByPosThenTime
   bool operator<( const THaVDCHit& rhs ) const {
     return ( Compare(&rhs) == -1 );
   }
