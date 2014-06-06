@@ -642,9 +642,8 @@ Int_t THaVDCPlane::Decode( const THaEvData& evData )
     } // End channel index loop
   } // End slot loop
 
-  // Sort the hits in order of increasing wire number and (for the same wire
-  // number) increasing time (NOT rawtime)
-
+  // Sort the hits in order of increasing wire position and, for the same wire,
+  // by increasing drift time (see THaVDCHit::operator<)
   sort( ALL(fHits) );
 
 #ifdef WITH_DEBUG
@@ -733,8 +732,6 @@ static inline UInt_t Span( Region_t::const_iterator start,
 Int_t THaVDCPlane::FindClusters()
 {
   // Find clusters of hits in a VDC plane.
-  // Assumes that the wires are numbered such that increasing wire numbers
-  // correspond to decreasing physical position.
 
   assert( GetNClusters() == 0 );   // Clear() already called
 
@@ -760,6 +757,7 @@ Int_t THaVDCPlane::FindClusters()
       if( !nextHit || !timecut(nextHit) )
 	continue;
       Int_t ndif = nextHit->GetWireNum() - hit->GetWireNum();
+      if( ndif != 0 && IsReversed() ) ndif = -ndif;
       assert( ndif >= 0 );  // else hits not sorted correctly
       // A gap of more than fNMaxGap wires unambiguously separates
       // regions of interest
@@ -882,13 +880,13 @@ Int_t THaVDCPlane::FindClusters()
 	  // We keep it nevertheless because the global slope from combining
 	  // it with other clusters may give a better overall chi2.
 	  assert( !includes( ALL(topCluster.GetHits()), ALL(nextCluster.GetHits()),
-			     THaVDCHit::ByWireThenTime() ));
+			     THaVDCHit::ByPosThenTime() ));
 	  assert( nextCluster.GetNDoF() == topCluster.GetNDoF() );
 	  assert( nextCluster.GetChi2() > topCluster.GetChi2() );
 	  AddCluster( nextCluster );
 	}
 	else if( !includes( ALL(topCluster.GetHits()), ALL(nextCluster.GetHits()),
-			    THaVDCHit::ByWireThenTime() )) {
+			    THaVDCHit::ByPosThenTime() )) {
 	  AddCluster( nextCluster );
 	}
 	else if( shared_hits ) {
