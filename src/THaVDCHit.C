@@ -41,7 +41,7 @@ Int_t THaVDCHit::Compare( const TObject* obj ) const
   assert( dynamic_cast<const THaVDCHit*>(obj) );
   const THaVDCHit* other = static_cast<const THaVDCHit*>( obj );
 
-  ByWireThenTime isless;
+  ByPosThenTime isless;
   if( isless( this, other ) )
     return -1;
   if( isless( other, this ) )
