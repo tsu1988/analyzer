@@ -10,6 +10,7 @@
 #include "TObject.h"
 #include <utility>
 #include <vector>
+#include <cassert>
 
 class THaVDCHit;
 class THaVDCPlane;
@@ -70,7 +71,7 @@ public:
   Double_t       GetSigmaSlope()     const { return fSigmaSlope; }
   Double_t       GetIntercept()      const { return fInt; }
   Double_t       GetSigmaIntercept() const { return fSigmaInt; }
-  THaVDCHit*     GetPivot()          const { return fPivot; }
+  THaVDCHit*     GetPivot()          const;
   Int_t          GetPivotWireNum()   const;
   Double_t       GetTimeCorrection() const { return fTimeCorrection; }
   Double_t       GetT0()             const { return fT0; }
@@ -96,26 +97,25 @@ public:
   Bool_t         HasSharedHits( Bool_t force_check = false ) const;
 
 protected:
-  Vhit_t         fHits;              // Hits associated w/this cluster
   THaVDCPlane*   fPlane;             // Plane the cluster belongs to
+  Vhit_t         fHits;              // Hits associated w/this cluster
+  Int_t          fPivotIdx;          // Index of hit with smallest drift time
+  Int_t          fClsBeg; 	     // Starting wire number
+  Int_t          fClsEnd;            // Ending wire number
   VDCpp_t*       fPointPair;         // Lower/upper combo we're assigned to
   THaTrack*      fTrack;             // Track the cluster belongs to
   Int_t          fTrkNum;            // Number of the track using this cluster
 
-  //Track Parameters
+  // Fit results
   Double_t       fSlope;             // Current best estimate of actual slope
   Double_t       fLocalSlope;        // Fitted slope, from FitTrack()
   Double_t       fSigmaSlope;        // Error estimate of fLocalSlope from fit
   Double_t       fInt, fSigmaInt;    // Intercept and error estimate
   Double_t       fT0, fSigmaT0;      // Fitted common timing offset and error
-  THaVDCHit*     fPivot;             // Pivot - hit with smallest drift time
-  hit_iter_t     fPivotIter;         // Iterator to pivot hit
   Double_t       fTimeCorrection;    // Time offset applied to drift times
-  Bool_t         fFitOK;             // Flag indicating that fit results valid
   Double_t       fChi2;              // chi2 for the cluster (using fSlope)
   Double_t       fNDoF;              // NDoF in local chi2 calculation
-  Int_t          fClsBeg; 	     // Starting wire number
-  Int_t          fClsEnd;            // Ending wire number
+  Bool_t         fFitOK;             // Flag indicating that fit results valid
 
   enum EBool3 { kUndefined, kFalse, kTrue };
   mutable EBool3 fSharedHits;        // Cache for HasSharedHits
@@ -125,6 +125,15 @@ protected:
 
   ClassDef(THaVDCCluster,0)          // A group of VDC hits
 };
+
+//_____________________________________________________________________________
+inline THaVDCHit* THaVDCCluster::GetPivot() const
+{
+  // Get hit with smallest drift distance
+
+  assert( (!fHits.empty() || fPivotIdx == -1) && fPivotIdx < GetSize() );
+  return ( fPivotIdx < 0 ) ? 0 : fHits[fPivotIdx];
+}
 
 //////////////////////////////////////////////////////////////////////////////
 

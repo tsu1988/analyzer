@@ -32,7 +32,7 @@ using namespace std;
 
 //_____________________________________________________________________________
 THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
-  : THaVDCCluster(owner,size), fPivotIdx(-1), fPosOffset(0), fMaxT0(0),
+  : THaVDCCluster(owner,size), fPosOffset(0), fMaxT0(0),
     fWeighted(true)
 {
   // Constructor
@@ -43,7 +43,7 @@ THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
 //_____________________________________________________________________________
 THaVDCClusterFitter::THaVDCClusterFitter( const Vhit_t& hits,
 					  THaVDCPlane* owner )
-  : THaVDCCluster(hits,owner), fPivotIdx(-1), fPosOffset(0), fMaxT0(0),
+  : THaVDCCluster(hits,owner), fPosOffset(0), fMaxT0(0),
     fWeighted(true)
 {
   // Constructor
@@ -58,7 +58,6 @@ void THaVDCClusterFitter::Clear( const Option_t* opt )
 
   THaVDCCluster::Clear(opt);
   fCoord.clear();
-  fPivotIdx  = -1;
   fPosOffset =  0;
 }
 
@@ -77,13 +76,13 @@ bool THaVDCClusterFitter::EstTrackParameters()
     return false;
 
   // Find pivot
-  fPivotIter = min_element( ALL(fHits), THaVDCHit::ByTime() );
-  assert( fPivotIter != fHits.end() );  // size > 0 implies at least one hit
-  fPivot = *fPivotIter;
-  assert( fPivot );
+  hit_iter_t it = min_element( ALL(fHits), THaVDCHit::ByTime() );
+  assert( it != fHits.end() );  // size > 0 implies at least one hit
+  fPivotIdx = distance(fHits.begin(),it);
+  assert( fPivotIdx >= 0 && fPivotIdx < GetSize() );
 
   // For good clusters, pivot must not be at beginning or end of region
-  if( fPivot == fHits.front() || fPivot == fHits.back() )
+  if( fPivotIdx == 0 || fPivotIdx == GetSize()-1 )
     return false;
 
   // Rough estimate of t0. Ensure that pivot time is always positive
@@ -91,7 +90,7 @@ bool THaVDCClusterFitter::EstTrackParameters()
   const Double_t vdrift = fPlane->GetDriftVel();  // m/s
   const Double_t maxPivotTime = 0.5*fPlane->GetWSpac() / (vdrift * minSlope);
   assert( maxPivotTime > 0 );
-  Double_t pivotTime = fPivot->GetTime();
+  Double_t pivotTime = GetPivot()->GetTime();
   Double_t timeOffset = 0.0;      // offset to subtract from all drift times
   if( pivotTime < 0.0 || pivotTime > maxPivotTime ) {
     timeOffset = pivotTime - 0.5*maxPivotTime;
@@ -116,7 +115,7 @@ bool THaVDCClusterFitter::EstTrackParameters()
     fSlope = 1.0;
 
   // Current best estimates for intercept and t0
-  fInt   = fPivot->GetPos();
+  fInt   = GetPivot()->GetPos();
   fT0    = timeOffset;
   fFitOK = true;
 
@@ -189,9 +188,6 @@ Int_t THaVDCClusterFitter::SetupCoordinates()
     return -1;
 
   // Determine index of pivot wire
-  fPivotIdx = distance(fHits.begin(),fPivotIter);
-  assert( fPivotIdx >= 0 && fPivotIdx < GetSize() );
-
   // Align fit coordinates such that we end up with sum x_i = 0.
   // This improves the numerical accuracy of the linear fits and eliminates
   // certain correlations between the fitted parameters
@@ -490,21 +486,22 @@ Int_t THaVDCClusterFitter::FitNLTrack()
   // Note that as the index of the hits is increasing, the position of the
   // wires is decreasing
 
-  Int_t pivotNum = 0;
+  Int_t pivotNum = fPivotIdx;
 
   Double_t slope_guess = fSlope;
 
   drftVel = fPlane->GetDriftVel();
-  for (int i = 0; i < GetSize(); i++) {
-    if (fHits[i] == fPivot) {
-      //FIXME: make pivotNum a member variable?
-      pivotNum = i;
-    }
+  
+  // for (int i = 0; i < GetSize(); i++) {
+  //   if (fHits[i] == GetPivot()) {
+  //     //FIXME: make pivotNum a member variable?
+  //     pivotNum = i;
+  //   }
   //   xArr[i] = fHits[i]->GetTime();
   //   yArr[i] = fHits[i]->GetPos();
-  }
+  // }
 
-  Double_t pvttime = fPivot->GetTime();
+  Double_t pvttime = GetPivot()->GetTime();
 
   Double_t mi;   //
   Double_t bi;   //   Initial guesses for m,b and t0.
