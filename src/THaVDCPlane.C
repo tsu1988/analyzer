@@ -809,26 +809,29 @@ Int_t THaVDCPlane::FindClusters()
 	  assert( ncombos == 1 );
 	}
 #endif
-	THaVDCClusterFitter clust(this);
-	//	clust.SetMaxT0(...);
+	THaVDCClusterFitter clust( this, slice_size );
+	clust.SetMaxT0( 1.5*fT0Resolution );
 	for( UInt_t i = 0; i < ncombos; ++i ) {
 	  clust.Clear();
 	  NthCombination( i, start, end, clust.GetHits() );
 	  assert( clust.GetSize() == static_cast<Int_t>(slice_size) );
 
-	  clust.ConvertTimeToDist();
+	  if( !clust.EstTrackParameters() )
+	    continue;
+	  clust.ConvertTimeToDist( clust.GetT0() );
 	  clust.FitTrack( THaVDCClusterFitter::kLinearT0 );
 	  if( !clust.IsFitOK() ||
-	      TMath::Abs(clust.GetT0()) > GetT0Resolution() ||
-	      clust.GetPivot() == clust.GetHits().front()   ||
-	      clust.GetPivot() == clust.GetHits().back() )
+	      TMath::Abs(clust.GetT0()) > fT0Resolution )
 	    continue;
+	  assert( clust.GetPivot() != clust.GetHits().front() &&
+		  clust.GetPivot() != clust.GetHits().back() );
 
-	  clust.ClearFit();
-	  clust.ConvertTimeToDist( clust.GetT0() );
-	  clust.FitTrack( THaVDCClusterFitter::kT0 );
-	  if( !clust.IsFitOK() )
-	    continue;
+	  // clust.ClearFit();
+	  // clust.ConvertTimeToDist( clust.GetT0() );
+	  // clust.FitTrack( THaVDCClusterFitter::kT0 );
+	  // if( !clust.IsFitOK() )
+	  //   continue;
+
 	  // Reject apparently bad fits. A hard cut like this always eats
 	  // into the tracking efficiency. The better the time-to-distance
 	  // conversion, the more efficient this cut will be, so careful
