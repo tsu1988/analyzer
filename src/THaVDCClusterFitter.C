@@ -32,7 +32,8 @@ using namespace std;
 
 //_____________________________________________________________________________
 THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
-  : THaVDCCluster(owner,size)
+  : THaVDCCluster(owner,size), fPivotIdx(-1), fPosOffset(0), fMaxT0(0),
+    fWeighted(true)
 {
   // Constructor
 
@@ -42,7 +43,8 @@ THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
 //_____________________________________________________________________________
 THaVDCClusterFitter::THaVDCClusterFitter( const Vhit_t& hits,
 					  THaVDCPlane* owner )
-  : THaVDCCluster(hits,owner)
+  : THaVDCCluster(hits,owner), fPivotIdx(-1), fPosOffset(0), fMaxT0(0),
+    fWeighted(true)
 {
   // Constructor
 
@@ -56,6 +58,8 @@ void THaVDCClusterFitter::Clear( const Option_t* opt )
 
   THaVDCCluster::Clear(opt);
   fCoord.clear();
+  fPivotIdx  = -1;
+  fPosOffset =  0;
 }
 
 //_____________________________________________________________________________
@@ -213,10 +217,7 @@ void THaVDCClusterFitter::FitTrack( EMode mode )
 
   switch( mode ) {
   case kSimple:
-    FitSimpleTrack(false);
-    break;
-  case kWeighted:
-    FitSimpleTrack(true);
+    FitSimpleTrack();
     break;
   case kLinearT0:
     LinearClusterFitWithT0();
@@ -352,15 +353,10 @@ static bool Linear3ParamFit( const Vcoord_t& coord, FitRes_t& res )
 }
 
 //_____________________________________________________________________________
-Int_t THaVDCClusterFitter::FitSimpleTrack( Bool_t weighted )
+Int_t THaVDCClusterFitter::FitSimpleTrack()
 {
   // Perform linear fit on drift times. Calculates slope, intercept, and
-  // errors. If weighted = true, uses the estimated drift distance uncertain-
-  // ties for weighting hits. Assumes t0 = 0.
-
-  // For this function, the final results is (m,b) in  Y = m X + b
-  //   X = Drift Distance
-  //   Y = Position of Wires
+  // errors. Assumes t0 = 0.
 
   Int_t err = SetupCoordinates();
   if( err )
