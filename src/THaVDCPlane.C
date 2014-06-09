@@ -859,7 +859,6 @@ Int_t THaVDCPlane::FindClusters()
 	}
       }
     }
-    assert( !multi_pivot || multi_hit  );  // multi_pivot only if multi_hit
 #ifdef WITH_DEBUG
     if( fDebug > 2 )
       for_each( ALL(candidates), bind2nd(mem_fun_ref(&THaVDCCluster::Print),"") );
