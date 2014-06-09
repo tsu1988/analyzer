@@ -295,7 +295,6 @@ void THaVDCCluster::SetTrack( THaTrack* track )
   Int_t num = track ? track->GetTrkNum() : 0;
 
   // Mark all hits
-  // FIXME: naahh - only the hits used in the fit! (ignore for now)
   for( int i=0; i<GetSize(); i++ ) {
     // Bugcheck: hits must either be unused or been used by this cluster's
     // track (so SetTrack(0) can release a cluster from a track)
