@@ -21,25 +21,28 @@
 
 #include <iostream>
 #include <cassert>
+#include <algorithm>
+#include <iterator>
+#include <numeric>
 
 using namespace std;
 
-//FIXME put into VDC namespace
-const Vhit_t::size_type kDefaultNHit = 16;
+#define ALL(c) (c).begin(), (c).end()
+#define RALL(c) (c).rbegin(), (c).rend()
 
 //_____________________________________________________________________________
-THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner )
-  : THaVDCCluster(owner)
+THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
+  : THaVDCCluster(owner,size)
 {
   // Constructor
 
-  fCoord.reserve(kDefaultNHit);
+  fCoord.reserve(size);
 }
 
 //_____________________________________________________________________________
 THaVDCClusterFitter::THaVDCClusterFitter( const Vhit_t& hits,
 					  THaVDCPlane* owner )
-  : THaVDCCluster(owner)
+  : THaVDCCluster(hits,owner)
 {
   // Constructor
 
@@ -56,42 +59,64 @@ void THaVDCClusterFitter::Clear( const Option_t* opt )
 }
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::EstTrackParameters()
+bool THaVDCClusterFitter::EstTrackParameters()
 {
   // Estimate Track Parameters
   // Calculates pivot wire and uses its position as position of cluster
   // Estimates the slope based on the distance between the first and last
-  // wires to be hit in the U (or V) and detector Z directions
+  // hits in the U (or V) and detector Z directions
+
+  assert( fPlane );
 
   fFitOK = false;
   if( GetSize() == 0 )
-    return;
+    return false;
 
   // Find pivot
-  Double_t time = 0, minTime = 1000;  // drift-times in seconds
-  for (int i = 0; i < GetSize(); i++) {
-    time = fHits[i]->GetTime();
-    if (time < minTime) { // look for lowest time
-      minTime = time;
-      fPivot = fHits[i];
-    }
+  fPivotIter = min_element( ALL(fHits), THaVDCHit::ByTime() );
+  assert( fPivotIter != fHits.end() );  // size > 0 implies at least one hit
+  fPivot = *fPivotIter;
+  assert( fPivot );
+
+  // For good clusters, pivot must not be at beginning or end of region
+  if( fPivot == fHits.front() || fPivot == fHits.back() )
+    return false;
+
+  // Rough estimate of t0. Ensure that pivot time is always positive
+  const Double_t minSlope = 0.9;  // FIXME: better estimate
+  const Double_t vdrift = fPlane->GetDriftVel();  // m/s
+  const Double_t maxPivotTime = 0.5*fPlane->GetWSpac() / (vdrift * minSlope);
+  assert( maxPivotTime > 0 );
+  Double_t pivotTime = fPivot->GetTime();
+  Double_t timeOffset = 0.0;      // offset to subtract from all drift times
+  if( pivotTime < 0.0 || pivotTime > maxPivotTime ) {
+    timeOffset = pivotTime - 0.5*maxPivotTime;
   }
+  if( TMath::Abs(timeOffset) > fMaxT0 )
+    return false;
 
-  // Now set intercept
-  fInt = fPivot->GetPos();
-
-  // Now find the approximate slope
-  //   X = Drift Distance (m)
-  //   Y = Position of Wires (m)
+  // Find the approximate slope
   if( GetSize() > 1 ) {
-    Double_t conv = fPlane->GetDriftVel();  // m/s
-    Double_t dx = conv * (fHits[0]->GetTime() + fHits[GetSize()-1]->GetTime());
-    Double_t dy = fHits[0]->GetPos() - fHits[GetSize()-1]->GetPos();
-    fSlope = dy / dx;
+    THaVDCHit *first_hit = fHits.front(), *last_hit = fHits.back();
+    // Assume that the drift time changes sign between first and last wire
+    Double_t dt = last_hit->GetTime() + first_hit->GetTime() - 2.*timeOffset;
+    Double_t dx = last_hit->GetPos()  - first_hit->GetPos();
+    assert( dt > 0 );   // else error in calculating timeOffset
+    assert( dx > 0 );   // else hit ordering error
+    fSlope = dx / (vdrift*dt);
+    // Protect time-to-distance converter from crazy input
+    // FIXME: but maybe we should just fail here already?
+    // if( fSlope < 0.25 || fSlope > 4.0 )
+    //   fSlope = 1.0;
   } else
     fSlope = 1.0;
 
+  // Current best estimates for intercept and t0
+  fInt   = fPivot->GetPos();
+  fT0    = timeOffset;
   fFitOK = true;
+
+  return true;
 }
 
 //_____________________________________________________________________________
@@ -100,8 +125,81 @@ void THaVDCClusterFitter::ConvertTimeToDist( Double_t t0 )
   // Convert TDC Times in wires to drift distances
 
   //Do conversion for each hit in cluster
-  for (int i = 0; i < GetSize(); i++)
-    fHits[i]->ConvertTimeToDist(fSlope,t0);
+  for( Int_t i = 0; i < GetSize(); i++ )
+    fHits[i]->ConvertTimeToDist(fSlope,t0-fTimeCorrection);
+}
+
+//_____________________________________________________________________________
+inline static Double_t PosSum( Double_t val, const THaVDCHit* hit )
+{
+  return val + hit->GetPos();
+}
+
+//_____________________________________________________________________________
+class FillCoord
+{
+public:
+  FillCoord( Vcoord_t& _coord, Vcoord_t::size_type _pivot, Double_t _off,
+	     bool _weighted = true )
+    : m_coord(_coord), m_pivot(_pivot), m_offset(_off), m_weighted(_weighted)
+  { m_coord.clear(); }
+  void operator() ( const THaVDCHit* hit )
+  {
+    // In order to take into account the varying uncertainty in the
+    // drift distance, we will be working with the X' and Y', and
+    //       Y' = F + G X'
+    //  where Y' = X, and X' = Y  (swapping it around)
+    Double_t x = hit->GetPos();
+    Double_t y = hit->GetDist();
+    Double_t wt;
+    if( m_weighted ) {
+      wt = hit->GetdDist();
+      if (wt>0)   // the hit will be ignored if the uncertainty is <= 0
+	wt = 1./(wt*wt);
+      else
+	wt = -1.;
+    } else {
+      wt = 1.0;
+    }
+    Int_t s = (m_coord.size() < m_pivot) ? -1 : 1;
+    m_coord.push_back( FitCoord_t(x-m_offset,y,wt,s) );
+
+    assert( m_coord.size() == 1 ||
+	    m_coord[m_coord.size()-2].x < m_coord.back().x );
+  }
+private:
+  Vcoord_t&           m_coord;
+  Vcoord_t::size_type m_pivot;
+  Double_t            m_offset;
+  bool                m_weighted;
+};
+
+//_____________________________________________________________________________
+Int_t THaVDCClusterFitter::SetupCoordinates()
+{
+  // Calculate fPivotIdx and fPosOffset, and fill fCoords with offset
+  // coordinates suitable for fitting.
+  // Must be called after ConvertTimeToDistance.
+
+  if( fHits.empty() )
+    return -1;
+
+  // Determine index of pivot wire
+  fPivotIdx = distance(fHits.begin(),fPivotIter);
+  assert( fPivotIdx >= 0 && fPivotIdx < GetSize() );
+
+  // Align fit coordinates such that we end up with sum x_i = 0.
+  // This improves the numerical accuracy of the linear fits and eliminates
+  // certain correlations between the fitted parameters
+  fPosOffset = accumulate( ALL(fHits), 0.0, PosSum ) / fHits.size();
+
+  // Copy hits to fCoord, applying position and time corrections
+  for_each( ALL(fHits), FillCoord(fCoord,fPivotIdx,fPosOffset,fWeighted) );
+
+  assert( fCoord.size() == fHits.size() );
+  assert( fCoord[fPivotIdx].s == 1 );
+
+  return 0;
 }
 
 //_____________________________________________________________________________
@@ -131,138 +229,158 @@ void THaVDCClusterFitter::FitTrack( EMode mode )
 }
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::FitSimpleTrack( Bool_t weighted )
+struct CalcParamSums
 {
-  // Perform linear fit on drift times. Calculates slope, intercept, and errors.
-  // Does not assume the uncertainty is the same for all hits.
-  //
-  // Assume t0 = 0.
+  CalcParamSums() : W(0), X(0), XX(0), Y(0), XY(0), YY(0), S(0), SX(0), SY(0),
+		    SYX(0) /*, WW(0), XW(0), XXW(0) */ {}
+  void operator() ( const FitCoord_t& coord )
+  {
+    if( coord.w <= 0 ) return; // ignore coordinates with negative weight
+    Double_t x = coord.x, y = coord.y, w = coord.w, s = coord.s /*,ww = w*w */;
+    W   += w;
+    X   += x * w;
+    XX  += x * x * w;
+    Y   += y * w;
+    XY  += x * y * w;
+    YY  += y * y * w;
+    S   += s * w;
+    SX  += s * x * w;
+    SY  += s * y * w;
+    SYX += s * y * x * w;
+    // WW  += ww;
+    // XW  += x * ww;
+    // XXW += x * x * ww;
+  }
+  Double_t W, X, XX, Y, XY, YY, S, SX, SY, SYX /*, WW, XW, XXW */;
+};
+
+//_____________________________________________________________________________
+class CalcChi2
+{
+public:
+  CalcChi2( const FitRes_t& _res ) : m_res(_res), m_chi2(0), m_npt(0) {}
+  void operator() ( const FitCoord_t& coord )
+  {
+    if( coord.w <= 0 ) return; // ignore coordinates with negative weight
+    Double_t x  = coord.x, y = coord.y*coord.s, w = coord.w;
+    Double_t yp = x*m_res.coef[0] + m_res.coef[1];
+    if( m_res.n == 3 )  yp += coord.s*m_res.coef[2];
+    Double_t d  = y-yp;
+    m_chi2     += d*d*w;
+    m_npt++;
+  }
+  chi2_t   GetResult() const { return make_pair(m_chi2, m_npt); }
+  Double_t GetChi2()   const { return m_chi2; }
+  Int_t    GetNpt()    const { return m_npt; }
+private:
+  const FitRes_t& m_res;
+  Double_t m_chi2;
+  Int_t    m_npt;
+};
+
+//_____________________________________________________________________________
+static bool Linear2ParamFit( const Vcoord_t& coord, FitRes_t& res )
+{
+  // Linear 2-parameter fit (slope & intercept)
+
+  CalcParamSums sum = for_each( ALL(coord), CalcParamSums() );
+
+  // Standard expressions for linear regression s_i * y_i = a * x_i + b
+  // (see e.g. Bevington 3rd ed. p. 105 and p. 109)
+  Double_t Delta = sum.XX * sum.W - sum.X * sum.X;
+  if( Delta == 0.0 ) return false;
+
+  res.n = 2;
+  res.coef[0]   = ( sum.SYX * sum.W  - sum.SY * sum.X   ); // slope
+  res.coef[1]   = ( sum.XX  * sum.SY - sum.X  * sum.SYX ); // icpt
+  res.cov[0][0] =  sum.W;   // sigma_a^2
+  res.cov[1][1] =  sum.XX;  // sigma_b^2
+  res.cov[0][1] = -sum.X;   // sigma_ab covariance
+  res *= 1.0/Delta;
+  res.fill_lower();
+
+  // calculate chi2 for the track given the fitted slope and intercept
+  chi2_t chi2 = for_each( ALL(coord), CalcChi2(res) ).GetResult();
+  res.chi2 = chi2.first;
+  res.ndof = chi2.second - 2;
+
+  return true;
+}
+
+//_____________________________________________________________________________
+static bool Linear3ParamFit( const Vcoord_t& coord, FitRes_t& res )
+{
+  // Linear 3-parameter fit (slope, intercept, distance offset)
+
+  CalcParamSums sum = for_each( ALL(coord), CalcParamSums() );
+
+  Double_t Delta =
+    sum.XX  * ( sum.W   * sum.W - sum.S  * sum.S   ) -
+    sum.X   * ( sum.X   * sum.W - sum.S  * sum.SX  ) +
+    sum.SX  * ( sum.X   * sum.S - sum.W  * sum.SX  );
+
+  if( Delta == 0.0 ) return false;
+
+  res.n = 3;
+  res.coef[0] =  // slope
+    sum.SYX * ( sum.W   * sum.W - sum.S  * sum.S   ) -
+    sum.SY  * ( sum.X   * sum.W - sum.S  * sum.SX  ) +
+    sum.Y   * ( sum.X   * sum.S - sum.W  * sum.SX  );
+
+  res.coef[1] =  // intercept
+    sum.XX  * ( sum.SY  * sum.W - sum.Y  * sum.S   ) -
+    sum.X   * ( sum.SYX * sum.W - sum.Y  * sum.SX  ) +
+    sum.SX  * ( sum.SYX * sum.S - sum.SY * sum.SX  );
+
+  res.coef[2] =  // distance offset
+    sum.XX  * ( sum.W   * sum.Y  - sum.S  * sum.SY  ) -
+    sum.X   * ( sum.X   * sum.Y  - sum.S  * sum.SYX ) +
+    sum.SX  * ( sum.X   * sum.SY - sum.W  * sum.SYX );
+
+
+  //FIXME: calculate covariance matrix
+
+  res *= 1.0/Delta;
+  res.fill_lower();
+
+  // calculate chi2 for the track given the fitted slope and intercept
+  chi2_t chi2 = for_each( ALL(coord), CalcChi2(res) ).GetResult();
+  res.chi2 = chi2.first;
+  res.ndof = chi2.second - 3;
+
+  return true;
+}
+
+//_____________________________________________________________________________
+Int_t THaVDCClusterFitter::FitSimpleTrack( Bool_t weighted )
+{
+  // Perform linear fit on drift times. Calculates slope, intercept, and
+  // errors. If weighted = true, uses the estimated drift distance uncertain-
+  // ties for weighting hits. Assumes t0 = 0.
 
   // For this function, the final results is (m,b) in  Y = m X + b
   //   X = Drift Distance
   //   Y = Position of Wires
 
-  fFitOK = false;
-  if( GetSize() < 3 ) {
-    return;  // Too few hits to get meaningful results
-             // Do keep current values of slope and intercept
-  }
+  Int_t err = SetupCoordinates();
+  if( err )
+    return err;
 
-  Double_t m, sigmaM;  // Slope, St. Dev. in slope
-  Double_t b, sigmaB;  // Intercept, St. Dev in Intercept
+  FitRes_t res1, res2;
+  Linear2ParamFit( fCoord, res1 );
+  fCoord[fPivotIdx].s = -1;    // Flip sign of pivot drift distance
+  Linear2ParamFit( fCoord, res2 );
 
-  fCoord.clear();
+  bool res1_is_best = ( res1.chi2 < res2.chi2 );
+  const FitRes_t& best = ( res1_is_best ) ? res1 : res2;
+  if( res1_is_best )
+    fCoord[fPivotIdx].s = 1;  // Restore pivot wire sign used for this fit
 
-  Double_t bestFit = 0.0;
+  if( best.chi2 >= kBig )
+    return -1;
 
-  // Find the index of the pivot wire and copy distances into local arrays
-  // Note that as the index of the hits is increasing, the position of the
-  // wires is decreasing
-
-  Int_t pivotNum = 0;
-  for (int i = 0; i < GetSize(); i++) {
-
-    // In order to take into account the varying uncertainty in the
-    // drift distance, we will be working with the X' and Y', and
-    //       Y' = F + G X'
-    //  where Y' = X, and X' = Y  (swapping it around)
-    if (fHits[i] == fPivot) {
-      pivotNum = i;
-    }
-
-    Double_t x = fHits[i]->GetPos();
-    Double_t y = fHits[i]->GetDist() + fTimeCorrection;
-    Double_t w;
-    if( weighted ) {
-      w = fHits[i]->GetdDist();
-      // the hit will be ignored if the uncertainty is < 0
-      if (w>0)
-	w = 1./(w*w); // sigma^-2 is the weight
-      else
-	w = -1.;
-    } else {
-      w = 1.0;
-    }
-    fCoord.push_back( FitCoord_t(x,y,w) );
-  }
-
-  const Int_t nSignCombos = 2; //Number of different sign combinations
-  for (int i = 0; i < nSignCombos; i++) {
-    Double_t F, sigmaF2;  // intermediate slope and St. Dev.**2
-    Double_t G, sigmaG2;  // intermediate intercept and St. Dev.**2
-    Double_t sigmaFG;     // correlated uncertainty
-
-    Double_t sumX  = 0.0;   //Positions
-    Double_t sumXW = 0.0;
-    Double_t sumXX = 0.0;
-    Double_t sumY  = 0.0;   //Drift distances
-    Double_t sumXY = 0.0;
-    Double_t sumYY = 0.0;
-    Double_t sumXXW= 0.0;
-
-    Double_t W = 0.0;
-    Double_t WW= 0.0;
-
-    if (i == 0)
-      for (int j = pivotNum+1; j < GetSize(); j++)
-	fCoord[j].y *= -1;
-    else if (i == 1)
-      fCoord[pivotNum].y *= -1;
-
-    for (int j = 0; j < GetSize(); j++) {
-      Double_t x = fCoord[j].x;   // Position of wire
-      Double_t y = fCoord[j].y;   // Distance to wire
-      Double_t w = fCoord[j].w;
-
-      if (w <= 0) continue;
-      W     += w;
-      WW    += w*w;
-      sumX  += x * w;
-      sumXW += x * w * w;
-      sumXX += x * x * w;
-      sumXXW+= x * x * w * w;
-      sumY  += y * w;
-      sumXY += x * y * w;
-      sumYY += y * y * w;
-    }
-
-    // Standard formulae for linear regression (see Bevington)
-    Double_t Delta = W * sumXX - sumX * sumX;
-
-    F  = (sumXX * sumY - sumX * sumXY) / Delta;
-    G  = (W * sumXY - sumX * sumY) / Delta;
-    sigmaF2 = ( sumXX / Delta );
-    sigmaG2 = ( W / Delta );
-    sigmaFG = ( sumXW * W * sumXX - sumXXW * W * sumX
-		- WW * sumX * sumXX + sumXW * sumX * sumX ) / (Delta*Delta);
-
-    m  =   1/G;
-    b  = - F/G;
-
-    sigmaM = m * m * TMath::Sqrt( sigmaG2 );
-    sigmaB = TMath::Sqrt( sigmaF2/(G*G) + F*F/(G*G*G*G)*sigmaG2 - 2*F/(G*G*G)*sigmaFG);
-
-    // calculate chi2 for the track given this slope and intercept
-    chi2_t chi2 = CalcChisquare( m, b, 0 );
-
-    // scale the uncertainty of the fit parameters based upon the
-    // quality of the fit. This really should not be necessary if
-    // we believe the drift-distance uncertainties
-    // sigmaM *= chi2/(nhits - 2);
-    // sigmaB *= chi2/(nhits - 2);
-
-    // Pick the best value
-    if (i == 0 || chi2.first < bestFit) {
-      bestFit     = fChi2 = chi2.first;
-      fNDoF       = chi2.second - 2;
-      fLocalSlope = m;
-      fInt        = b;
-      fSigmaSlope = sigmaM;
-      fSigmaInt   = sigmaB;
-    }
-  }
-
-  fFitOK = true;
+  AcceptResults( best );
+  return 0;
 }
 
 //_____________________________________________________________________________
@@ -291,191 +409,40 @@ Int_t THaVDCClusterFitter::LinearClusterFitWithT0()
   // d0 is simply converted to time units to give t0, using the asymptotic
   // drift velocity.
 
+  Int_t err = SetupCoordinates();
+  if( err )
+    return err;
 
-  fFitOK = false;
-  if( GetSize() < 4 ) {
-    return -1;  // Too few hits to get meaningful results
-                // Do keep current values of slope and intercept
-  }
-
-  Double_t m, sigmaM;   // Slope, St. Dev. in slope
-  Double_t b, sigmaB;   // Intercept, St. Dev in Intercept
-  Double_t d0, sigmaD0;
-
-  sigmaM = sigmaB = sigmaD0 = 0;
-
-  fCoord.clear();
-
-  //--- Copy hit data into local arrays
-  Int_t ihit, incr, ilast = GetSize()-1;
-  // Ensure that the first element of the local arrays always corresponds
-  // to the wire with the smallest x position
-  bool reversed = ( fPlane->GetWSpac() < 0 );
-  if( reversed ) {
-    ihit = ilast;
-    incr = -1;
-  } else {
-    ihit = 0;
-    incr = 1;
-  }
-  for( Int_t i = 0; i < GetSize(); ihit += incr, ++i ) {
-    assert( ihit >= 0 && ihit < GetSize() );
-    Double_t x = fHits[ihit]->GetPos();
-    Double_t y = fHits[ihit]->GetDist() + fTimeCorrection;
-
-    Double_t wt = fHits[ihit]->GetdDist();
-    if( wt>0 )   // the hit will be ignored if the uncertainty is <= 0
-      wt = 1./(wt*wt);
-    else
-      wt = -1.;
-
-    fCoord.push_back( FitCoord_t(x,y,wt) );
-
-    assert( i == 0 || fCoord[i-1].x < fCoord[i].x );
-  }
-
-  Double_t bestFit = 0.0;
-
-  //--- Perform 3-parameter for different sign coefficients
+  //--- Perform 3-parameter fits for different sign coefficients
   //
   // We make some simplifying assumptions:
   // - The first wire of the cluster always has negative drift distance.
   // - The last wire always has positive drift.
   // - The sign flips exactly once from - to + somewhere in between
-  fCoord[0].s = -1;
-  for( Int_t i = 1; i < GetSize(); ++i )
-    fCoord[i].s = 1;
 
-  for( Int_t ipivot = 0; ipivot < ilast; ++ipivot ) {
-    if( ipivot != 0 )
-      fCoord[ipivot].s *= -1;
-
-    // Do the fit
-    Linear3DFit( m, b, d0 );
-
-    // calculate chi2 for the track given this slope,
-    // intercept, and distance offset
-    chi2_t chi2 = CalcChisquare( m, b, d0 );
-
-    // scale the uncertainty of the fit parameters based upon the
-    // quality of the fit. This really should not be necessary if
-    // we believe the drift-distance uncertainties
-//     sigmaM *= chi2/(nhits - 2);
-//     sigmaB *= chi2/(nhits - 2);
-
-    // Pick the best value
-    if( ipivot == 0 || chi2.first < bestFit ) {
-      bestFit     = fChi2 = chi2.first;
-      fNDoF       = chi2.second - 3;
-      fLocalSlope = m;
-      fInt        = b;
-      fT0         = d0;
-      fSigmaSlope = sigmaM;
-      fSigmaInt   = sigmaB;
-      fSigmaT0    = sigmaD0;
+  // FIXME: only flip pivot sign; more doesn't make sense
+  FitRes_t best;
+  for( Int_t ipivot = 0; ipivot < GetSize()-1; ++ipivot ) {
+    if( ipivot != 0 ) {
+      assert( fCoord[ipivot].s == 1 );
+      fCoord[ipivot].s = -1;
     }
+    // Do the fit
+    FitRes_t thisRes;
+    Int_t err = Linear3ParamFit( fCoord, thisRes );
+    if( !err && fFitOK && thisRes.chi2 < best.chi2 )
+      best = thisRes;
   }
+  if( best.chi2 >= kBig )
+    return -1;
 
-  // Rotate the coordinate system to match the VDC definition of "slope"
-  fLocalSlope = 1.0/fLocalSlope;  // 1/m
-  fInt   = -fInt * fLocalSlope;   // -b/m
-  if( fPlane ) {
-    fT0      /= fPlane->GetDriftVel();
-    fSigmaT0 /= fPlane->GetDriftVel();
-  }
-
-  fFitOK = true;
-
+  AcceptResults( best );
   return 0;
 }
 
-//_____________________________________________________________________________
-void THaVDCClusterFitter::Linear3DFit( Double_t& m, Double_t& b, Double_t& d0 ) const
-{
-  // 3-parameter fit
-//     Double_t F, sigmaF2;  // intermediate slope and St. Dev.**2
-//     Double_t G, sigmaG2;  // intermediate intercept and St. Dev.**2
-//     Double_t sigmaFG;     // correlated uncertainty
-
-  Double_t sumX   = 0.0;   //Positions
-  Double_t sumXX  = 0.0;
-  Double_t sumD   = 0.0;   //Drift distances
-  Double_t sumXD  = 0.0;
-  Double_t sumS   = 0.0;   //sign vector
-  Double_t sumSX  = 0.0;
-  Double_t sumSD  = 0.0;
-  Double_t sumSDX = 0.0;
-
-  //     Double_t sumXW = 0.0;
-  //     Double_t sumXXW= 0.0;
-
-  Double_t sumW  = 0.0;
-  //     Double_t sumWW = 0.0;
-  //     Double_t sumDD = 0.0;
-
-
-  for (int j = 0; j < GetSize(); j++) {
-    Double_t x = fCoord[j].x;   // Position of wire
-    Double_t d = fCoord[j].y;   // Distance to wire
-    Double_t w = fCoord[j].w;   // Weight/error of distance measurement
-    Int_t    s = fCoord[j].s;   // Sign of distance
-
-    if (w <= 0) continue;
-
-    sumX   += x * w;
-    sumXX  += x * x * w;
-    sumD   += d * w;
-    sumXD  += x * d * w;
-    sumS   += s * w;
-    sumSX  += s * x * w;
-    sumSD  += s * d * w;
-    sumSDX += s * d * x * w;
-    sumW   += w;
-    //       sumWW  += w*w;
-    //       sumXW  += x * w * w;
-    //       sumXXW += x * x * w * w;
-    //       sumDD  += d * d * w;
-  }
-
-  // Standard formulae for linear regression (see Bevington)
-  Double_t Delta =
-    sumXX   * ( sumW  * sumW - sumW * sumS  ) -
-    sumX    * ( sumX  * sumW - sumX * sumS  );
-
-  m =
-    sumSDX  * ( sumW  * sumW - sumW * sumS  ) -
-    sumSD   * ( sumX  * sumW - sumW * sumSX ) +
-    sumD    * ( sumX  * sumS - sumW * sumSX );
-
-  b =
-    -sumSDX * ( sumX  * sumW - sumX * sumS  ) +
-    sumSD   * ( sumXX * sumW - sumX * sumSX ) -
-    sumD    * ( sumXX * sumS - sumX - sumSX );
-
-  d0 = ( sumD - sumSD ) * ( sumXX * sumW - sumX * sumX );
-
-  m  /= Delta;
-  b  /= Delta;
-  d0 /= Delta;
-
-
-  //     F  = (sumXX * sumD - sumX * sumXD) / Delta;
-  //     G  = (sumW * sumXD - sumX * sumD) / Delta;
-  //     sigmaF2 = ( sumXX / Delta );
-  //     sigmaG2 = ( sumW / Delta );
-  //     sigmaFG = ( sumXW * sumW * sumXX - sumXXW * sumW * sumX
-  // 		- sumWW * sumX * sumXX + sumXW * sumX * sumX ) / (Delta*Delta);
-
-  //     m  =   1/G;
-  //     b  = - F/G;
-
-  //     sigmaM = m * m * TMath::Sqrt( sigmaG2 );
-  //     sigmaB = TMath::Sqrt( sigmaF2/(G*G) + F*F/(G*G*G*G)*sigmaG2 - 2*F/(G*G*G)*sigmaFG);
-
-}
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::FitNLTrack()
+Int_t THaVDCClusterFitter::FitNLTrack()
 {
   // Mike Paolone's non-linear 3-parameter fit
 
@@ -494,7 +461,7 @@ void THaVDCClusterFitter::FitNLTrack()
 
   fFitOK = false;
   if( GetSize() < 3 )
-    return;  // Too few hits to get meaningful results
+    return 1;  // Too few hits to get meaningful results
              // Do keep current values of slope and intercept
 
   Double_t m;  //, sigmaM;  // Slope, St. Dev. in slope
@@ -532,15 +499,16 @@ void THaVDCClusterFitter::FitNLTrack()
   Double_t slope_guess = fSlope;
 
   drftVel = fPlane->GetDriftVel();
-  // for (int i = 0; i < GetSize(); i++) {
-  //   if (fHits[i] == fPivot) {
-  //     pivotNum = i;
-  //   }
+  for (int i = 0; i < GetSize(); i++) {
+    if (fHits[i] == fPivot) {
+      //FIXME: make pivotNum a member variable?
+      pivotNum = i;
+    }
   //   xArr[i] = fHits[i]->GetTime();
   //   yArr[i] = fHits[i]->GetPos();
-  // }
+  }
 
-  Double_t pvttime = fHits[pivotNum]->GetTime();
+  Double_t pvttime = fPivot->GetTime();
 
   Double_t mi;   //
   Double_t bi;   //   Initial guesses for m,b and t0.
@@ -610,6 +578,8 @@ void THaVDCClusterFitter::FitNLTrack()
 
 
 	  //	  xArr[j] = PosNeg*(fHits[j]->GetDist() + fTimeCorrection - t0*drftVel);
+
+	  //FIXME: ooops, this isn't the non-linear fit we want!
 	  Double_t x = PosNeg*(fHits[j]->GetDist() + fTimeCorrection - t0*drftVel);
 	  Double_t y = fHits[i]->GetPos();
 
@@ -745,6 +715,7 @@ void THaVDCClusterFitter::FitNLTrack()
   // delete[] dydm;
   // delete[] dydb;
   // delete[] dydt0;
+  return 0;
 }
 
 //_____________________________________________________________________________
@@ -764,6 +735,46 @@ chi2_t THaVDCClusterFitter::CalcChisquare( Double_t slope, Double_t icpt,
     ++npt;
   }
   return make_pair( chi2, npt );
+}
+
+//_____________________________________________________________________________
+void THaVDCClusterFitter::AcceptResults( const FitRes_t& res )
+{
+  // Accept fit results given in 'res'
+
+  fChi2       = res.chi2;
+  fNDoF       = res.ndof;
+  fLocalSlope = res.coef[0];
+  fInt        = res.coef[1];
+  fT0         = (res.n == 3 ) ? res.coef[2] : 0;
+  //FIXME: do we really need these?
+  fSigmaSlope = res.cov[0][0];
+  fSigmaInt   = res.cov[1][1];
+  fSigmaT0    = (res.n == 3 ) ? res.cov[2][2] : 0;
+
+  //FIXME: convert to cluster definition of slope/intercept here?
+#if 0
+  // FIXME: this converts to the "cluster definition" of slope/intercept
+  res.m   =  1./a;
+  res.b   = -b/a;
+  res.t0  = 0;
+  res.dm  = res.m * res.m * TMath::Sqrt( sigma_a2 );
+  res.db  = TMath::Sqrt( sigma_b2 + b*b/(a*a)*sigma_a2 - 2*b/a*sigma_ab )/a;
+  res.dt0 = 0;
+
+  // Rotate the coordinate system to match the VDC definition of "slope"
+  fLocalSlope = 1.0/fLocalSlope;  // 1/m
+  fInt   = -fInt * fLocalSlope;   // -b/m
+  if( fPlane ) {
+    fT0      /= fPlane->GetDriftVel();
+    fSigmaT0 /= fPlane->GetDriftVel();
+  }
+
+#endif
+
+  fSlope      = fLocalSlope;   // current best guess for the global slope
+
+  fFitOK      = true;
 }
 
 //_____________________________________________________________________________
