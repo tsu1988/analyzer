@@ -20,6 +20,8 @@ namespace VDC {
   typedef std::pair<Double_t,Int_t>  chi2_t;
   typedef THaVDCPointPair VDCpp_t;
   typedef std::vector<THaVDCHit*> Vhit_t;
+  typedef Vhit_t::iterator hit_iter_t;
+
   extern const Double_t kBig;
 
   inline chi2_t operator+( chi2_t a, const chi2_t& b ) {
@@ -31,8 +33,12 @@ namespace VDC {
 
 class THaVDCCluster : public TObject {
 
+protected:
+  // Stupid rootcint needs to see this first
+  static const Vhit_t::size_type kDefaultNHit = 16;
+
 public:
-  THaVDCCluster( THaVDCPlane* owner );
+  THaVDCCluster( THaVDCPlane* owner, UInt_t size = kDefaultNHit );
   THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner );
   THaVDCCluster( const THaVDCCluster& rhs );
   THaVDCCluster& operator=( const THaVDCCluster& rhs );
@@ -102,9 +108,8 @@ protected:
   Double_t       fInt, fSigmaInt;    // Intercept and error estimate
   Double_t       fT0, fSigmaT0;      // Fitted common timing offset and error
   THaVDCHit*     fPivot;             // Pivot - hit with smallest drift time
-  //FIXME: in the code, this is used as a distance correction!!
-  Double_t       fTimeCorrection;    // correction to be applied when fitting
-                                     // drift times
+  hit_iter_t     fPivotIter;         // Iterator to pivot hit
+  Double_t       fTimeCorrection;    // Time offset applied to drift times
   Bool_t         fFitOK;             // Flag indicating that fit results valid
   Double_t       fChi2;              // chi2 for the cluster (using fSlope)
   Double_t       fNDoF;              // NDoF in local chi2 calculation
