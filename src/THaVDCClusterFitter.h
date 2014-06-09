@@ -58,7 +58,7 @@ public:
   THaVDCClusterFitter( const Vhit_t& hits, THaVDCPlane* owner );
   virtual ~THaVDCClusterFitter() {}
 
-  enum EMode { kSimple, kWeighted, kLinearT0, kT0 };
+  enum EMode { kSimple, kLinearT0, kT0 };
 
   bool           EstTrackParameters();
   void           ConvertTimeToDist( Double_t t0 = 0 );
@@ -68,6 +68,7 @@ public:
   virtual void   Clear( Option_t* opt="" );
 
   void           SetMaxT0( Double_t t0 ) { fMaxT0 = t0; }
+  void           SetWeighted( Bool_t w = true ) { fWeighted = w; }
 
 protected:
   // Workspace for fitting routines
@@ -77,7 +78,7 @@ protected:
   Double_t         fMaxT0;          // maximum allowable estimated t0
   Bool_t           fWeighted;       // Do weighted fit of measured drift distances
 
-  Int_t  FitSimpleTrack( Bool_t weighted = false );
+  Int_t  FitSimpleTrack();
   Int_t  FitNLTrack();        // Non-linear 3-parameter fit
   Int_t  LinearClusterFitWithT0();
 
