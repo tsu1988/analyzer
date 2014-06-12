@@ -173,8 +173,8 @@ void THaVDCCluster::Clear( const Option_t* )
     ReleaseHits();
   fHits.clear();
   fPivotIdx  = -1;
-  fClsBeg    = -1;
-  fClsEnd    = kMaxInt;
+  fClsBeg    = kMaxInt-1;
+  fClsEnd    = -1;
   fPointPair = 0;
   fTrack     = 0;
   fTrkNum    = 0;
