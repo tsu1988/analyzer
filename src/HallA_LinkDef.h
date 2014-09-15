@@ -37,7 +37,7 @@
 #pragma link C++ class WordLoc+;
 #pragma link C++ class RoclenLoc+;
 #pragma link C++ class TrigBitLoc+;
-#pragma link C++ class THaAnalysisObject+;
+#pragma link C++ class Podd::AnalysisObject+;
 #pragma link C++ class THaDetectorBase+;
 #pragma link C++ class THaPhysicsModule+;
 #pragma link C++ class THaVertexModule+;

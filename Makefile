@@ -177,7 +177,7 @@ SRC          := src/THaFormula.C src/THaVform.C src/THaVhist.C \
                 src/THaDecData.C src/BdataLoc.C src/THaOutput.C src/THaString.C \
 		src/THaTrackingDetector.C src/THaNonTrackingDetector.C \
 		src/THaPidDetector.C src/THaSubDetector.C \
-		src/THaAnalysisObject.C src/THaDetectorBase.C src/THaRTTI.C \
+		src/AnalysisObject.C src/THaDetectorBase.C src/THaRTTI.C \
 		src/THaPhysicsModule.C src/THaVertexModule.C \
 		src/THaTrackingModule.C \
 		src/THaAnalyzer.C src/THaPrintOption.C \
