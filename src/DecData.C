@@ -2,7 +2,7 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaDecData
+// DecData
 //
 // Hall A miscellaneous decoder data, which typically do not belong to a
 // detector class. Provides a place to rapidly add new channels and to
@@ -11,7 +11,7 @@
 // To use this class, add something like the following to your analysis
 // script:
 //
-// gHaApps->Add( new THaDecData("D","Decoder raw data") );
+// gHaApps->Add( new DecData("D","Decoder raw data") );
 // 
 // This will give your class the name "D", which will be the prefix for
 // all its database keys and global variables.
@@ -70,7 +70,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaDecData.h"
+#include "DecData.h"
 #include "THaVarList.h"
 #include "THaGlobals.h"
 #include "TDatime.h"
@@ -91,12 +91,14 @@
 
 using namespace std;
 
+namespace Podd {
+
 static Int_t kInitHashCapacity = 100;
 static Int_t kRehashLevel = 3;
 
 //_____________________________________________________________________________
-THaDecData::THaDecData( const char* name, const char* descript )
-  : THaApparatus( name, descript ), evtype(0), evtypebits(0),
+DecData::DecData( const char* name, const char* descript )
+  : Apparatus( name, descript ), evtype(0), evtypebits(0),
     fBdataLoc( kInitHashCapacity, kRehashLevel )
 {
   fProperties &= ~kNeedsRunDB;
@@ -104,7 +106,7 @@ THaDecData::THaDecData( const char* name, const char* descript )
 }
 
 //_____________________________________________________________________________
-THaDecData::~THaDecData()
+DecData::~DecData()
 {
   // Destructor. Delete data location objects and global variables.
 
@@ -113,7 +115,7 @@ THaDecData::~THaDecData()
 }
 
 //_____________________________________________________________________________
-void THaDecData::Clear( Option_t* )
+void DecData::Clear( Option_t* )
 {
   // Reset event-by-event data
 
@@ -127,7 +129,7 @@ void THaDecData::Clear( Option_t* )
 }
 
 //_____________________________________________________________________________
-Int_t THaDecData::DefineVariables( EMode mode )
+Int_t DecData::DefineVariables( EMode mode )
 {
   // Register global variables, open decdata map file, and parse it.
   // If mode == kDelete, remove global variables.
@@ -135,7 +137,7 @@ Int_t THaDecData::DefineVariables( EMode mode )
   // Each defined decoder data location defines its own global variable(s)
   // The BdataLoc have their own equivalent of fIsSetup, so we can
   // unconditionally call their DefineVariables() here (similar to detetcor
-  // initialization in THaAppratus::Init).
+  // initialization in Appratus::Init).
   Int_t retval = kOK;
   TIter next( &fBdataLoc );
   while( BdataLoc* dataloc = static_cast<BdataLoc*>( next() ) ) {
@@ -157,7 +159,7 @@ Int_t THaDecData::DefineVariables( EMode mode )
 }
 
 //_____________________________________________________________________________
-Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
+Int_t DecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 				 const TString& configstr, bool re_init )
 {
   // Define variables for given loctype using parameters in configstr
@@ -248,16 +250,16 @@ Int_t THaDecData::DefineLocType( const BdataLoc::BdataLocType& loctype,
 }
 
 //_____________________________________________________________________________
-FILE* THaDecData::OpenFile( const TDatime& date )
+FILE* DecData::OpenFile( const TDatime& date )
 { 
   // Open DecData database file. First look for standard file name,
   // e.g. "db_D.dat", then for legacy file name "decdata.map"
 
-  FILE* fi = THaApparatus::OpenFile( date );
+  FILE* fi = Apparatus::OpenFile( date );
   if( fi )
     return fi;
-  return THaAnalysisObject::OpenFile("decdata.dat", date,
-				     Here("OpenFile()"), "r", fDebug);
+  return AnalysisObject::OpenFile("decdata.dat", date,
+				  Here("OpenFile()"), "r", fDebug);
 }
 
 //_____________________________________________________________________________
@@ -300,13 +302,13 @@ static Int_t CheckDBVersion( FILE* file )
 inline
 static TString& GetString( const TObjArray* params, Int_t pos )
 {
-  return THaAnalysisObject::GetObjArrayString(params,pos);
+  return AnalysisObject::GetObjArrayString(params,pos);
 }
 
 //_____________________________________________________________________________
 static Int_t ReadOldFormatDB( FILE* file, map<TString,TString>& configstr_map )
 {
-  // Read old-style THaDecData database file and put results into a map from
+  // Read old-style DecData database file and put results into a map from
   // database key to value (simulating the new-style key/value database info).
   // Old-style "crate" objects are all assumed to be multihit channels, even
   // though they usually are not.
@@ -319,7 +321,7 @@ static Int_t ReadOldFormatDB( FILE* file, map<TString,TString>& configstr_map )
   TString confval[nkeys];
   // Read all non-comment lines
   rewind(file);
-  while( THaAnalysisObject::ReadDBline(file, buf, bufsiz, dbline) != EOF ) {
+  while( AnalysisObject::ReadDBline(file, buf, bufsiz, dbline) != EOF ) {
     if( dbline.empty() ) continue;
     // Tokenize each line read
     TString line( dbline.c_str() );
@@ -356,9 +358,9 @@ static Int_t ReadOldFormatDB( FILE* file, map<TString,TString>& configstr_map )
 #endif
 
 //_____________________________________________________________________________
-Int_t THaDecData::ReadDatabase( const TDatime& date )
+Int_t DecData::ReadDatabase( const TDatime& date )
 {
-  // Read THaDecData database
+  // Read DecData database
 
   static const char* const here = "ReadDatabase";
 
@@ -442,18 +444,18 @@ Int_t THaDecData::ReadDatabase( const TDatime& date )
 
 
 //_____________________________________________________________________________
-THaAnalysisObject::EStatus THaDecData::Init( const TDatime& run_time ) 
+AnalysisObject::EStatus DecData::Init( const TDatime& run_time ) 
 {
   // Custom Init() method. Since this apparatus has no traditional "detectors",
   // we skip the detector initialization.
 
   // Standard analysis object init, calls MakePrefix(), ReadDatabase()
   // and DefineVariables(), and Clear("I")
-  return THaAnalysisObject::Init( run_time );
+  return AnalysisObject::Init( run_time );
 }
 
 //_____________________________________________________________________________
-Int_t THaDecData::Decode(const THaEvData& evdata)
+Int_t DecData::Decode(const THaEvData& evdata)
 {
   // Extract the requested variables from the event data
 
@@ -483,11 +485,11 @@ Int_t THaDecData::Decode(const THaEvData& evdata)
 }
 
 //_____________________________________________________________________________
-void THaDecData::Print( Option_t* opt ) const
+void DecData::Print( Option_t* opt ) const
 {
-  // Print current status of all THaDecData variables
+  // Print current status of all DecData variables
 
-  THaAnalysisObject::Print(opt);
+  AnalysisObject::Print(opt);
 
   cout << " event types,  CODA = " << evtype
        << "   bit pattern = 0x"      << hex << evtypebits << dec
@@ -514,6 +516,8 @@ void THaDecData::Print( Option_t* opt ) const
   }
 }
 
-//_____________________________________________________________________________
-ClassImp(THaDecData)
+///////////////////////////////////////////////////////////////////////////////
 
+} // end namespace Podd
+
+ClassImp(Podd::DecData)

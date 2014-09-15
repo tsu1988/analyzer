@@ -1,35 +1,37 @@
-#ifndef ROOT_THaSpectrometerDetector
-#define ROOT_THaSpectrometerDetector
+#ifndef Podd_SpectrometerDetector
+#define Podd_SpectrometerDetector
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaSpectrometerDetector
+// SpectrometerDetector
 //
-// Abstract base class for a generic spectrometer detector. 
+// Abstract base class for a generic spectrometer detector.
 //
 // This is a specialized detector class that supports the concept of
 // "tracking" and "PID" detectors.
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaDetector.h"
+#include "Detector.h"
 
 class THaTrack;
 
-class THaSpectrometerDetector : public THaDetector {
-  
+namespace Podd {
+
+class SpectrometerDetector : public Detector {
+
 public:
-  virtual ~THaSpectrometerDetector();
-  
+  virtual ~SpectrometerDetector();
+
   virtual Bool_t   IsTracking() = 0;
   virtual Bool_t   IsPid()      = 0;
 
           bool     CheckIntercept( THaTrack* track );
-          bool     CalcInterceptCoords( THaTrack* track, 
+          bool     CalcInterceptCoords( THaTrack* track,
 					Double_t& x, Double_t& y );
           bool     CalcPathLen( THaTrack* track, Double_t& t );
 
-  THaSpectrometerDetector();       // for ROOT I/O only
+  SpectrometerDetector();       // for ROOT I/O only
 
 protected:
 
@@ -40,14 +42,19 @@ protected:
 
   virtual void  DefineAxes( Double_t rotation_angle );
 
-          bool  CalcTrackIntercept( THaTrack* track, Double_t& t, 
+          bool  CalcTrackIntercept( THaTrack* track, Double_t& t,
 				    Double_t& ycross, Double_t& xcross);
 
   //Only derived classes may construct me
-  THaSpectrometerDetector( const char* name, const char* description,
-			   THaApparatus* a = NULL );
+  SpectrometerDetector( const char* name, const char* description,
+			Apparatus* a = NULL );
 
-  ClassDef(THaSpectrometerDetector,1)   //ABC for a spectrometer detector
+  ClassDef(SpectrometerDetector,1)   //ABC for a spectrometer detector
 };
+
+} // end namespace Podd
+
+// Backwards-compatibility
+#define THaSpectrometerDetector Podd::SpectrometerDetector
 
 #endif

@@ -63,11 +63,10 @@ const Double_t AnalysisObject::kBig = 1.e38;
 static TVirtualMutex* gHereMutex = 0;
 
 //_____________________________________________________________________________
-AnalysisObject::AnalysisObject( const char* name,
-				      const char* description ) :
-  TNamed(name,description), fPrefix(NULL), fStatus(kNotinit),
-  fDebug(0), fIsInit(false), fIsSetup(false), fProperties(0),
-  fOKOut(false), fInitDate(19950101,0)
+AnalysisObject::AnalysisObject( const char* name, const char* description )
+  : TNamed(name,description), fPrefix(NULL), fStatus(kNotinit),
+    fDebug(0), fIsInit(false), fIsSetup(false), fProperties(0),
+    fOKOut(false), fInitDate(19950101,0)
 {
   // Constructor
 
@@ -122,22 +121,22 @@ Int_t AnalysisObject::DefineVariables( EMode /* mode */ )
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::DefineVarsFromList( const VarDef* list, EMode mode,
-					     const char* var_prefix ) const
+					  const char* var_prefix ) const
 {
   return DefineVarsFromList( list, kVarDef, mode, var_prefix );
 }
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::DefineVarsFromList( const RVarDef* list, EMode mode,
-					     const char* var_prefix ) const
+					  const char* var_prefix ) const
 {
   return DefineVarsFromList( list, kRVarDef, mode, var_prefix );
 }
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::DefineVarsFromList( const void* list,
-					     EType type, EMode mode,
-					     const char* var_prefix ) const
+					  EType type, EMode mode,
+					  const char* var_prefix ) const
 {
   // Add/delete variables defined in 'list' to/from the list of global
   // variables, using prefix of the current apparatus.
@@ -149,11 +148,11 @@ Int_t AnalysisObject::DefineVarsFromList( const void* list,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::DefineVarsFromList( const void* list,
-					     EType type, EMode mode,
-					     const char* var_prefix,
-					     const TObject* obj,
-					     const char* prefix,
-					     const char* here )
+					  EType type, EMode mode,
+					  const char* var_prefix,
+					  const TObject* obj,
+					  const char* prefix,
+					  const char* here )
 {
   // Actual implementation of the variable definition utility function.
   // Static function that can be used by classes other than AnalysisObjects
@@ -213,8 +212,8 @@ Int_t AnalysisObject::End( THaRunBase* /* run */ )
 
 //_____________________________________________________________________________
 AnalysisObject* AnalysisObject::FindModule( const char* name,
-						  const char* classname,
-						  bool do_error )
+					    const char* classname,
+					    bool do_error )
 {
   // Locate the object 'name' in the global list of Analysis Modules
   // and check if it inherits from 'classname' (if given), and whether
@@ -224,8 +223,8 @@ AnalysisObject* AnalysisObject::FindModule( const char* name,
   // to kInitError.
   // If do_error == false, do not test if object is initialized.
 
-  static const char* const here = "FindModule()";
-  static const char* const anaobj = "AnalysisObject";
+  const char* const here = "FindModule()";
+  const char* const anaobj = "Podd::AnalysisObject";
 
   EStatus save_status = fStatus;
   if( do_error )
@@ -268,20 +267,20 @@ AnalysisObject* AnalysisObject::FindModule( const char* name,
 
 //_____________________________________________________________________________
 vector<string> AnalysisObject::GetDBFileList( const char* name,
-						 const TDatime& date,
-						 const char* here )
+					      const TDatime& date,
+					      const char* here )
 {
   // Return the database file searchlist as a vector of strings.
   // The file names are relative to the current directory.
 
-  static const string defaultdir = "DEFAULT";
+  const string defaultdir = "DEFAULT";
 #ifdef WIN32
-  static const string dirsep = "\\", allsep = "/\\";
+  const string dirsep = "\\", allsep = "/\\";
 #else
-  static const string dirsep = "/", allsep = "/";
+  const string dirsep = "/", allsep = "/";
 #endif
 
-  const char* dbdir = NULL;
+  const char* dbdir = 0;
   const char* result;
   void* dirp;
   size_t pos;
@@ -456,7 +455,7 @@ AnalysisObject::EStatus AnalysisObject::Init( const TDatime& date )
   //
   // This implementation will change once the real database is  available.
 
-  static const char* const here = "Init";
+  const char* const here = "Init";
 
   if( IsZombie() )
     return fStatus = kNotinit;
@@ -564,8 +563,8 @@ void AnalysisObject::MakePrefix( const char* basename )
 
 //_____________________________________________________________________________
 FILE* AnalysisObject::OpenFile( const char *name, const TDatime& date,
-				   const char *here, const char *filemode,
-				   const int debug_flag )
+				const char *here, const char *filemode,
+				const int debug_flag )
 {
   // Open database file and return a pointer to the C-style file descriptor.
 
@@ -727,12 +726,12 @@ void AnalysisObject::SetDebug( Int_t level )
 //---------- Geometry functions -----------------------------------------------
 //_____________________________________________________________________________
 Bool_t AnalysisObject::IntersectPlaneWithRay( const TVector3& xax,
-						 const TVector3& yax,
-						 const TVector3& org,
-						 const TVector3& ray_start,
-						 const TVector3& ray_vect,
-						 Double_t& length,
-						 TVector3& intersect )
+					      const TVector3& yax,
+					      const TVector3& org,
+					      const TVector3& ray_start,
+					      const TVector3& ray_vect,
+					      Double_t& length,
+					      TVector3& intersect )
 {
   // Find intersection point of plane (given by 'xax', 'yax', 'org') with
   // ray (given by 'ray_start', 'ray_vect').
@@ -774,13 +773,13 @@ Bool_t AnalysisObject::IntersectPlaneWithRay( const TVector3& xax,
 
 //_____________________________________________________________________________
 void AnalysisObject::GeoToSph( Double_t  th_geo, Double_t  ph_geo,
-				  Double_t& th_sph, Double_t& ph_sph )
+			       Double_t& th_sph, Double_t& ph_sph )
 {
   // Convert geographical to spherical angles. Units are rad.
   // th_geo and ph_geo can be anything.
   // th_sph is in [0,pi], ph_sph in [-pi,pi].
 
-  static const Double_t twopi = 2.0*TMath::Pi();
+  const Double_t twopi = 2.0*TMath::Pi();
   Double_t ct = cos(th_geo), cp = cos(ph_geo);
   register Double_t tmp = ct*cp;
   th_sph = acos( tmp );
@@ -792,14 +791,14 @@ void AnalysisObject::GeoToSph( Double_t  th_geo, Double_t  ph_geo,
 
 //_____________________________________________________________________________
 void AnalysisObject::SphToGeo( Double_t  th_sph, Double_t  ph_sph,
-				  Double_t& th_geo, Double_t& ph_geo )
+			       Double_t& th_geo, Double_t& ph_geo )
 {
   // Convert spherical to geographical angles. Units are rad.
   // th_sph and ph_sph can be anything, although th_sph outside
   // [0,pi] is not really meaningful.
   // th_geo is in [-pi,pi] and ph_sph in [-pi/2,pi/2]
 
-  static const Double_t twopi = 2.0*TMath::Pi();
+  const Double_t twopi = 2.0*TMath::Pi();
   Double_t ct = cos(th_sph), st = sin(th_sph), cp = cos(ph_sph);
   if( fabs(ct) > 1e-6 ) {
     th_geo = atan( st/ct*cp );
@@ -928,7 +927,7 @@ bool AnalysisObject::IsTag( const char* buf )
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::ReadDBline( FILE* file, char* buf, size_t bufsiz,
-				     string& line )
+				  string& line )
 {
   // Get a text line from the database file 'file'. Ignore all comments
   // (anything after a #). Trim trailing whitespace. Concatenate continuation
@@ -1005,7 +1004,7 @@ Int_t AnalysisObject::ReadDBline( FILE* file, char* buf, size_t bufsiz,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
-				      const char* key, string& text )
+				   const char* key, string& text )
 {
   // Load a data value tagged with 'key' from the database 'file'.
   // Lines before the first valid time stamp or starting with "#" are ignored.
@@ -1023,7 +1022,7 @@ Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
   errtxt.clear();
   rewind(file);
 
-  static const size_t bufsiz = 256;
+  const size_t bufsiz = 256;
   char* buf = new char[bufsiz];
 
   bool found = false, ignore = false;
@@ -1061,7 +1060,7 @@ Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
-				      const char* key, Double_t& value )
+				   const char* key, Double_t& value )
 {
   // Locate key in database, convert the text found to double-precision,
   // and return result in 'value'.
@@ -1076,7 +1075,7 @@ Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
-				      const char* key, Int_t& value )
+				   const char* key, Int_t& value )
 {
   // Locate key in database, convert the text found to integer
   // and return result in 'value'.
@@ -1091,7 +1090,7 @@ Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
-				      const char* key, TString& text )
+				   const char* key, TString& text )
 {
   // Locate key in database, convert the text found to TString
   // and return result in 'text'.
@@ -1107,7 +1106,7 @@ Int_t AnalysisObject::LoadDBvalue( FILE* file, const TDatime& date,
 //_____________________________________________________________________________
 template <class T>
 Int_t AnalysisObject::LoadDBarray( FILE* file, const TDatime& date,
-				      const char* key, vector<T>& values )
+				   const char* key, vector<T>& values )
 {
   string text;
   Int_t err = LoadDBvalue( file, date, key, text );
@@ -1130,9 +1129,9 @@ Int_t AnalysisObject::LoadDBarray( FILE* file, const TDatime& date,
 //_____________________________________________________________________________
 template <class T>
 Int_t AnalysisObject::LoadDBmatrix( FILE* file, const TDatime& date,
-				       const char* key,
-				       vector<vector<T> >& values,
-				       UInt_t ncols )
+				    const char* key,
+				    vector<vector<T> >& values,
+				    UInt_t ncols )
 {
   // Read a matrix of values of type T into a vector of vectors.
   // The matrix is square with ncols columns.
@@ -1166,8 +1165,8 @@ Int_t AnalysisObject::LoadDBmatrix( FILE* file, const TDatime& date,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::LoadDB( FILE* f, const TDatime& date,
-				 const DBRequest* req, const char* prefix,
-				 Int_t search )
+			      const DBRequest* req, const char* prefix,
+			      Int_t search )
 {
   // Load a list of parameters from the database file 'f' according to
   // the contents of the 'req' structure (see VarDef.h).
@@ -1339,8 +1338,8 @@ Int_t AnalysisObject::LoadDB( FILE* f, const TDatime& date,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::LoadDB( FILE* f, const TDatime& date,
-				 const TagDef* keys, const char* prefix,
-				 Int_t search )
+			      const TagDef* keys, const char* prefix,
+			      Int_t search )
 {
   // Compatibility function to read database with old 'TagDef'
   // request structure
@@ -1379,8 +1378,8 @@ Int_t AnalysisObject::LoadDB( FILE* f, const TDatime& date,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::SeekDBconfig( FILE* file, const char* tag,
-				       const char* label,
-				       Bool_t end_on_tag )
+				    const char* label,
+				    Bool_t end_on_tag )
 {
   // Starting from the current position in 'file', look for the
   // configuration 'tag'. Position the file on the
@@ -1443,7 +1442,7 @@ Int_t AnalysisObject::SeekDBconfig( FILE* file, const char* tag,
 
 //_____________________________________________________________________________
 Int_t AnalysisObject::SeekDBdate( FILE* file, const TDatime& date,
-				     Bool_t end_on_tag )
+				  Bool_t end_on_tag )
 {
   // Starting from the current position in file 'f', look for a
   // date tag matching time stamp 'date'. Position the file on the
@@ -1455,7 +1454,7 @@ Int_t AnalysisObject::SeekDBdate( FILE* file, const TDatime& date,
   // otherwise, search through end of file.
   // Useful for sub-segmenting database files.
 
-  static const char* const here = "AnalysisObject::SeekDBdateTag";
+  const char* const here = "AnalysisObject::SeekDBdateTag";
 
   if( !file ) return 0;
   const int LEN = 256;

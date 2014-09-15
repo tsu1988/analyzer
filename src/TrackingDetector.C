@@ -2,11 +2,11 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaTrackingDetector
+// TrackingDetector
 //
 // Abstract base class for a generic tracking detector. 
 //
-// This is a special THaSpectrometerDetector that is capable of
+// This is a special SpectrometerDetector that is capable of
 // finding particle tracks. It does not need to find track vertices
 // (target coordinates) - this is usually done by the enclosing apparatus.
 //
@@ -17,39 +17,38 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "TClonesArray.h"
-#include "THaTrackingDetector.h"
+#include "TrackingDetector.h"
 #include "THaPIDinfo.h"
 #include "THaTrack.h"
 #include "THaSpectrometer.h"
 #include "TError.h"
 
-ClassImp(THaTrackingDetector)
+namespace Podd {
 
 //_____________________________________________________________________________
-THaTrackingDetector::THaTrackingDetector( const char* name, 
-					  const char* description,
-					  THaApparatus* apparatus )
-  : THaSpectrometerDetector(name,description,apparatus)
+TrackingDetector::TrackingDetector( const char* name, const char* description,
+				    Apparatus* apparatus )
+  : SpectrometerDetector(name,description,apparatus)
 {
   // Constructor
 
 }
 
 //_____________________________________________________________________________
-THaTrackingDetector::THaTrackingDetector( )
-  : THaSpectrometerDetector( )
+TrackingDetector::TrackingDetector( )
+  : SpectrometerDetector( )
 {
   // Constructor for ROOT I/O only
 }
 
 //_____________________________________________________________________________
-THaTrackingDetector::~THaTrackingDetector()
+TrackingDetector::~TrackingDetector()
 {
   // Destructor
 }
 
 //_____________________________________________________________________________
-THaTrack* THaTrackingDetector::AddTrack( TClonesArray& tracks,
+THaTrack* TrackingDetector::AddTrack( TClonesArray& tracks,
 					 Double_t x, Double_t y,
 					 Double_t theta, Double_t phi,
 					 THaTrackID* ID )
@@ -76,7 +75,7 @@ THaTrack* THaTrackingDetector::AddTrack( TClonesArray& tracks,
     pid = static_cast<THaPIDinfo*>( c.At(i) );
   
   } else if( fDebug>0 ) {
-    ::Warning("THaTrackingDetector::AddTrack", "No spectrometer defined for "
+    ::Warning("TrackingDetector::AddTrack", "No spectrometer defined for "
 	      "detector %s. Track has no PID and vertex info.", GetName());
   }
 
@@ -85,4 +84,8 @@ THaTrack* THaTrackingDetector::AddTrack( TClonesArray& tracks,
   return new( tracks[i] ) THaTrack( x, y, theta, phi, this, ID, pid );
 
 }
+///////////////////////////////////////////////////////////////////////////////
 
+} // end namespace Podd
+
+ClassImp(Podd::TrackingDetector)

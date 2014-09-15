@@ -2,23 +2,25 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaBeamInfo
+// BeamInfo
 //
 // Utility class/structure for holding variable beam information.
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaBeamInfo.h"
-#include "THaBeam.h"
+#include "BeamInfo.h"
+#include "Beam.h"
 #include "THaRunParameters.h"
 #include "TMath.h"
 
 using namespace std;
 
-const Double_t THaBeamInfo::kBig = 1e38;
+namespace Podd {
+
+const Double_t BeamInfo::kBig = 1e38;
 
 //_____________________________________________________________________________
-Double_t THaBeamInfo::GetE() const
+Double_t BeamInfo::GetE() const
 {
   // Return beam energy. This is the energy corresponding to the
   // current beam momentum and mass, not necessarily the same as
@@ -33,7 +35,7 @@ Double_t THaBeamInfo::GetE() const
 }
 
 //_____________________________________________________________________________
-Double_t THaBeamInfo::GetM() const
+Double_t BeamInfo::GetM() const
 {
   // Return mass of beam particles
 
@@ -46,7 +48,7 @@ Double_t THaBeamInfo::GetM() const
 }
 
 //_____________________________________________________________________________
-Int_t THaBeamInfo::GetQ() const
+Int_t BeamInfo::GetQ() const
 {
   // Return charge of beam particles (electrons: -1)
 
@@ -59,7 +61,7 @@ Int_t THaBeamInfo::GetQ() const
 }
 
 //_____________________________________________________________________________
-Double_t THaBeamInfo::GetdE() const
+Double_t BeamInfo::GetdE() const
 {
   // Return beam energy uncertainty
 
@@ -71,5 +73,8 @@ Double_t THaBeamInfo::GetdE() const
   return rp->GetBeamdE();
 }
 
-//_____________________________________________________________________________
-ClassImp(THaBeamInfo)
+///////////////////////////////////////////////////////////////////////////////
+
+} // end namespace Podd
+
+ClassImp(Podd::BeamInfo)

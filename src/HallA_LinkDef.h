@@ -27,7 +27,7 @@
 #pragma link C++ class THaRunBase+;
 #pragma link C++ class THaCodaRun+;
 #pragma link C++ class THaRunParameters+;
-#pragma link C++ class THaApparatus+;
+#pragma link C++ class Podd::Apparatus+;
 #pragma link C++ class THaSpectrometer+;
 #pragma link C++ class THaHRS+;
 #pragma link C++ class THaDecData+;
@@ -38,14 +38,14 @@
 #pragma link C++ class RoclenLoc+;
 #pragma link C++ class TrigBitLoc+;
 #pragma link C++ class Podd::AnalysisObject+;
-#pragma link C++ class THaDetectorBase+;
+#pragma link C++ class Podd::DetectorBase+;
 #pragma link C++ class THaPhysicsModule+;
 #pragma link C++ class THaVertexModule+;
 #pragma link C++ class THaTrackingModule+;
-#pragma link C++ class THaDetector+;
+#pragma link C++ class Podd::Detector+;
 #pragma link C++ class THaSubDetector+;
-#pragma link C++ class THaSpectrometerDetector+;
-#pragma link C++ class THaTrackingDetector+;
+#pragma link C++ class Podd::SpectrometerDetector+;
+#pragma link C++ class Podd::TrackingDetector+;
 #pragma link C++ class THaNonTrackingDetector+;
 #pragma link C++ class THaPidDetector+;
 #pragma link C++ class THaDetMap+;
@@ -59,7 +59,7 @@
 //#pragma link C++ class THaScalerKey+;
 #pragma link C++ class THaAnalyzer+;
 #pragma link C++ class THaPrintOption+;
-#pragma link C++ class THaBeam+;
+#pragma link C++ class Podd::Beam+;
 #pragma link C++ class THaBeamDet+;
 #pragma link C++ class THaIdealBeam+;
 #pragma link C++ class THaRasteredBeam+;

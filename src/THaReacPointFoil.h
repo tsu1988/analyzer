@@ -12,7 +12,8 @@
 #include "TString.h"
 
 class THaSpectrometer;
-class THaBeam;
+//class THaBeam;
+#include "THaBeam.h"
 
 class THaReacPointFoil : public THaPhysicsModule, public THaVertexModule {
   

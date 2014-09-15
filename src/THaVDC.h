@@ -28,7 +28,7 @@ public:
   virtual Int_t CoarseTrack( TClonesArray& tracks );
   virtual Int_t FineTrack( TClonesArray& tracks );
   virtual Int_t FindVertices( TClonesArray& tracks );
-  virtual EStatus Init( const TDatime& date );
+  virtual THaAnalysisObject::EStatus Init( const TDatime& date );
 
   // Get and Set Functions
   virtual THaVDCUVPlane* GetUpper() { return fUpper; }

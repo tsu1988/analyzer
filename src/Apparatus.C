@@ -2,7 +2,7 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaApparatus
+// Apparatus
 //
 // ABC for a generic apparatus (collection of detectors).
 // Defines a standard Decode() method that loops over all detectors 
@@ -12,8 +12,8 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaApparatus.h"
-#include "THaDetector.h"
+#include "Apparatus.h"
+#include "Detector.h"
 #include "TClass.h"
 #include "TList.h"
 
@@ -23,9 +23,11 @@
 
 using namespace std;
 
+namespace Podd {
+
 //_____________________________________________________________________________
-THaApparatus::THaApparatus( const char* name, const char* description ) : 
-  THaAnalysisObject(name,description)
+Apparatus::Apparatus( const char* name, const char* description ) : 
+  AnalysisObject(name,description)
 {
   // Constructor
   
@@ -33,13 +35,13 @@ THaApparatus::THaApparatus( const char* name, const char* description ) :
 }
 
 //_____________________________________________________________________________
-THaApparatus::THaApparatus( ) : fDetectors(NULL)
+Apparatus::Apparatus( ) : fDetectors(NULL)
 {
   // only for ROOT I/O
 }
   
 //_____________________________________________________________________________
-THaApparatus::~THaApparatus()
+Apparatus::~Apparatus()
 {
   // Destructor. Delete all detectors currently associated with this
   // apparatus, including any that were added via AddDetector.
@@ -51,7 +53,7 @@ THaApparatus::~THaApparatus()
 }
 
 //_____________________________________________________________________________
-Int_t THaApparatus::AddDetector( THaDetector* pdet )
+Int_t Apparatus::AddDetector( Detector* pdet )
 {
   // Add a detector to this apparatus. This is the standard way to 
   // configure an apparatus for data analysis.
@@ -67,10 +69,10 @@ Int_t THaApparatus::AddDetector( THaDetector* pdet )
   // deleted by the apparatus.
 
   
-  THaDetector* pfound = 
-    static_cast<THaDetector*>( fDetectors->FindObject( pdet->GetName() ));
+  Detector* pfound = 
+    static_cast<Detector*>( fDetectors->FindObject( pdet->GetName() ));
   if( pfound ) {
-    Error("THaApparatus", "Detector with name %s already exists for this"
+    Error("Apparatus", "Detector with name %s already exists for this"
 	  " apparatus. Not added.", pdet->GetName() );
     return -1;
   }
@@ -80,24 +82,24 @@ Int_t THaApparatus::AddDetector( THaDetector* pdet )
 }
 
 //_____________________________________________________________________________
-Int_t THaApparatus::Begin( THaRunBase* run )
+Int_t Apparatus::Begin( THaRunBase* run )
 {
   // Default Begin() for an apparatus: Begin() all our detectors
 
   TIter next(fDetectors);
-  while( THaAnalysisObject* obj = static_cast<THaAnalysisObject*>(next()) ) {
+  while( AnalysisObject* obj = static_cast<AnalysisObject*>(next()) ) {
     obj->Begin(run);
   }
   return 0;
 }
 
 //_____________________________________________________________________________
-void THaApparatus::Clear( Option_t* opt )
+void Apparatus::Clear( Option_t* opt )
 {
   // Call the Clear() method for all detectors defined for this apparatus.
 
   TIter next(fDetectors);
-  while( THaDetector* theDetector = static_cast<THaDetector*>( next() )) {
+  while( Detector* theDetector = static_cast<Detector*>( next() )) {
 #ifdef WITH_DEBUG
     if( fDebug>1 ) cout << "Clearing " << theDetector->GetName()
 			<< "... " << flush;
@@ -110,12 +112,12 @@ void THaApparatus::Clear( Option_t* opt )
 }
 
 //_____________________________________________________________________________
-Int_t THaApparatus::Decode( const THaEvData& evdata )
+Int_t Apparatus::Decode( const THaEvData& evdata )
 {
   // Call the Decode() method for all detectors defined for this apparatus.
 
   TIter next(fDetectors);
-  while( THaDetector* theDetector = static_cast<THaDetector*>( next() )) {
+  while( Detector* theDetector = static_cast<Detector*>( next() )) {
 #ifdef WITH_DEBUG
     if( fDebug>1 ) cout << "Decoding " << theDetector->GetName()
 			<< "... " << flush;
@@ -129,28 +131,28 @@ Int_t THaApparatus::Decode( const THaEvData& evdata )
 }
 
 //_____________________________________________________________________________
-Int_t THaApparatus::End( THaRunBase* run )
+Int_t Apparatus::End( THaRunBase* run )
 {
   // Default End() for an apparatus: End() all our detectors
 
   TIter next(fDetectors);
-  while( THaAnalysisObject* obj = static_cast<THaAnalysisObject*>(next()) ) {
+  while( AnalysisObject* obj = static_cast<AnalysisObject*>(next()) ) {
     obj->End(run);
   }
   return 0;
 }
 
 //_____________________________________________________________________________
-THaDetector* THaApparatus::GetDetector( const char* name )
+Detector* Apparatus::GetDetector( const char* name )
 {
   // Find the named detector and return a pointer to it. 
   // This is useful for specialized processing.
 
-  return static_cast<THaDetector*>( fDetectors->FindObject( name ));
+  return static_cast<Detector*>( fDetectors->FindObject( name ));
 }
 
 //_____________________________________________________________________________
-Int_t THaApparatus::GetNumDets() const
+Int_t Apparatus::GetNumDets() const
 { 
   // Return number of detectors of the apparatus
 
@@ -158,10 +160,10 @@ Int_t THaApparatus::GetNumDets() const
 }
 
 //_____________________________________________________________________________
-THaAnalysisObject::EStatus THaApparatus::Init( const TDatime& run_time )
+AnalysisObject::EStatus Apparatus::Init( const TDatime& run_time )
 {
   // Default method for initializing an apparatus. 
-  // First, call default THaAnalysisObject::Init(), which
+  // First, call default AnalysisObject::Init(), which
   //  - Creates the fPrefix for this apparatus.
   //  - Opens database file and reads database for this apparatus, if custom 
   //    ReadDatabase() defined.
@@ -171,20 +173,20 @@ THaAnalysisObject::EStatus THaApparatus::Init( const TDatime& run_time )
   // if any detector failed to initialize. Init() will be called for
   // all detectors, even if one or more detectors fail.
 
-  if( THaAnalysisObject::Init( run_time ) )
+  if( AnalysisObject::Init( run_time ) )
     return fStatus;
 
   TIter next(fDetectors);
   TObject* obj;
 
   while( (obj = next()) ) {
-    if( !obj->IsA()->InheritsFrom("THaDetector")) {
-      Error( Here("Init()"), "Detector %s (\"%s\") is not a THaDetector. "
+    if( !obj->IsA()->InheritsFrom("Podd::Detector")) {
+      Error( Here("Init()"), "Detector %s (\"%s\") is not a Detector. "
 	     "Initialization of apparatus %s (\"%s\") failed.", 
 	     obj->GetName(), obj->GetTitle(), GetName(), GetTitle());
       fStatus = kInitError;
     } else {
-      THaDetector* theDetector = static_cast<THaDetector*>( obj );
+      Detector* theDetector = static_cast<Detector*>( obj );
 #ifdef WITH_DEBUG
       if( fDebug>0 ) cout << "Initializing " 
 			  << theDetector->GetName() << "... "
@@ -208,32 +210,35 @@ THaAnalysisObject::EStatus THaApparatus::Init( const TDatime& run_time )
 }
 
 //_____________________________________________________________________________
-void THaApparatus::MakePrefix()
+void Apparatus::MakePrefix()
 {
-  THaAnalysisObject::MakePrefix( NULL );
+  AnalysisObject::MakePrefix( NULL );
 }
 
 //_____________________________________________________________________________
-void THaApparatus::Print( Option_t* opt ) const
+void Apparatus::Print( Option_t* opt ) const
 { 
   // Print info about the apparatus and all its detectors
 
-  THaAnalysisObject::Print(opt);
+  AnalysisObject::Print(opt);
   fDetectors->Print(opt);
 }
 
 //_____________________________________________________________________________
-void THaApparatus::SetDebugAll( Int_t level )
+void Apparatus::SetDebugAll( Int_t level )
 {
   // Set debug level of this apparatus as well as all its detectors
 
   SetDebug( level );
 
   TIter next(fDetectors);
-  while( THaDetector* theDetector = static_cast<THaDetector*>( next() )) {
+  while( Detector* theDetector = static_cast<Detector*>( next() )) {
     theDetector->SetDebug( level );
   }
 }
 
-//_____________________________________________________________________________
-ClassImp(THaApparatus)
+///////////////////////////////////////////////////////////////////////////////
+
+} // end namespace Podd
+
+ClassImp(Podd::Apparatus)

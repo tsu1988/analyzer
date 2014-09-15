@@ -2,62 +2,59 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaSpectrometerDetector
+// SpectrometerDetector
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaSpectrometerDetector.h"
+#include "SpectrometerDetector.h"
 #include "THaTrack.h"
 #include "TMath.h"
 
-ClassImp(THaSpectrometerDetector)
+namespace Podd {
 
 //______________________________________________________________________________
-THaSpectrometerDetector::THaSpectrometerDetector( const char* name, 
-						  const char* description,
-						  THaApparatus* apparatus )
-  : THaDetector(name,description,apparatus)
+SpectrometerDetector::SpectrometerDetector( const char* name,
+					    const char* description,
+					    Apparatus* apparatus )
+  : Detector(name,description,apparatus)
 {
   // Constructor
-
 }
 
 //______________________________________________________________________________
-THaSpectrometerDetector::THaSpectrometerDetector( )
+SpectrometerDetector::SpectrometerDetector( )
 {
   // Constructor for ROOT I/O only
 }
 
 //______________________________________________________________________________
-THaSpectrometerDetector::~THaSpectrometerDetector()
+SpectrometerDetector::~SpectrometerDetector()
 {
   // Destructor
-
 }
 
 //_____________________________________________________________________________
-void THaSpectrometerDetector::DefineAxes(Double_t rotation_angle)
+void SpectrometerDetector::DefineAxes( Double_t rotation_angle )
 {
   // define variables used for calculating intercepts of tracks
   // with the detector
-  // right now, we assume that all detectors except VDCs are 
+  // right now, we assume that all detectors except VDCs are
   // perpendicular to the Transport frame
 
   fXax.SetXYZ( TMath::Cos(rotation_angle), 0.0, TMath::Sin(rotation_angle) );
   fYax.SetXYZ( 0.0, 1.0, 0.0 );
   fZax = fXax.Cross(fYax);
-
 }
 
 //_____________________________________________________________________________
-bool THaSpectrometerDetector::CalcTrackIntercept(THaTrack* theTrack, 
-					 Double_t& t, Double_t& xcross, 
-					 Double_t& ycross)
+bool SpectrometerDetector::CalcTrackIntercept( THaTrack* theTrack,
+					       Double_t& t, Double_t& xcross,
+					       Double_t& ycross)
 {
   // projects a given track on to the plane of the detector
   // xcross and ycross are the x and y coords of this intersection
   // t is the distance from the origin of the track to the given plane.
-  // 
+  //
   // If a hit is NOT found, then t, xcross, and ycross are unchanged.
   TVector3 t0( theTrack->GetX(), theTrack->GetY(), 0.0 );
   Double_t norm = TMath::Sqrt(1.0 + theTrack->GetTheta()*theTrack->GetTheta() +
@@ -75,22 +72,29 @@ bool THaSpectrometerDetector::CalcTrackIntercept(THaTrack* theTrack,
 }
 
 //_____________________________________________________________________________
-bool THaSpectrometerDetector::CheckIntercept(THaTrack *track)
+bool SpectrometerDetector::CheckIntercept( THaTrack *track )
 {
   Double_t x, y, t;
   return CalcTrackIntercept(track, t, x, y);
 }
 
 //_____________________________________________________________________________
-bool THaSpectrometerDetector::CalcInterceptCoords(THaTrack* track, Double_t& x, Double_t& y)
+bool SpectrometerDetector::CalcInterceptCoords( THaTrack* track,
+						Double_t& x, Double_t& y )
 {
   Double_t t;
   return CalcTrackIntercept(track, t, x, y);
 }
 
 //_____________________________________________________________________________
-bool THaSpectrometerDetector::CalcPathLen(THaTrack* track, Double_t& t)
+bool SpectrometerDetector::CalcPathLen( THaTrack* track, Double_t& t )
 {
   Double_t x, y;
   return CalcTrackIntercept(track, t, x, y);
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // end namespace Podd
+
+ClassImp(Podd::SpectrometerDetector)

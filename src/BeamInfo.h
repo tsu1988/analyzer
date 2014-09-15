@@ -1,31 +1,34 @@
-#ifndef ROOT_THaBeamInfo
-#define ROOT_THaBeamInfo
+#ifndef Podd_BeamInfo
+#define Podd_BeamInfo
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaBeamInfo
+// BeamInfo
 //
 //////////////////////////////////////////////////////////////////////////
 
 #include "TVector3.h"
-class THaBeam;
 
-class THaBeamInfo {
+namespace Podd {
+
+class Beam;
+
+class BeamInfo {
 public:
-  THaBeamInfo() : fPosition(kBig,kBig,kBig), fPvect(kBig,kBig,kBig), fPol(0.0),
-		  fOK(0), fBeam(0) {}
-  THaBeamInfo( const TVector3& pvect, const TVector3& position, 
-	       Double_t pol = 0.0 ) 
+  BeamInfo() : fPosition(kBig,kBig,kBig), fPvect(kBig,kBig,kBig), fPol(0.0),
+	       fOK(0), fBeam(0) {}
+  BeamInfo( const TVector3& pvect, const TVector3& position,
+	    Double_t pol = 0.0 )
     : fPosition(position), fPvect(pvect), fPol(pol), fOK(1), fBeam(0) {}
-  THaBeamInfo( Double_t p, const TVector3& vect, const TVector3& position, 
-	       Double_t pol = 0.0 ) 
+  BeamInfo( Double_t p, const TVector3& vect, const TVector3& position,
+	    Double_t pol = 0.0 )
     : fPosition(position), fPvect(vect), fPol(pol), fOK(1), fBeam(0)
   { SetP(p); }
 
-  THaBeamInfo( const THaBeamInfo& t ) :
+  BeamInfo( const BeamInfo& t ) :
     fPosition(t.fPosition), fPvect(t.fPvect), fPol(t.fPol), fOK(t.fOK),
     fBeam(t.fBeam) {}
-  THaBeamInfo& operator=( const THaBeamInfo& rhs ) {
+  BeamInfo& operator=( const BeamInfo& rhs ) {
     if( this != &rhs ) {
       fPosition = rhs.fPosition;
       fPvect    = rhs.fPvect;
@@ -35,7 +38,7 @@ public:
     }
     return *this;
   }
-  virtual ~THaBeamInfo() {}
+  virtual ~BeamInfo() {}
 
   void      Clear( Option_t* opt="" );
   Bool_t    IsOK()     const { return fOK; }
@@ -56,19 +59,19 @@ public:
   const TVector3& GetPvect()    const { return fPvect; }
   const TVector3& GetPosition() const { return fPosition; }
 
-  THaBeam*  GetBeam() const  { return fBeam; }
+  Beam*  GetBeam() const  { return fBeam; }
 
   void SetP( Double_t p )     { fPvect.SetMag(p); }
   void SetPol( Double_t pol ) { fPol = pol; }
-  void Set( const TVector3& pvect, const TVector3& position, 
+  void Set( const TVector3& pvect, const TVector3& position,
 	    Double_t pol = 0.0 ) {
     fPvect = pvect; fPosition = position; SetPol(pol); fOK = 1;
   }
   void Set( Double_t p, const TVector3& vect, const TVector3& position,
-	    Double_t pol = 0.0 ) { 
+	    Double_t pol = 0.0 ) {
     fPvect = vect; SetP(p); fPosition = position; SetPol(pol); fOK = 1;
   }
-  void SetBeam(THaBeam* obj)  { fBeam = obj; }
+  void SetBeam( Beam* obj )  { fBeam = obj; }
 
 protected:
   TVector3  fPosition;  // Reference position in lab frame (m)
@@ -76,23 +79,28 @@ protected:
   Double_t  fPol;       // Beam polarization
   Int_t     fOK;        // Data ok (0:no 1:yes)
 
-  THaBeam*  fBeam;      //! Beam apparatus for this beam information
+  Beam*     fBeam;      //! Beam apparatus for this beam information
 
 private:
   static const Double_t kBig;
 
-  ClassDef(THaBeamInfo,1)  // Beam information for physics modules
+  ClassDef(BeamInfo,1)  // Beam information for physics modules
 };
 
 //_____________________________________________________________________________
 inline
-void THaBeamInfo::Clear( Option_t* )
+void BeamInfo::Clear( Option_t* )
 {
   fPvect.SetXYZ(kBig,kBig,kBig);
   fPosition.SetXYZ(kBig,kBig,kBig);
   fPol = 0.0;
-  fOK = 0; 
+  fOK = 0;
 }
+
+} // end namespace Podd
+
+// Backwards-compatibility
+#define THaBeamInfo Podd::BeamInfo
 
 #endif
 

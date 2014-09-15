@@ -1,5 +1,5 @@
-#ifndef ROOT_THaBeam
-#define ROOT_THaBeam
+#ifndef Podd_THaBeam
+#define Podd_THaBeam
 
 //////////////////////////////////////////////////////////////////////////
 //
@@ -7,17 +7,19 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaApparatus.h"
+#include "Apparatus.h"
 #include "THaBeamModule.h"
 #include "THaRunParameters.h"
 #include "TVector3.h"
 #include "VarDef.h"
 
-class THaBeam : public THaApparatus, public THaBeamModule {
-  
+namespace Podd {
+
+class Beam : public Apparatus, public THaBeamModule {
+
 public:
-  virtual ~THaBeam();
-  
+  virtual ~Beam();
+
   virtual EStatus Init( const TDatime& run_time );
 
   virtual const TVector3& GetPosition()  const { return fPosition; }
@@ -34,10 +36,15 @@ protected:
 
   THaRunParameters* fRunParam; // Pointer to parameters of current run
 
-  THaBeam( const char* name, const char* description ) ;
+  Beam( const char* name, const char* description ) ;
 
-  ClassDef(THaBeam,1)    // ABC for an apparatus providing beam information
+  ClassDef(Beam,1)    // ABC for an apparatus providing beam information
 };
+
+} // end namespace Podd
+
+// Backwards-compatibility
+#define THaBeam Podd::Beam
 
 #endif
 

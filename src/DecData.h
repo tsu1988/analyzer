@@ -1,32 +1,34 @@
-#ifndef ROOT_THaDecData
-#define ROOT_THaDecData
+#ifndef ROOT_DecData
+#define ROOT_DecData
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaDecData
+// DecData
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaApparatus.h"
+#include "Apparatus.h"
 #include "THashList.h"
 #include "BdataLoc.h"
 
 class TString;
 
-class THaDecData : public THaApparatus {
-  
+namespace Podd {
+
+class DecData : public Apparatus {
+
 public:
-  THaDecData( const char* name = "D",
-	      const char* description = "Raw decoder data" );
-  virtual ~THaDecData();
+  DecData( const char* name = "D",
+	   const char* description = "Raw decoder data" );
+  virtual ~DecData();
 
   virtual EStatus Init( const TDatime& run_time );
   virtual void    Clear( Option_t* opt="" );
   virtual Int_t   Decode( const THaEvData& );
   virtual void    Print( Option_t* opt="" ) const;
 
-  // Disabled functions from THaApparatus
-  virtual Int_t   AddDetector( THaDetector* det ) { return 0; }
+  // Disabled functions from Apparatus
+  virtual Int_t   AddDetector( Detector* det ) { return 0; }
   virtual Int_t   Reconstruct() { return 0; }
 
 protected:
@@ -41,7 +43,12 @@ protected:
   Int_t           DefineLocType( const BdataLoc::BdataLocType& loctype,
 				 const TString& configstr, bool re_init );
 
-  ClassDef(THaDecData,0)
+  ClassDef(DecData,0)
 };
+
+} // end namespace Podd
+
+// Backwards-compatibility
+#define THaDecData Podd::DecData
 
 #endif

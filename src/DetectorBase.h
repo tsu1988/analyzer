@@ -1,24 +1,26 @@
-#ifndef ROOT_THaDetectorBase
-#define ROOT_THaDetectorBase
+#ifndef Podd_DetectorBase
+#define Podd_DetectorBase
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaDetectorBase
+// DetectorBase
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaAnalysisObject.h"
+#include "AnalysisObject.h"
 #include "TVector3.h"
 #include <vector>
 
 class THaDetMap;
 
-class THaDetectorBase : public THaAnalysisObject {
-  
-public:
-  virtual ~THaDetectorBase();
+namespace Podd {
 
-  THaDetectorBase(); // only for ROOT I/O
+class DetectorBase : public AnalysisObject {
+
+public:
+  virtual ~DetectorBase();
+
+  DetectorBase(); // only for ROOT I/O
 
   virtual Int_t    Decode( const THaEvData& ) = 0;
 
@@ -32,7 +34,7 @@ public:
 
   Bool_t           IsInActiveArea( Double_t x, Double_t y ) const;
 
-  Int_t            FillDetMap( const std::vector<Int_t>& values, 
+  Int_t            FillDetMap( const std::vector<Int_t>& values,
 			       UInt_t flags=0,
 			       const char* here = "FillDetMap" );
   void             PrintDetMap( Option_t* opt="") const;
@@ -45,16 +47,21 @@ protected:
   // Configuration
   Int_t       fNelem;     // Number of detector elements (paddles, mirrors)
 
-  // Geometry 
+  // Geometry
   TVector3    fOrigin;    // Center position of detector (m)
   Float_t     fSize[3];   // Detector size in x,y,z (m) - x,y are half-widths
-  
+
   virtual Int_t ReadGeometry( FILE* file, const TDatime& date,
 			      Bool_t required = kFALSE );
 
-  THaDetectorBase( const char* name, const char* description );
+  DetectorBase( const char* name, const char* description );
 
-  ClassDef(THaDetectorBase,1)   //ABC for a detector or subdetector
+  ClassDef(DetectorBase,1)   //ABC for a detector or subdetector
 };
+
+} // end namespace Podd
+
+// Backwards-compatibility
+#define THaDetectorBase Podd::DetectorBase
 
 #endif

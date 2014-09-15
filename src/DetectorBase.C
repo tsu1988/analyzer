@@ -2,28 +2,29 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaDetectorBase
+// DetectorBase
 //
 // Abstract base class for a detector or subdetector.
 //
-// Derived classes must define all internal variables, a constructor 
-// that registers any internal variables of interest in the global 
+// Derived classes must define all internal variables, a constructor
+// that registers any internal variables of interest in the global
 // physics variable list, and a Decode() method that fills the variables
 // based on the information in the THaEvData structure.
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaDetectorBase.h"
+#include "DetectorBase.h"
 #include "THaDetMap.h"
 #include "TMath.h"
 #include "VarType.h"
 
 using std::vector;
 
+namespace Podd {
+
 //_____________________________________________________________________________
-THaDetectorBase::THaDetectorBase( const char* name,
-				  const char* description ) :
-  THaAnalysisObject(name,description), fNelem(0)
+DetectorBase::DetectorBase( const char* name, const char* description )
+  : AnalysisObject(name,description), fNelem(0)
 {
   // Normal constructor. Creates an empty detector map.
 
@@ -32,22 +33,22 @@ THaDetectorBase::THaDetectorBase( const char* name,
 }
 
 //_____________________________________________________________________________
-THaDetectorBase::THaDetectorBase() : fDetMap(0) {
+DetectorBase::DetectorBase() : fDetMap(0) {
   // for ROOT I/O only
 }
 
 //_____________________________________________________________________________
-THaDetectorBase::~THaDetectorBase()
+DetectorBase::~DetectorBase()
 {
   // Destructor
   delete fDetMap;
 }
 
 //_____________________________________________________________________________
-Int_t THaDetectorBase::FillDetMap( const vector<Int_t>& values, UInt_t flags,
-				   const char* here )
+Int_t DetectorBase::FillDetMap( const vector<Int_t>& values, UInt_t flags,
+				const char* here )
 {
-  // Utility function to fill this detector's detector map. 
+  // Utility function to fill this detector's detector map.
   // See THaDetMap::Fill for documentation.
 
   Int_t ret = fDetMap->Fill( values, flags );
@@ -64,7 +65,7 @@ Int_t THaDetectorBase::FillDetMap( const vector<Int_t>& values, UInt_t flags,
 }
 
 //_____________________________________________________________________________
-Bool_t THaDetectorBase::IsInActiveArea( Double_t x, Double_t y ) const
+Bool_t DetectorBase::IsInActiveArea( Double_t x, Double_t y ) const
 {
   // Check if given (x,y) coordinates are inside this detector's active area
   // (defined by fOrigin/fSize)
@@ -76,7 +77,7 @@ Bool_t THaDetectorBase::IsInActiveArea( Double_t x, Double_t y ) const
 }
 
 //_____________________________________________________________________________
-void THaDetectorBase::PrintDetMap( Option_t* opt ) const
+void DetectorBase::PrintDetMap( Option_t* opt ) const
 {
   // Print out detector map.
 
@@ -84,10 +85,10 @@ void THaDetectorBase::PrintDetMap( Option_t* opt ) const
 }
 
 //_____________________________________________________________________________
-Int_t THaDetectorBase::ReadGeometry( FILE* file, const TDatime& date,
-				     Bool_t required ) 
+Int_t DetectorBase::ReadGeometry( FILE* file, const TDatime& date,
+				  Bool_t required )
 {
-  // Read this detector's basic geometry information from the database. 
+  // Read this detector's basic geometry information from the database.
   // Derived classes may override to read more advanced data.
 
   vector<double> position, size;
@@ -125,6 +126,8 @@ Int_t THaDetectorBase::ReadGeometry( FILE* file, const TDatime& date,
   return 0;
 }
 
+///////////////////////////////////////////////////////////////////////////////
 
-//_____________________________________________________________________________
-ClassImp(THaDetectorBase)
+} // end namespace Podd
+
+ClassImp(Podd::DetectorBase)

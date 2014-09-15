@@ -1,30 +1,35 @@
-#ifndef ROOT_THaApparatus
-#define ROOT_THaApparatus
+#ifndef Podd_Apparatus
+#define Podd_Apparatus
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaApparatus
+// Apparatus
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaAnalysisObject.h"
+#include "AnalysisObject.h"
 
-class THaDetector;
+class THaEvData;
+class THaRunBase;
 class THaEvData;
 class TList;
 
-class THaApparatus : public THaAnalysisObject {
+namespace Podd {
+
+class Detector;
+
+class Apparatus : public AnalysisObject {
   
 public:
-  virtual ~THaApparatus();
+  virtual ~Apparatus();
   
-  virtual Int_t        AddDetector( THaDetector* det );
+  virtual Int_t        AddDetector( Detector* det );
   virtual Int_t        Begin( THaRunBase* r=0 );
   virtual void         Clear( Option_t* opt="" );
   virtual Int_t        Decode( const THaEvData& );
   virtual Int_t        End( THaRunBase* r=0 );
           Int_t        GetNumDets() const;
-  virtual THaDetector* GetDetector( const char* name );
+  virtual Detector*    GetDetector( const char* name );
   const   TList*       GetDetectors() { return fDetectors; } // for inspection
 
   virtual EStatus      Init( const TDatime& run_time );
@@ -36,13 +41,21 @@ public:
 protected:
   TList*         fDetectors;    // List of all detectors for this apparatus
 
-  THaApparatus( const char* name, const char* description );
-  THaApparatus( );
+  Apparatus( const char* name, const char* description );
+  Apparatus( );
 
   virtual void MakePrefix();
 
-  ClassDef(THaApparatus,1)   //A generic apparatus (collection of detectors)
+  ClassDef(Apparatus,1)   //A generic apparatus (collection of detectors)
 };
+
+} // end namespace Podd
+
+// Backwards-compatibility
+#define THaApparatus Podd::Apparatus
+#ifndef THaDetector
+# define THaDetector Podd::Detector
+#endif
 
 #endif
 

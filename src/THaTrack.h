@@ -10,6 +10,7 @@
 #include "TObject.h"
 #include "TVector3.h"
 #include "THaPIDinfo.h"
+#include "TrackingDetector.h"
 #include <cstring>   // for memset
 
 class TClonesArray;

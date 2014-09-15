@@ -2,22 +2,24 @@
 
 //////////////////////////////////////////////////////////////////////////
 //
-// THaBeam
+// Beam
 //
 // Abstract apparatus class that provides position and direction of
 // a particle beam, usually event by event.
-// 
+//
 //////////////////////////////////////////////////////////////////////////
 
-#include "THaBeam.h"
+#include "Beam.h"
 #include "VarDef.h"
 #include "THaRunBase.h"
 #include "THaRunParameters.h"
 #include "THaGlobals.h"
 
+namespace Podd {
+
 //_____________________________________________________________________________
-THaBeam::THaBeam( const char* name, const char* desc ) : 
-  THaApparatus( name,desc )
+Beam::Beam( const char* name, const char* desc ) :
+  Apparatus( name,desc )
 {
   // Constructor.
   // Protected. Can only be called by derived classes.
@@ -27,7 +29,7 @@ THaBeam::THaBeam( const char* name, const char* desc ) :
 
 
 //_____________________________________________________________________________
-THaBeam::~THaBeam()
+Beam::~Beam()
 {
   // Destructor
 
@@ -35,10 +37,10 @@ THaBeam::~THaBeam()
 }
 
 //_____________________________________________________________________________
-THaAnalysisObject::EStatus THaBeam::Init( const TDatime& run_time )
+AnalysisObject::EStatus Beam::Init( const TDatime& run_time )
 {
-  // Init method for a beam apparatus. Calls the standard THaApparatus
-  // initialization and, in addition, finds pointer to the current 
+  // Init method for a beam apparatus. Calls the standard Apparatus
+  // initialization and, in addition, finds pointer to the current
   // run parameters.
 
   if( !gHaRun || !gHaRun->IsInit() ) {
@@ -55,11 +57,11 @@ THaAnalysisObject::EStatus THaBeam::Init( const TDatime& run_time )
     return fStatus = kInitError;
   }
 
-  return THaApparatus::Init(run_time);
+  return Apparatus::Init(run_time);
 }
-  
+
 //_____________________________________________________________________________
-Int_t THaBeam::DefineVariables( EMode mode )
+Int_t Beam::DefineVariables( EMode mode )
 {
   // Initialize global variables and lookup table for decoder
 
@@ -75,7 +77,7 @@ Int_t THaBeam::DefineVariables( EMode mode )
     { "dir.z", "reconstructed z-component of beam direction", "fDirection.fZ"},
     { 0 }
   };
-    
+
   DefineVarsFromList( vars, mode );
 
   // Define the variables for the beam info subobject
@@ -85,7 +87,7 @@ Int_t THaBeam::DefineVariables( EMode mode )
 }
 
 //_____________________________________________________________________________
-void THaBeam::Update()
+void Beam::Update()
 {
   // Update the fBeamIfo data with the info from the current event
 
@@ -97,7 +99,10 @@ void THaBeam::Update()
     fBeamIfo.Set( kBig, fDirection, fPosition, kBig );
 }
 
-//_____________________________________________________________________________
-ClassImp(THaBeam)
+///////////////////////////////////////////////////////////////////////////////
+
+} // end namespace Podd
+
+ClassImp(Podd::Beam)
 
 

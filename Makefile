@@ -171,17 +171,17 @@ SRC          := src/THaFormula.C src/THaVform.C src/THaVhist.C \
 		src/THaNamedList.C src/THaCutList.C src/THaInterface.C \
 		src/THaRunBase.C src/THaCodaRun.C src/THaRun.C \
 		src/THaRunParameters.C \
-		src/THaDetMap.C src/THaApparatus.C src/THaDetector.C \
-		src/THaSpectrometer.C src/THaSpectrometerDetector.C \
+		src/THaDetMap.C src/Apparatus.C src/Detector.C \
+		src/THaSpectrometer.C src/SpectrometerDetector.C \
 		src/THaHRS.C \
-                src/THaDecData.C src/BdataLoc.C src/THaOutput.C src/THaString.C \
-		src/THaTrackingDetector.C src/THaNonTrackingDetector.C \
+                src/DecData.C src/BdataLoc.C src/THaOutput.C src/THaString.C \
+		src/TrackingDetector.C src/THaNonTrackingDetector.C \
 		src/THaPidDetector.C src/THaSubDetector.C \
-		src/AnalysisObject.C src/THaDetectorBase.C src/THaRTTI.C \
+		src/AnalysisObject.C src/DetectorBase.C src/THaRTTI.C \
 		src/THaPhysicsModule.C src/THaVertexModule.C \
 		src/THaTrackingModule.C \
 		src/THaAnalyzer.C src/THaPrintOption.C \
-		src/THaBeam.C src/THaIdealBeam.C \
+		src/Beam.C src/THaIdealBeam.C \
 		src/THaRasteredBeam.C src/THaRaster.C\
 		src/THaBeamDet.C src/THaBPM.C src/THaUnRasteredBeam.C\
 		src/THaTrack.C src/THaPIDinfo.C src/THaParticleInfo.C \
@@ -204,7 +204,7 @@ SRC          := src/THaFormula.C src/THaVform.C src/THaVhist.C \
                 src/THaTrackProj.C \
 		src/THaPostProcess.C src/THaFilter.C \
 		src/THaElossCorrection.C src/THaTrackEloss.C \
-		src/THaBeamModule.C src/THaBeamInfo.C src/THaEpicsEbeam.C \
+		src/THaBeamModule.C src/BeamInfo.C src/THaEpicsEbeam.C \
 		src/THaBeamEloss.C \
 		src/THaTrackOut.C src/THaTriggerTime.C \
 		src/THaHelicityDet.C src/THaG0HelicityReader.C \
