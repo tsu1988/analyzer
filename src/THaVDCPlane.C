@@ -809,7 +809,7 @@ Int_t THaVDCPlane::FindClusters()
 	  assert( ncombos == 1 );
 	}
 #endif
-	THaVDCClusterFitter clust( this, slice_size );
+	ClusterFitter clust( this, slice_size );
 	clust.SetMaxT0( 1.5*fT0Resolution );
 	for( UInt_t i = 0; i < ncombos; ++i ) {
 	  clust.Clear();
@@ -819,7 +819,7 @@ Int_t THaVDCPlane::FindClusters()
 	  if( !clust.EstTrackParameters() )
 	    continue;
 	  clust.ConvertTimeToDist( clust.GetT0() );
-	  clust.FitTrack( THaVDCClusterFitter::kLinearT0 );
+	  clust.FitTrack( ClusterFitter::kLinearT0 );
 	  if( !clust.IsFitOK() ||
 	      TMath::Abs(clust.GetT0()) > fT0Resolution )
 	    continue;
@@ -828,7 +828,7 @@ Int_t THaVDCPlane::FindClusters()
 
 	  // clust.ClearFit();
 	  // clust.ConvertTimeToDist( clust.GetT0() );
-	  // clust.FitTrack( THaVDCClusterFitter::kT0 );
+	  // clust.FitTrack( ClusterFitter::kT0 );
 	  // if( !clust.IsFitOK() )
 	  //   continue;
 
@@ -847,7 +847,7 @@ Int_t THaVDCPlane::FindClusters()
 	  prev_pivot = clust.GetPivot();
 
 	  // Save/sort cluster candidates in a set. Note that the insertion will
-	  // copy-construct a THaVDCCluster from the THaVDCClusterFitter.
+	  // copy-construct a THaVDCCluster from the ClusterFitter.
 	  // The set will contain clusters that are sorted by CandidateSorter.
 	  clust_iter_t ins = candidates.insert( clust );
 	  (*ins).ClaimHits();
