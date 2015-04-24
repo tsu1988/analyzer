@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                           //
-// THaVDCCluster                                                             //
+// VDC::ClusterFitter                                                        //
 //                                                                           //
-// A group of VDC hits and routines for linear and non-linear fitting of     //
-// drift distances.                                                          //
+// Routines for linear and non-linear fitting of drift distances vs. wire    //
+// positions in a VDC cluster.                                               //
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +30,11 @@ using namespace std;
 #define ALL(c) (c).begin(), (c).end()
 #define RALL(c) (c).rbegin(), (c).rend()
 
+namespace VDC {
+
 //_____________________________________________________________________________
-THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
-  : THaVDCCluster(owner,size), fPosOffset(0), fMaxT0(0),
-    fWeighted(true)
+ClusterFitter::ClusterFitter( THaVDCPlane* owner, UInt_t size )
+  : THaVDCCluster(owner,size), fPosOffset(0), fMaxT0(0), fWeighted(true)
 {
   // Constructor
 
@@ -41,10 +42,9 @@ THaVDCClusterFitter::THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size )
 }
 
 //_____________________________________________________________________________
-THaVDCClusterFitter::THaVDCClusterFitter( const Vhit_t& hits,
+ClusterFitter::ClusterFitter( const Vhit_t& hits,
 					  THaVDCPlane* owner )
-  : THaVDCCluster(hits,owner), fPosOffset(0), fMaxT0(0),
-    fWeighted(true)
+  : THaVDCCluster(hits,owner), fPosOffset(0), fMaxT0(0), fWeighted(true)
 {
   // Constructor
 
@@ -52,7 +52,7 @@ THaVDCClusterFitter::THaVDCClusterFitter( const Vhit_t& hits,
 }
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::Clear( const Option_t* opt )
+void ClusterFitter::Clear( const Option_t* opt )
 {
   // Clear the contents of the cluster and reset status
 
@@ -62,7 +62,7 @@ void THaVDCClusterFitter::Clear( const Option_t* opt )
 }
 
 //_____________________________________________________________________________
-bool THaVDCClusterFitter::EstTrackParameters()
+bool ClusterFitter::EstTrackParameters()
 {
   // Estimate Track Parameters
   // Calculates pivot wire and uses its position as position of cluster
@@ -123,7 +123,7 @@ bool THaVDCClusterFitter::EstTrackParameters()
 }
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::ConvertTimeToDist( Double_t t0 )
+void ClusterFitter::ConvertTimeToDist( Double_t t0 )
 {
   // Convert TDC Times in wires to drift distances
 
@@ -178,7 +178,7 @@ private:
 };
 
 //_____________________________________________________________________________
-Int_t THaVDCClusterFitter::SetupCoordinates()
+Int_t ClusterFitter::SetupCoordinates()
 {
   // Calculate fPivotIdx and fPosOffset, and fill fCoords with offset
   // coordinates suitable for fitting.
@@ -203,7 +203,7 @@ Int_t THaVDCClusterFitter::SetupCoordinates()
 }
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::FitTrack( EMode mode )
+void ClusterFitter::FitTrack( EMode mode )
 {
   // Fit track to drift distances. Supports three modes:
   //
@@ -349,7 +349,7 @@ static bool Linear3ParamFit( const Vcoord_t& coord, FitRes_t& res )
 }
 
 //_____________________________________________________________________________
-Int_t THaVDCClusterFitter::FitSimpleTrack()
+Int_t ClusterFitter::FitSimpleTrack()
 {
   // Perform linear fit on drift times. Calculates slope, intercept, and
   // errors. Assumes t0 = 0.
@@ -376,7 +376,7 @@ Int_t THaVDCClusterFitter::FitSimpleTrack()
 }
 
 //_____________________________________________________________________________
-Int_t THaVDCClusterFitter::LinearClusterFitWithT0()
+Int_t ClusterFitter::LinearClusterFitWithT0()
 {
   // Perform linear fit on drift times. Calculates slope, intercept, time
   // offset t0, and errors.
@@ -434,7 +434,7 @@ Int_t THaVDCClusterFitter::LinearClusterFitWithT0()
 
 
 //_____________________________________________________________________________
-Int_t THaVDCClusterFitter::FitNLTrack()
+Int_t ClusterFitter::FitNLTrack()
 {
   // Mike Paolone's non-linear 3-parameter fit
 
@@ -712,7 +712,7 @@ Int_t THaVDCClusterFitter::FitNLTrack()
 }
 
 //_____________________________________________________________________________
-chi2_t THaVDCClusterFitter::CalcChisquare( Double_t slope, Double_t icpt,
+chi2_t ClusterFitter::CalcChisquare( Double_t slope, Double_t icpt,
 					   Double_t d0 ) const
 {
   Int_t npt = 0;
@@ -731,7 +731,7 @@ chi2_t THaVDCClusterFitter::CalcChisquare( Double_t slope, Double_t icpt,
 }
 
 //_____________________________________________________________________________
-void THaVDCClusterFitter::AcceptResults( const FitRes_t& res )
+void ClusterFitter::AcceptResults( const FitRes_t& res )
 {
   // Accept fit results given in 'res'
 
@@ -771,4 +771,7 @@ void THaVDCClusterFitter::AcceptResults( const FitRes_t& res )
 }
 
 //_____________________________________________________________________________
-ClassImp(THaVDCClusterFitter)
+
+} // namespace VDC
+
+ClassImp(VDC::ClusterFitter)

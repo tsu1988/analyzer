@@ -1,9 +1,9 @@
-#ifndef ROOT_THaVDCClusterFitter
-#define ROOT_THaVDCClusterFitter
+#ifndef VDC_ClusterFitter
+#define VDC_ClusterFitter
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                                                           //
-// THaVDCClusterFitter                                                       //
+// VDC::ClusterFitter                                                        //
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +13,7 @@
 #include <cassert>
 
 namespace VDC {
+
   struct FitCoord_t {
     FitCoord_t( Double_t _x, Double_t _y, Double_t _w = 1.0, Int_t _s = 1 )
       : x(_x), y(_y), w(_w), s(_s) {}
@@ -49,45 +50,45 @@ namespace VDC {
 
   typedef std::vector<FitCoord_t> Vcoord_t;
   typedef Vcoord_t::size_type     vcsiz_t;
-}
-using namespace VDC;
 
-class THaVDCClusterFitter : public THaVDCCluster {
-public:
-  THaVDCClusterFitter( THaVDCPlane* owner, UInt_t size = kDefaultNHit );
-  THaVDCClusterFitter( const Vhit_t& hits, THaVDCPlane* owner );
-  virtual ~THaVDCClusterFitter() {}
+  class ClusterFitter : public THaVDCCluster {
+  public:
+    ClusterFitter( THaVDCPlane* owner, UInt_t size = kDefaultNHit );
+    ClusterFitter( const Vhit_t& hits, THaVDCPlane* owner );
+    virtual ~ClusterFitter() {}
 
-  enum EMode { kSimple, kLinearT0, kT0 };
+    enum EMode { kSimple, kLinearT0, kT0 };
 
-  bool           EstTrackParameters();
-  void           ConvertTimeToDist( Double_t t0 = 0 );
-  void           FitTrack( EMode mode = kT0 );
+    bool           EstTrackParameters();
+    void           ConvertTimeToDist( Double_t t0 = 0 );
+    void           FitTrack( EMode mode = kT0 );
 
-  // TObject function overrides
-  virtual void   Clear( Option_t* opt="" );
+    // TObject function overrides
+    virtual void   Clear( Option_t* opt="" );
 
-  void           SetMaxT0( Double_t t0 ) { fMaxT0 = t0; }
-  void           SetWeighted( Bool_t w = true ) { fWeighted = w; }
+    void           SetMaxT0( Double_t t0 ) { fMaxT0 = t0; }
+    void           SetWeighted( Bool_t w = true ) { fWeighted = w; }
 
-protected:
-  // Workspace for fitting routines
-  Vcoord_t         fCoord;          // coordinates to be fit
-  Double_t         fPosOffset;      // Position offset subtracted from fCoord[i].x
-  Double_t         fMaxT0;          // maximum allowable estimated t0
-  Bool_t           fWeighted;       // Do weighted fit of measured drift distances
+  protected:
+    // Workspace for fitting routines
+    Vcoord_t         fCoord;          // coordinates to be fit
+    Double_t         fPosOffset;      // Position offset subtracted from fCoord[i].x
+    Double_t         fMaxT0;          // maximum allowable estimated t0
+    Bool_t           fWeighted;       // Do weighted fit of measured drift distances
 
-  Int_t  FitSimpleTrack();
-  Int_t  FitNLTrack();        // Non-linear 3-parameter fit
-  Int_t  LinearClusterFitWithT0();
+    Int_t  FitSimpleTrack();
+    Int_t  FitNLTrack();        // Non-linear 3-parameter fit
+    Int_t  LinearClusterFitWithT0();
 
-  chi2_t CalcChisquare( Double_t slope, Double_t icpt, Double_t d0 ) const;
+    chi2_t CalcChisquare( Double_t slope, Double_t icpt, Double_t d0 ) const;
 
-  Int_t  SetupCoordinates();
-  void   AcceptResults( const FitRes_t& res );
+    Int_t  SetupCoordinates();
+    void   AcceptResults( const FitRes_t& res );
 
-  ClassDef(THaVDCClusterFitter,0)     // A VDC cluster with fit methods
-};
+    ClassDef(ClusterFitter,0)     // VDC cluster fit routines
+  };
+
+} // namespace VDC
 
 //////////////////////////////////////////////////////////////////////////////
 

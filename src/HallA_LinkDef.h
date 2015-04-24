@@ -79,7 +79,7 @@
 #pragma link C++ class THaVDCChamber+;
 #pragma link C++ class THaVDCPlane+;
 #pragma link C++ class THaVDCCluster+;
-#pragma link C++ class THaVDCClusterFitter+;
+#pragma link C++ class VDC::ClusterFitter+;
 #pragma link C++ class THaVDCHit+;
 #pragma link C++ class THaVDCWire+;
 #pragma link C++ class THaVDCTimeToDistConv+;
