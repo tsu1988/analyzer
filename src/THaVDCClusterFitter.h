@@ -73,7 +73,6 @@ public:
 protected:
   // Workspace for fitting routines
   Vcoord_t         fCoord;          // coordinates to be fit
-  Int_t            fPivotIdx;       // Index of pivot in fCoord
   Double_t         fPosOffset;      // Position offset subtracted from fCoord[i].x
   Double_t         fMaxT0;          // maximum allowable estimated t0
   Bool_t           fWeighted;       // Do weighted fit of measured drift distances

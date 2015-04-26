@@ -15,7 +15,6 @@
 #include "TClass.h"
 
 #include <iostream>
-#include <algorithm>
 #include <cassert>
 
 using namespace VDC;
@@ -27,11 +26,11 @@ const Double_t VDC::kBig = 1e38;  // Arbitrary large value
 
 //_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( THaVDCPlane* owner, UInt_t size )
-  : fPlane(owner), fPointPair(0), fTrack(0), fTrkNum(0), fSlope(kBig),
-    fLocalSlope(kBig), fSigmaSlope(kBig), fInt(kBig), fSigmaInt(kBig),
-    fT0(kBig), fSigmaT0(kBig), fPivot(0), fPivotIter(fHits.end()),
-    fTimeCorrection(0),
-    fFitOK(false), fChi2(kBig), fNDoF(0), fClsBeg(kMaxInt-1), fClsEnd(-1),
+  : fPlane(owner), fPivotIdx(-1), fClsBeg(kMaxInt-1), fClsEnd(-1),
+    fPointPair(0), fTrack(0), fTrkNum(0),
+    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig),
+    fInt(kBig), fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig),
+    fTimeCorrection(0), fChi2(kBig), fNDoF(0), fFitOK(false),
     fSharedHits(kUndefined), fHitsClaimed(false)
 {
   // Constructor
@@ -41,12 +40,12 @@ THaVDCCluster::THaVDCCluster( THaVDCPlane* owner, UInt_t size )
 
 //_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner )
-  : fHits(hits), fPlane(owner), fPointPair(0), fTrack(0), fTrkNum(0),
-    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig), fInt(kBig),
-    fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig), fPivot(0),
-    fPivotIter(fHits.end()), fTimeCorrection(0),
-    fFitOK(false), fChi2(kBig), fNDoF(0), fSharedHits(kUndefined),
-    fHitsClaimed(false)
+  : fPlane(owner), fPivotIdx(-1), fClsBeg(kMaxInt-1), fClsEnd(-1),
+    fPointPair(0), fTrack(0), fTrkNum(0),
+    fSlope(kBig), fLocalSlope(kBig), fSigmaSlope(kBig),
+    fInt(kBig), fSigmaInt(kBig), fT0(kBig), fSigmaT0(kBig),
+    fTimeCorrection(0), fChi2(kBig), fNDoF(0), fFitOK(false),
+    fSharedHits(kUndefined), fHitsClaimed(false)
 {
   // Constructor
 
@@ -55,22 +54,17 @@ THaVDCCluster::THaVDCCluster( const Vhit_t& hits, THaVDCPlane* owner )
 
 //_____________________________________________________________________________
 THaVDCCluster::THaVDCCluster( const THaVDCCluster& rhs )
-  : fHits(rhs.fHits), fPlane(rhs.fPlane), fPointPair(rhs.fPointPair),
-    fTrack(rhs.fTrack), fTrkNum(rhs.fTrkNum), fSlope(rhs.fSlope),
-    fLocalSlope(rhs.fLocalSlope), fSigmaSlope(rhs.fSigmaSlope), fInt(rhs.fInt),
-    fSigmaInt(rhs.fSigmaInt), fT0(rhs.fT0), fSigmaT0(rhs.fSigmaT0),
-    fPivot(rhs.fPivot), fTimeCorrection(rhs.fTimeCorrection),
-    fFitOK(rhs.fFitOK), fChi2(rhs.fChi2), fNDoF(rhs.fNDoF),
-    fClsBeg(rhs.fClsBeg), fClsEnd(rhs.fClsEnd), fSharedHits(kUndefined),
-    fHitsClaimed(false)
+  : fPlane(rhs.fPlane), fHits(rhs.fHits), fPivotIdx(rhs.fPivotIdx),
+    fClsBeg(rhs.fClsBeg), fClsEnd(rhs.fClsEnd), fPointPair(rhs.fPointPair),
+    fTrack(rhs.fTrack), fTrkNum(rhs.fTrkNum),
+    fSlope(rhs.fSlope), fLocalSlope(rhs.fLocalSlope), fSigmaSlope(rhs.fSigmaSlope),
+    fInt(rhs.fInt), fSigmaInt(rhs.fSigmaInt), fT0(rhs.fT0), fSigmaT0(rhs.fSigmaT0),
+    fTimeCorrection(rhs.fTimeCorrection), fChi2(rhs.fChi2), fNDoF(rhs.fNDoF),
+    fFitOK(rhs.fFitOK), fSharedHits(kUndefined), fHitsClaimed(false)
 {
   // Copy constructor. Claiming of hits needs to be done manually. This is
   // important to prevent HasSharedHits from reporting false duplicates.
 
-  // Find fPivotIter within the copied hits array (which is sorted ByPosThenTime)
-  fPivotIter = lower_bound( ALL(fHits), fPivot, THaVDCHit::ByPosThenTime() );
-  assert( (fPivotIter == fHits.end() && fPivot == 0) ||
-	  *fPivotIter == fPivot );
 }
 
 //_____________________________________________________________________________
@@ -83,8 +77,11 @@ THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
   if( this != &rhs ) {
     if( fHitsClaimed )
       ReleaseHits();
-    fHits           = rhs.fHits;
     fPlane          = rhs.fPlane;
+    fHits           = rhs.fHits;
+    fPivotIdx       = rhs.fPivotIdx;
+    fClsBeg         = rhs.fClsBeg;
+    fClsEnd         = rhs.fClsEnd;
     fPointPair      = rhs.fPointPair;
     fTrack          = rhs.fTrack;
     fTrkNum         = rhs.fTrkNum;
@@ -95,18 +92,11 @@ THaVDCCluster& THaVDCCluster::operator=( const THaVDCCluster& rhs )
     fSigmaInt       = rhs.fSigmaInt;
     fT0             = rhs.fT0;
     fSigmaT0        = rhs.fSigmaT0;
-    fPivot          = rhs.fPivot;
     fTimeCorrection = rhs.fTimeCorrection;
-    fFitOK          = rhs.fFitOK;
     fChi2           = rhs.fChi2;
     fNDoF           = rhs.fNDoF;
-    fClsBeg         = rhs.fClsBeg;
-    fClsEnd         = rhs.fClsEnd;
+    fFitOK          = rhs.fFitOK;
     fSharedHits     = kUndefined;
-
-    fPivotIter = lower_bound( ALL(fHits), fPivot, THaVDCHit::ByPosThenTime() );
-    assert( (fPivotIter == fHits.end() && fPivot == 0) ||
-	    *fPivotIter == fPivot );
   }
   return *this;
 }
@@ -183,7 +173,7 @@ void THaVDCCluster::Clear( const Option_t* )
   if( fHitsClaimed )
     ReleaseHits();
   fHits.clear();
-  fPivot   = 0;
+  fPivotIdx  = -1;
   fPointPair = 0;
   fTrack   = 0;
   fTrkNum  = 0;
@@ -293,7 +283,8 @@ Int_t THaVDCCluster::GetPivotWireNum() const
 {
   // Get wire number of cluster pivot (hit with smallest drift distance)
 
-  return fPivot ? fPivot->GetWireNum() : -1;
+  assert( (!fHits.empty() || fPivotIdx == -1) && fPivotIdx < GetSize() );
+  return ( fPivotIdx < 0 ) ? -1 : fHits[fPivotIdx]->GetWireNum();
 }
 
 //_____________________________________________________________________________
@@ -323,16 +314,12 @@ void THaVDCCluster::CalcChisquare(Double_t& chi2, Int_t& nhits ) const
   // given the parameters of the track (slope and intercept), calculate
   // chi2 for the cluster
 
-  Int_t pivotNum = 0;
-  for (int j = 0; j < GetSize(); j++) {
-    if (fHits[j] == fPivot) {
-      pivotNum = j;
-    }
-  }
+  Int_t pivotNum = fPivotIdx;
 
   for (int j = 0; j < GetSize(); j++) {
     Double_t x = fHits[j]->GetDist() + fTimeCorrection;
-    if (j>pivotNum) x = -x;
+    //FIXME: no longer correct due to different wire ordering
+    if( j>pivotNum ) x = -x;
 
     Double_t y = fHits[j]->GetPos();
     Double_t dx = fHits[j]->GetdDist();
@@ -340,7 +327,7 @@ void THaVDCCluster::CalcChisquare(Double_t& chi2, Int_t& nhits ) const
     Double_t dY = fSlope * dx;
     if (dx <= 0) continue;
 
-    if ( fHits[j] == fPivot ) {
+    if( j == fPivotIdx ) {
       // test the other side of the pivot wire, take the 'best' choice
       Double_t ox = -x;
       Double_t oY =  fSlope * ox + fInt;
@@ -366,35 +353,35 @@ void THaVDCCluster::Print( Option_t* ) const
   cout << "Wire numbers:";
   for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetWireNum();
-    if( fHits[i] == fPivot )
+    if( i == fPivotIdx )
       cout << "*";
   }
   cout << endl;
   cout << "Wire raw times:";
   for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetRawTime();
-    if( fHits[i] == fPivot )
+    if( i == fPivotIdx )
       cout << "*";
   }
   cout << endl;
   cout << "Wire times:";
   for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetTime();
-    if( fHits[i] == fPivot )
+    if( i == fPivotIdx )
       cout << "*";
   }
   cout << endl;
   cout << "Wire positions:";
   for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetPos();
-    if( fHits[i] == fPivot )
+    if( i == fPivotIdx )
       cout << "*";
   }
   cout << endl;
   cout << "Wire drifts:";
   for( Int_t i = 0; i < GetSize(); i++ ) {
     cout << " " << fHits[i]->GetDist();
-    if( fHits[i] == fPivot )
+    if( i == fPivotIdx )
       cout << "*";
   }
   cout << endl;
