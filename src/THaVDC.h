@@ -29,6 +29,7 @@ public:
   virtual Int_t FineTrack( TClonesArray& tracks );
   virtual Int_t FindVertices( TClonesArray& tracks );
   virtual EStatus Init( const TDatime& date );
+  virtual void  Print(const Option_t* opt="") const;
 
   // Get and Set Functions
   THaVDCChamber* GetUpper() const { return fUpper; }
@@ -37,7 +38,6 @@ public:
   Double_t GetVDCAngle() const { return fVDCAngle; }
   Double_t GetSpacing()  const { return fSpacing;  }
 
-  void Print(const Option_t* opt) const;
 
   // Class for storing matrix element data
   class THaMatrixElement {
