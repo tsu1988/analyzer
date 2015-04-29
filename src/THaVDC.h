@@ -39,6 +39,20 @@ public:
 
   void Print(const Option_t* opt) const;
 
+  // Class for storing matrix element data
+  class THaMatrixElement {
+  public:
+    THaMatrixElement() : iszero(true), pw(3), order(0), v(0), poly(kPORDER) {}
+    bool match( const THaMatrixElement& rhs ) const;
+
+    bool iszero;             // whether the element is zero
+    std::vector<int> pw;     // exponents of matrix element
+                             //   e.g. D100 = { 1, 0, 0 }
+    int  order;
+    double v;                // its computed value
+    std::vector<double> poly;// the associated polynomial
+  };
+
   // Bits & and bit masks for THaTrack
   enum {
     kStageMask     = BIT(14) | BIT(15),  // Track processing stage bits
@@ -90,22 +104,6 @@ protected:
   enum EFPMatrixElemTags { T000 = 0, Y000, P000 };
   enum { kPORDER = 7 };
 
-  // private class for storing matrix element data
-  class THaMatrixElement;
-  friend class THaMatrixElement;
-  class THaMatrixElement {
-  public:
-    THaMatrixElement() : iszero(true), pw(3), order(0), v(0), poly(kPORDER) {}
-    bool match( const THaMatrixElement& rhs ) const;
-
-    bool iszero;             // whether the element is zero
-    std::vector<int> pw;     // exponents of matrix element
-                             //   e.g. D100 = { 1, 0, 0 }
-    int  order;
-    double v;                // its computed value
-    std::vector<double> poly;// the associated polynomial
-  };
-
   // initial matrix elements
   std::vector<THaMatrixElement> fTMatrixElems;
   std::vector<THaMatrixElement> fDMatrixElems;
@@ -121,15 +119,7 @@ protected:
 
   void CalcFocalPlaneCoords( THaTrack* track, const ECoordTypes mode);
   void CalcTargetCoords(THaTrack *the_track, const ECoordTypes mode);
-  void CalcMatrix(const double x, std::vector<THaMatrixElement> &matrix);
-  Double_t DoPoly(const int n, const std::vector<double> &a, const double x);
-  Double_t PolyInv(const double x1, const double x2, const double xacc,
-		 const double y, const int norder,
-		 const std::vector<double> &a);
-  Double_t CalcTargetVar(const std::vector<THaMatrixElement> &matrix,
-			 const double powers[][5]);
-  Double_t CalcTarget2FPLen(const std::vector<THaMatrixElement>& matrix,
-			    const Double_t powers[][5]);
+
   Int_t ReadDatabase( const TDatime& date );
 
   virtual Int_t ConstructTracks( TClonesArray* tracks = NULL, Int_t flag = 0 );

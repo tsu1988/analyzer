@@ -47,6 +47,71 @@ using namespace VDC;
 using THaString::Split;
 
 //_____________________________________________________________________________
+static inline
+void CalcMatrix( const Double_t x, vector<THaVDC::THaMatrixElement>& matrix )
+{
+  // calculates the values of the matrix elements for a given location
+  // by evaluating a polynomial in x of order it->order with
+  // coefficients given by it->poly
+
+  for( vector<THaVDC::THaMatrixElement>::iterator it=matrix.begin();
+       it!=matrix.end(); ++it ) {
+    it->v = 0.0;
+
+    if(it->order > 0) {
+      for(int i=it->order-1; i>=1; --i)
+	it->v = x * (it->v + it->poly[i]);
+      it->v += it->poly[0];
+    }
+  }
+}
+
+//_____________________________________________________________________________
+static inline
+Double_t CalcTargetVar(const vector<THaVDC::THaMatrixElement>& matrix,
+		       const Double_t powers[][5])
+{
+  // calculates the value of a variable at the target
+  // the x-dependence is already in the matrix, so only 1-3 (or np) used
+  Double_t retval=0.0;
+  Double_t v=0;
+  for( vector<THaVDC::THaMatrixElement>::const_iterator it=matrix.begin();
+       it!=matrix.end(); ++it )
+    if(it->v != 0.0) {
+      v = it->v;
+      unsigned int np = it->pw.size(); // generalize for extra matrix elems.
+      for (unsigned int i=0; i<np; ++i)
+	v *= powers[it->pw[i]][i+1];
+      retval += v;
+  //      retval += it->v * powers[it->pw[0]][1]
+  //	              * powers[it->pw[1]][2]
+  //	              * powers[it->pw[2]][3];
+    }
+
+  return retval;
+}
+
+//_____________________________________________________________________________
+static inline
+Double_t CalcTarget2FPLen(const vector<THaVDC::THaMatrixElement>& matrix,
+			  const Double_t powers[][5])
+{
+  // calculates distance from the nominal target position (z=0)
+  // to the transport plane
+
+  Double_t retval=0.0;
+  for( vector<THaVDC::THaMatrixElement>::const_iterator it=matrix.begin();
+       it!=matrix.end(); ++it )
+    if(it->v != 0.0)
+      retval += it->v * powers[it->pw[0]][0]
+	              * powers[it->pw[1]][1]
+	              * powers[it->pw[2]][2]
+	              * powers[it->pw[3]][3];
+
+  return retval;
+}
+
+//_____________________________________________________________________________
 THaVDC::THaVDC( const char* name, const char* description,
 		THaApparatus* apparatus ) :
   THaTrackingDetector(name,description,apparatus), fNtracks(0), fEvNum(0)
@@ -813,68 +878,6 @@ void THaVDC::CalcTargetCoords(THaTrack *track, const ECoordTypes mode)
 
 }
 
-
-//_____________________________________________________________________________
-void THaVDC::CalcMatrix( const Double_t x, vector<THaMatrixElement>& matrix )
-{
-  // calculates the values of the matrix elements for a given location
-  // by evaluating a polynomial in x of order it->order with
-  // coefficients given by it->poly
-
-  for( vector<THaMatrixElement>::iterator it=matrix.begin();
-       it!=matrix.end(); ++it ) {
-    it->v = 0.0;
-
-    if(it->order > 0) {
-      for(int i=it->order-1; i>=1; --i)
-	it->v = x * (it->v + it->poly[i]);
-      it->v += it->poly[0];
-    }
-  }
-}
-
-//_____________________________________________________________________________
-Double_t THaVDC::CalcTargetVar(const vector<THaMatrixElement>& matrix,
-			       const Double_t powers[][5])
-{
-  // calculates the value of a variable at the target
-  // the x-dependence is already in the matrix, so only 1-3 (or np) used
-  Double_t retval=0.0;
-  Double_t v=0;
-  for( vector<THaMatrixElement>::const_iterator it=matrix.begin();
-       it!=matrix.end(); ++it )
-    if(it->v != 0.0) {
-      v = it->v;
-      unsigned int np = it->pw.size(); // generalize for extra matrix elems.
-      for (unsigned int i=0; i<np; ++i)
-	v *= powers[it->pw[i]][i+1];
-      retval += v;
-  //      retval += it->v * powers[it->pw[0]][1]
-  //	              * powers[it->pw[1]][2]
-  //	              * powers[it->pw[2]][3];
-    }
-
-  return retval;
-}
-
-//_____________________________________________________________________________
-Double_t THaVDC::CalcTarget2FPLen(const vector<THaMatrixElement>& matrix,
-				  const Double_t powers[][5])
-{
-  // calculates distance from the nominal target position (z=0)
-  // to the transport plane
-
-  Double_t retval=0.0;
-  for( vector<THaMatrixElement>::const_iterator it=matrix.begin();
-       it!=matrix.end(); ++it )
-    if(it->v != 0.0)
-      retval += it->v * powers[it->pw[0]][0]
-	              * powers[it->pw[1]][1]
-	              * powers[it->pw[2]][2]
-	              * powers[it->pw[3]][3];
-
-  return retval;
-}
 
 //_____________________________________________________________________________
 void THaVDC::CorrectTimeOfFlight(TClonesArray& tracks)
