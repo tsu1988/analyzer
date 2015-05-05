@@ -86,7 +86,6 @@ protected:
   Int_t fMaxClustSpan;       // Maximum size of cluster in wire spacings
   Int_t fNMaxGap;            // Max gap in wire numbers in a cluster
   Int_t fMinTime, fMaxTime;  // Min and Max limits of TDC times for clusters
-  Int_t fFlags;              // Analysis control flags
   Int_t fNpass;              // Number of hit passes
 
   Double_t fMinTdiff, fMaxTdiff;  // Min and Max limits of times between wires in cluster
