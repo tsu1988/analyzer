@@ -894,3 +894,185 @@
   fgets ( buf, LEN, fi );
 
 // ----- end Cherenkov ------------
+
+
+// ------ THaShower --------------
+  static const char* const here = "ReadDatabase()";
+  const int LEN = 100;
+  char buf[LEN];
+  Int_t nelem, ncols, nrows, nclbl;
+
+  // Read data from database
+
+  FILE* fi = OpenFile( date );
+  if( !fi ) return kFileError;
+
+  // Blocks, rows, max blocks per cluster
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  fscanf ( fi, "%5d %5d", &ncols, &nrows );
+
+  nelem = ncols * nrows;
+  nclbl = TMath::Min( 3, nrows ) * TMath::Min( 3, ncols );
+  // Reinitialization only possible for same basic configuration
+  if( fIsInit && (nelem != fNelem || nclbl != fNclublk) ) {
+    Error( Here(here), "Cannot re-initalize with different number of blocks or "
+	   "blocks per cluster. Detector not re-initialized." );
+    fclose(fi);
+    return kInitError;
+  }
+
+  if( nrows <= 0 || ncols <= 0 || nclbl <= 0 ) {
+    Error( Here(here), "Illegal number of rows or columns: "
+	   "%d %d", nrows, ncols );
+    fclose(fi);
+    return kInitError;
+  }
+  fNelem = nelem;
+  fNrows = nrows;
+  fNclublk = nclbl;
+
+  // Clear out the old detector map before reading a new one
+  UShort_t mapsize = fDetMap->GetSize();
+  delete [] fNChan;
+  if( fChanMap ) {
+    for( UShort_t i = 0; i<mapsize; i++ )
+      delete [] fChanMap[i];
+  }
+  delete [] fChanMap;
+  fDetMap->Clear();
+
+  // Read detector map
+
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  while (1) {
+    Int_t crate, slot, first, last;
+    fscanf ( fi,"%6d %6d %6d %6d", &crate, &slot, &first, &last );
+    fgets ( buf, LEN, fi );
+    if( crate < 0 ) break;
+    if( fDetMap->AddModule( crate, slot, first, last ) < 0 ) {
+      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
+	    THaDetMap::kDetMapSize);
+      fclose(fi);
+      return kInitError;
+    }
+  }
+
+  // Set up the new channel map
+  mapsize = fDetMap->GetSize();
+  if( mapsize == 0 ) {
+    Error( Here(here), "No modules defined in detector map.");
+    fclose(fi);
+    return kInitError;
+  }
+
+  fNChan = new UShort_t[ mapsize ];
+  fChanMap = new UShort_t*[ mapsize ];
+  for( UShort_t i=0; i < mapsize; i++ ) {
+    THaDetMap::Module* module = fDetMap->GetModule(i);
+    fNChan[i] = module->hi - module->lo + 1;
+    if( fNChan[i] > 0 )
+      fChanMap[i] = new UShort_t[ fNChan[i] ];
+    else {
+      Error( Here(here), "No channels defined for module %d.", i);
+      delete [] fNChan; fNChan = 0;
+      for( UShort_t j=0; j<i; j++ )
+	delete [] fChanMap[j];
+      delete [] fChanMap; fChanMap = 0;
+      fclose(fi);
+      return kInitError;
+    }
+  }
+  // Read channel map
+  //
+  // Loosen the formatting restrictions: remove from each line the portion
+  // after a '#', and do the pattern matching to the remaining string
+  fgets ( buf, LEN, fi );
+
+  // get the line and end it at a '#' symbol
+  *buf = '\0';
+  char *ptr=buf;
+  int nchar=0;
+  for ( UShort_t i = 0; i < mapsize; i++ ) {
+    for ( UShort_t j = 0; j < fNChan[i]; j++ ) {
+      while ( !strpbrk(ptr,"0123456789") ) {
+	fgets ( buf, LEN, fi );
+	if( (ptr = strchr(buf,'#')) ) *ptr = '\0';
+	ptr = buf;
+	nchar=0;
+      }
+      sscanf (ptr, "%6hu %n", *(fChanMap+i)+j, &nchar );
+      ptr += nchar;
+    }
+  }
+
+  fgets ( buf, LEN, fi );
+
+  Float_t x,y,z;
+  fscanf ( fi, "%15f %15f %15f", &x, &y, &z );               // Detector's X,Y,Z coord
+  fOrigin.SetXYZ( x, y, z );
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  fscanf ( fi, "%15lf %15lf %15lf", fSize, fSize+1, fSize+2 );  // Sizes of det in X,Y,Z
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+
+  Float_t angle;
+  fscanf ( fi, "%15f", &angle );                       // Rotation angle of det
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  const Double_t degrad = TMath::Pi()/180.0;
+
+  DefineAxes(angle*degrad);
+
+  // Dimension arrays
+  if( !fIsInit ) {
+    fBlockX = new Float_t[ fNelem ];
+    fBlockY = new Float_t[ fNelem ];
+    fPed    = new Float_t[ fNelem ];
+    fGain   = new Float_t[ fNelem ];
+
+    // Per-event data
+    fA    = new Float_t[ fNelem ];
+    fA_p  = new Float_t[ fNelem ];
+    fA_c  = new Float_t[ fNelem ];
+    fNblk = new Int_t[ fNclublk ];
+    fEblk = new Float_t[ fNclublk ];
+
+    fIsInit = true;
+  }
+
+  fscanf ( fi, "%15f %15f", &x, &y );                  // Block 1 center position
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  Float_t dx, dy;
+  fscanf ( fi, "%15f %15f", &dx, &dy );                // Block spacings in x and y
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  fscanf ( fi, "%15f", &fEmin );                       // Emin thresh for center
+  fgets ( buf, LEN, fi );
+
+  // Read calibrations.
+  // Before doing this, search for any date tags that follow, and start reading from
+  // the best matching tag if any are found. If none found, but we have a configuration
+  // string, search for it.
+  if( SeekDBdate( fi, date ) == 0 && fConfig.Length() > 0 &&
+      SeekDBconfig( fi, fConfig.Data() )) {}
+
+  fgets ( buf, LEN, fi );
+  // Crude protection against a missed date/config tag
+  if( buf[0] == '[' ) fgets ( buf, LEN, fi );
+
+  // Read ADC pedestals and gains (in order of logical channel number)
+  for (int j=0; j<fNelem; j++)
+    fscanf (fi,"%15f",fPed+j);
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  for (int j=0; j<fNelem; j++)
+    fscanf (fi, "%15f",fGain+j);
+
+
+  // Compute block positions
+  for( int c=0; c<ncols; c++ ) {
+    for( int r=0; r<nrows; r++ ) {
+      int k = nrows*c + r;
+      fBlockX[k] = x + r*dx;                         // Units are meters
+      fBlockY[k] = y + c*dy;
+    }
+  }
+  fclose(fi);
+
+// ---- end Shower --------------

@@ -23,6 +23,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <cassert>
 
 using namespace std;
 
@@ -37,10 +38,165 @@ THaShower::THaShower( const char* name, const char* description,
 //_____________________________________________________________________________
 Int_t THaShower::ReadDatabase( const TDatime& date )
 {
-  // Read this detector's parameters from the database file 'fi'.
-  // This function is called by THaDetectorBase::Init() once at the
-  // beginning of the analysis.
+  // Read parameters from the database.
   // 'date' contains the date/time of the run being analyzed.
+
+  const char* const here = "ReadDatabase";
+
+  // Read database
+
+  FILE* file = OpenFile( date );
+  if( !file ) return kFileError;
+
+  // Read fOrigin and fSize (required!)
+  Int_t err = ReadGeometry( file, date, true );
+  if( err ) {
+    fclose(file);
+    return err;
+  }
+
+  vector<Int_t> detmap;
+  vector<Double_t> xy, dxy;
+  Int_t ncols, nrows;
+  Double_t angle = 0.0;
+
+  // Read mapping/geometry/configuration parameters
+  DBRequest config_request[] = {
+    { "detmap",       &detmap,  kIntV },
+    { "ncols",        &ncols,   kInt },
+    { "nrows",        &nrows,   kInt },
+    { "angle",        &angle,   kDouble, 0, 1 },
+    { "blk1_pos",     &xy,      kDoubleV, 2 }
+    { "blk_spacings", &dxy,     kDoubleV, 2 }
+    { "emin",         &fEmin,   kDouble }
+    { 0 }
+  };
+  err = LoadDB( file, date, config_request, fPrefix );
+
+  // Sanity checks
+  if( !err && (nrows <= 0 || ncols <= 0) ) {
+    Error( Here(here), "Illegal number of rows or columns: %d %d. Must be > 0. "
+	   "Fix database.", nrows, ncols );
+    err = kInitError;
+  }
+
+  Int_t nelem = ncols * nrows; 
+  Int_t nclbl = TMath::Min( 3, nrows ) * TMath::Min( 3, ncols );
+
+  // Reinitialization only possible for same basic configuration
+  if( !err ) {
+    if( fIsInit && nelem != fNelem ) {
+      Error( Here(here), "Cannot re-initalize with different number of blocks or "
+	     "blocks per cluster (was: %d, now: %d). Detector not re-initialized.",
+	     fNelem, nelem );
+      err = kInitError;
+    } else {
+      fNelem = nelem;
+      fNrows = nrows;
+      fNclublk = nclbl;
+  }
+
+  if( !err ) {
+    // Clear out the old detector map before reading a new one
+    UShort_t mapsize = fDetMap->GetSize();
+    delete [] fNChan; fNChan = 0;
+    if( fChanMap ) {
+      for( UShort_t i = 0; i<mapsize; i++ )
+	delete [] fChanMap[i];
+    }
+    delete [] fChanMap; fChanMap = 0;
+
+    if( FillDetMap(detmap, 0, here) <= 0 ) {
+      err = kInitError;  // Error already printed by FillDetMap
+    } else if( (nelem = fDetMap->GetTotNumChan()) != 2*fNelem ) {
+      Error( Here(here), "Number of detector map channels (%d) "
+	     "inconsistent with 2*number of PMTs (%d)", nelem, 2*fNelem );
+      err = kInitError;
+    }
+  }
+  if( !err ) {
+    // Set up the new channel map
+    UInt_t mapsize = fDetMap->GetSize();
+    assert( mapsize > 0 );
+    fNChan = new UShort_t[ mapsize ];
+    fChanMap = new UShort_t*[ mapsize ];
+    for( UInt_t i=0; i < mapsize && !err; i++ ) {
+      THaDetMap::Module* module = fDetMap->GetModule(i);
+      fNChan[i] = module->hi - module->lo + 1;
+      if( fNChan[i] > 0 )
+	fChanMap[i] = new UShort_t[ fNChan[i] ];
+      else {
+	Error( Here(here), "No channels defined for module %d.", i);
+	delete [] fNChan; fNChan = 0;
+	for( UShort_t j=0; j<i; j++ )
+	  delete [] fChanMap[j];
+	delete [] fChanMap; fChanMap = 0;
+	err = kInitError;
+      }
+    }
+  }
+  //TODO: read channel map
+
+  if( err ) {
+    fclose(file);
+    return err;
+  }
+
+  DefineAxes( angle*TMath::DegToRad() );
+
+  // Dimension arrays
+  //FIXME: use a structure!
+  UInt_t nval = fNelem;
+  if( !fIsInit ) {
+    // Geometry
+    fBlockX = new Float_t[ nval ];
+    fBlockY = new Float_t[ nval ];
+
+    // Calibrations
+    fPed    = new Float_t[ nval ];
+    fGain   = new Float_t[ nval ];
+
+    // Per-event data
+    fA    = new Float_t[ nval ];
+    fA_p  = new Float_t[ nval ];
+    fA_c  = new Float_t[ nval ];
+    fNblk = new Int_t[ fNclublk ];
+    fEblk = new Float_t[ fNclublk ];
+
+    fIsInit = true;
+  }
+
+  // Compute block positions
+  for( int c=0; c<ncols; c++ ) {
+    for( int r=0; r<nrows; r++ ) {
+      int k = nrows*c + r;
+      // Units are meters
+      fBlockX[k] = xy[0] + r*dxy[0];
+      fBlockY[k] = xy[1] + c*dxy[1];
+    }
+  }
+
+  // Read calibration parameters
+
+  // Set DEFAULT values here
+  // Default ADC pedestals (0) and ADC gains (1)
+  memset( fPed, 0, nval*sizeof(fPed[0]) );
+  for( UInt_t i=0; i<nval; ++i ) { fGain[i] = 1.0; }
+
+  // Read ADC pedestals and gains (in order of logical channel number)
+  DBRequest calib_request[] = {
+    { "pedestals",    fPed,   kFloat, nval, 1 },
+    { "gains",        fGain,  kFloat, nval, 1 },
+    { 0 }
+  };
+  err = LoadDB( file, date, calib_request, fPrefix );
+  fclose(file);
+  if( err )
+    return err;
+
+
+  // ---- OLD OLD OLD ---------
+#if 0
 
   static const char* const here = "ReadDatabase()";
   const int LEN = 100;
@@ -219,6 +375,8 @@ Int_t THaShower::ReadDatabase( const TDatime& date )
     }
   }
   fclose(fi);
+#endif
+
   return kOK;
 }
 
