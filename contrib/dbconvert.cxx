@@ -799,3 +799,98 @@
       cout << endl;
     }
   }
+
+
+//-------- Cherenkov ------------------
+
+  static const char* const here = "ReadDatabase()";
+
+  // Read database
+
+  FILE* fi = OpenFile( date );
+  if( !fi ) return kFileError;
+
+  const int LEN = 100;
+  char buf[LEN];
+  Int_t nelem;
+
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  fscanf ( fi, "%5d", &nelem );                      // Number of mirrors
+
+  // Reinitialization only possible for same basic configuration
+  if( fIsInit && nelem != fNelem ) {
+    Error( Here(here), "Cannot re-initalize with different number of mirrors. "
+	   "(was: %d, now: %d). Detector not re-initialized.", fNelem, nelem );
+    fclose(fi);
+    return kInitError;
+  }
+  fNelem = nelem;
+
+  // Read detector map.  Assumes that the first half of the entries
+  // is for ADCs, and the second half, for TDCs
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  int i = 0;
+  fDetMap->Clear();
+  while (1) {
+    Int_t crate, slot, first, last, first_chan,model;
+    int pos;
+    fgets ( buf, LEN, fi );
+    sscanf( buf, "%6d %6d %6d %6d %6d %n",
+	    &crate, &slot, &first, &last, &first_chan, &pos );
+    model=atoi(buf+pos); // if there is no model number given, set to zero
+
+    if( crate < 0 ) break;
+    if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
+      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
+	     THaDetMap::kDetMapSize);
+      fclose(fi);
+      return kInitError;
+    }
+  }
+  fgets ( buf, LEN, fi );
+
+  // Read geometry
+
+  Float_t x,y,z;
+  fscanf ( fi, "%15f %15f %15f", &x, &y, &z );        // Detector's X,Y,Z coord
+  fOrigin.SetXYZ( x, y, z );
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  fscanf ( fi, "%15lf %15lf %15lf", fSize, fSize+1, fSize+2 );   // Sizes of det on X,Y,Z
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+
+  Float_t angle;
+  fscanf ( fi, "%15f", &angle );                       // Rotation angle of det
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  const Double_t degrad = TMath::Pi()/180.0;
+
+  DefineAxes(angle*degrad);
+
+  // Dimension arrays
+  if( !fIsInit ) {
+    // Calibration data
+    fOff = new Float_t[ fNelem ];
+    fPed = new Float_t[ fNelem ];
+    fGain = new Float_t[ fNelem ];
+
+    // Per-event data
+    fT   = new Float_t[ fNelem ];
+    fT_c = new Float_t[ fNelem ];
+    fA   = new Float_t[ fNelem ];
+    fA_p = new Float_t[ fNelem ];
+    fA_c = new Float_t[ fNelem ];
+
+    fIsInit = true;
+  }
+
+  // Read calibrations
+  for (i=0;i<fNelem;i++)
+    fscanf( fi, "%15f", fOff+i );                   // TDC offsets
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  for (i=0;i<fNelem;i++)
+    fscanf( fi, "%15f", fPed+i );                   // ADC pedestals
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  for (i=0;i<fNelem;i++)
+    fscanf( fi, "%15f", fGain+i);                   // ADC gains
+  fgets ( buf, LEN, fi );
+
+// ----- end Cherenkov ------------
