@@ -1076,3 +1076,10 @@
   fclose(fi);
 
 // ---- end Shower --------------
+
+// ---- THaTotalShower ----
+
+  fgets ( line, LEN, fi ); fgets ( line, LEN, fi );          
+  fscanf ( fi, "%15f %15f", &fMaxDx, &fMaxDy );  // Max diff of shower centers
+
+// ---- end TotalShower --------------
