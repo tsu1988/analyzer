@@ -1173,3 +1173,95 @@
   fOffset(1)=dummy6;
 
 // ---- end THaBPM ----
+
+
+//--- THaCoincTime ----
+
+  const int LEN = 200;
+  char buf[LEN];
+
+  FILE* fi = OpenFile( date );
+  if( !fi ) {
+    // look for more general coincidence-timing database
+    fi = OpenFile( "CT", date );
+  }
+  if ( !fi )
+    return kFileError;
+
+  //  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  fDetMap->Clear();
+  
+  int cnt = 0;
+  
+  fTdcRes[0] = fTdcRes[1] = 0.;
+  fTdcOff[0] = fTdcOff[1] = 0.;
+  
+  while ( 1 ) {
+    Int_t model;
+    Float_t tres;   //  TDC resolution
+    Float_t toff;   //  TDC offset (in seconds)
+    char label[21]; // string label for TDC = Stop_by_Start
+                    // Label is a space-holder to be used in the future
+    
+    Int_t crate, slot, first, last;
+
+    while ( ReadComment( fi, buf, LEN ) ) {}
+
+    fgets ( buf, LEN, fi );
+    
+    int nread = sscanf( buf, "%6d %6d %6d %6d %15f %20s %15f",
+			&crate, &slot, &first, &model, &tres, label, &toff );
+    if ( crate < 0 ) break;
+    if ( nread < 6 ) {
+      Error( Here(here), "Invalid detector map! Need at least 6 columns." );
+      fclose(fi);
+      return kInitError;
+    }
+    last = first; // only one channel per entry (one ct measurement)
+    // look for the label in our list of spectrometers
+    int ind = -1;
+    for (int i=0; i<2; i++) {
+      // enforce logical channel number 0 == 2by1, etc.
+      // matching between fTdcLabels and the detector map
+      if ( fTdcLabels[i] == label ) {
+	ind = i;
+	break;
+      }
+    }
+    if (ind <0) {
+      TString listoflabels;
+      for (int i=0; i<2; i++) {
+	listoflabels += " " + fTdcLabels[i];
+      }
+      listoflabels += '\0';
+      Error( Here(here), "Invalid detector map! The timing measurement %s does not"
+	     " correspond\n to the spectrometers. Expected one of \n"
+	     "%s",label, listoflabels.Data());
+      fclose(fi);
+      return kInitError;
+    }
+    
+    if( fDetMap->AddModule( crate, slot, first, last, ind, model ) < 0 ) {
+      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).", 
+             THaDetMap::kDetMapSize);
+      fclose(fi);
+      return kInitError;
+    }
+
+    if ( ind+(last-first) < 2 )
+      for (int j=ind; j<=ind+(last-first); j++)  {
+	fTdcRes[j] = tres;
+	if (nread>6) fTdcOff[j] = toff;
+      }
+    else 
+      Warning( Here(here), "Too many entries. Expected 2 but found %d",
+	       cnt+1);
+    cnt+= (last-first+1);
+  }
+
+  fclose(fi);
+
+  return kOK;
+}
+
+// --- end THaCoincTime ----
