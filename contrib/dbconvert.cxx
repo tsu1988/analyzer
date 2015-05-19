@@ -1265,3 +1265,120 @@
 }
 
 // --- end THaCoincTime ----
+
+// --- THaRaster -----
+
+  const int LEN=100;
+  char buf[LEN];
+  char *filestatus;
+  char keyword[LEN];
+  
+  FILE* fi = OpenFile( date );
+  if( !fi ) return kFileError;
+
+  // okay, this needs to be changed, but since i dont want to re- or pre-invent 
+  // the wheel, i will keep it ugly and read in my own configuration file with 
+  // a very fixed syntax: 
+
+  // Seek our detmap section (e.g. "Raster_detmap")
+  sprintf(keyword,"[%s_detmap]",GetName());
+  Int_t n=strlen(keyword);
+
+  do {
+    filestatus=fgets( buf, LEN, fi);
+  } while ((filestatus!=NULL)&&(strncmp(buf,keyword,n)!=0));
+  if (filestatus==NULL) {
+    Error( Here("ReadDataBase()"), "Unexpected end of raster configuration file");
+    fclose(fi);
+    return kInitError;
+  }
+
+  // again that is not really nice, but since it will be changed anyhow:
+  // i dont check each time for end of file, needs to be improved
+
+  fDetMap->Clear();
+  int first_chan, crate, dummy, slot, first, last, modulid;
+
+  do {
+    fgets( buf, LEN, fi);
+    sscanf(buf,"%6d %6d %6d %6d %6d %6d %6d", 
+	   &first_chan, &crate, &dummy, &slot, &first, &last, &modulid);
+    if (first_chan>=0) {
+      if ( fDetMap->AddModule (crate, slot, first, last, first_chan )<0) {
+	Error( Here(here), "Couldnt add Raster to DetMap. Good bye, blue sky, good bye!");
+	fclose(fi);
+	return kInitError;
+      }
+    }
+  } while (first_chan>=0);
+
+  // Seek our database section
+  sprintf(keyword,"[%s]",GetName());
+  n=strlen(keyword);
+  do {
+    filestatus=fgets( buf, LEN, fi);
+  } while ((filestatus!=NULL)&&(strncmp(buf,keyword,n)!=0));
+  if (filestatus==NULL) {
+    Error( Here("ReadDataBase()"), "Unexpected end of raster configuration file");
+    fclose(fi);
+    return kInitError;
+  }
+  double dummy1,dummy2,dummy3,dummy4,dummy5,dummy6,dummy7;
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf %15lf %15lf %15lf %15lf %15lf %15lf",
+	 &dummy1,&dummy2,&dummy3,&dummy4,&dummy5,&dummy6,&dummy7);
+  fRasterFreq(0)=dummy2;
+  fRasterFreq(1)=dummy3;
+
+  fRasterPedestal(0)=dummy4;
+  fRasterPedestal(1)=dummy5;
+
+  fSlopePedestal(0)=dummy6;
+  fSlopePedestal(1)=dummy7;
+
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf",&dummy1);
+  fPosOff[0].SetZ(dummy1);
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf",&dummy1);
+  fPosOff[1].SetZ(dummy1);
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf",&dummy1);
+  fPosOff[2].SetZ(dummy1);
+
+  // Find timestamp, if any, for the raster constants. 
+  // Give up and rewind to current file position on any non-matching tag.
+  // Timestamps should be in ascending order
+  SeekDBdate( fi, date, true );
+
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf %15lf %15lf %15lf %15lf %15lf",
+	 &dummy1,&dummy2,&dummy3,&dummy4,&dummy5,&dummy6);
+  fRaw2Pos[0](0,0)=dummy3;
+  fRaw2Pos[0](1,1)=dummy4;
+  fRaw2Pos[0](0,1)=dummy5;
+  fRaw2Pos[0](1,0)=dummy6;
+  fPosOff[0].SetX(dummy1);
+  fPosOff[0].SetY(dummy2);
+
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf %15lf %15lf %15lf %15lf %15lf",
+	 &dummy1,&dummy2,&dummy3,&dummy4,&dummy5,&dummy6);
+  fRaw2Pos[1](0,0)=dummy3;
+  fRaw2Pos[1](1,1)=dummy4;
+  fRaw2Pos[1](0,1)=dummy5;
+  fRaw2Pos[1](1,0)=dummy6;
+  fPosOff[1].SetX(dummy1);
+  fPosOff[1].SetY(dummy2);
+
+  fgets( buf, LEN, fi);
+  sscanf(buf,"%15lf %15lf %15lf %15lf %15lf %15lf",
+	 &dummy1,&dummy2,&dummy3,&dummy4,&dummy5,&dummy6);
+  fRaw2Pos[2](0,0)=dummy3;
+  fRaw2Pos[2](1,1)=dummy4;
+  fRaw2Pos[2](0,1)=dummy5;
+  fRaw2Pos[2](1,0)=dummy6;
+  fPosOff[2].SetX(dummy1);
+  fPosOff[2].SetY(dummy2);
+
+// ----- end Raster ----
