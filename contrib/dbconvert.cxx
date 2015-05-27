@@ -1382,3 +1382,72 @@
   fPosOff[2].SetY(dummy2);
 
 // ----- end Raster ----
+
+// ----- THaTriggerTime ----
+
+  const int LEN = 200;
+  char buf[LEN];
+
+  // first is the list of channels to watch to determine the event type
+  // This could just come from THaDecData, but for robustness we need
+  // another copy.
+
+  // Read data from database 
+  FILE* fi = OpenFile( date );
+  // however, this is not unexpected since most of the time it is un-necessary
+  if( !fi ) return kOK;
+  
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  
+  // Read in the time offsets, in the format below, to be subtracted from
+  // the times measured in other detectors.
+  //
+  // TrgType 0 is special, in that it is a global offset that is applied
+  //  to all triggers. This gives us a simple single value for adjustments.
+  //
+  // Trigger types NOT listed are assumed to have a zero offset.
+  // 
+  // <TrgType>   <time offset in seconds>
+  // eg:
+  //   0              10   -0.5e-9  # global-offset shared by all triggers and s/TDC
+  //   1               0       crate slot chan
+  //   2              10.e-9
+  int trg;
+  float toff;
+  float ch2t=-0.5e-9;
+  int crate,slot,chan;
+  fTrgTypes.clear();
+  fToffsets.clear();
+  fTDCRes = -0.5e-9; // assume 1872 TDC's.
+  
+  while ( fgets(buf,LEN,fi) ) {
+    int fnd = sscanf( buf,"%8d %16f %16f",&trg,&toff,&ch2t);
+    if( fnd < 2 ) continue;
+    if( trg == 0 ) {
+      fGlOffset = toff;
+      fTDCRes = ch2t;
+    }
+    else {
+      fnd = sscanf( buf,"%8d %16f %8d %8d %8d",&trg,&toff,&crate,&slot,&chan);
+      if( fnd != 5 ) {
+	cerr << "Cannot parse line: " << buf << endl;
+	continue;
+      }
+      fTrgTypes.push_back(trg);
+      fToffsets.push_back(toff);
+      fDetMap->AddModule(crate,slot,chan,chan,trg);
+    }
+  }    
+  fclose(fi);
+
+  // now construct the appropriate arrays
+  delete [] fTrgTimes;
+  fNTrgType = fTrgTypes.size();
+  fTrgTimes = new Double_t[fNTrgType];
+//   for (unsigned int i=0; i<fTrgTypes.size(); i++) {
+//     if (fTrgTypes[i]==0) continue;
+//     fTrg_gl.push_back(gHaVars->Find(Form("%s.bit%d",fDecDataNm.Data(),
+// 					 fTrgTypes[i])));
+//   }
+
+// ---- End TriggerTime ---
