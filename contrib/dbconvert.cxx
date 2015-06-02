@@ -1,3 +1,268 @@
+//*-- Author :    Ole Hansen  28-May-2015
+//
+// dbconvert.cxx
+//
+// Utility to convert Podd 1.5 and earlier database files to Podd 1.6
+// and later format
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <cstdlib>
+#include <cstdio>
+#include <cassert>
+#include <cstring>    // for GNU basename()
+#include <map>
+
+#include "TString.h"
+#include "TDatime.h"
+#include "TMath.h"
+#include "TVector3.h"
+
+#include "THaAnalysisObject.h"
+#include "THaDetMap.h"
+
+#define kInitError THaAnalysisObject::kInitError
+#define kOK        THaAnalysisObject::kOK
+#define kBig       THaAnalysisObject::kBig
+
+using namespace std;
+
+#define ALL(c) (c).begin(), (c).end()
+
+#define INFILE_DEFAULT  "db_gemc.dat"
+#define OUTFILE_DEFAULT "db_solid.tracker.dat"
+
+// Command line parameter defaults
+static bool do_debug = false;
+static string infile = INFILE_DEFAULT;
+static string outfile = OUTFILE_DEFAULT;
+static const char* prgname;
+
+//-----------------------------------------------------------------------------
+class Detector
+{
+public:
+  Detector() : fNelem(0), fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) {
+    fDetMap = new THaDetMap; 
+    fSize[0] = fSize[1] = fSize[2] = kBig;
+  }
+  virtual ~Detector() { delete fDetMap; }
+
+  virtual int ReadDB( FILE* fi ) = 0;
+
+protected:
+
+  THaDetMap*  fDetMap;
+  Int_t       fNelem;
+  Double_t    fSize[3];
+  TVector3    fOrigin, fXax, fYax, fZax;
+
+  void DefineAxes( Double_t rot ) {
+    fXax.SetXYZ( TMath::Cos(rot), 0.0, TMath::Sin(rot) );
+    fYax.SetXYZ( 0.0, 1.0, 0.0 );
+    fZax = fXax.Cross(fYax);
+  }
+  const char* Here( const char* here ) { return here; }
+};
+
+class Cherenkov : public Detector
+{
+public:
+  Cherenkov() {}
+  virtual ~Cherenkov() { delete [] fOff; delete [] fPed; delete [] fGain; }
+
+  virtual int ReadDB( FILE* fi );
+
+private:
+  // Calibration
+  Float_t*   fOff;        // [fNelem] TDC offsets (chan)
+  Float_t*   fPed;        // [fNelem] ADC pedestals (chan)
+  Float_t*   fGain;       // [fNelem] ADC gains
+};
+
+//-----------------------------------------------------------------------------
+void usage()
+{
+  // Print usage message and exit
+  cerr << "Usage: " << prgname << "[-hd] [-o outfile] [infile]" << endl;
+  // cerr << " Convert libsolgem database <infile> to TreeSearch-SoLID database"
+  //      << " <outfile>" << endl;
+  cerr << " -h: Print this help message" << endl;
+  cerr << " -d: Output extensive debug information" << endl;
+  // cerr << " -o <outfile>: Write output to <outfile>. Default: "
+  //      << OUTFILE_DEFAULT << endl;
+  // cerr << " <infile>: Read input from <infile>. Default: "
+  //      << INFILE_DEFAULT << endl;
+  exit(255);
+}
+
+//-----------------------------------------------------------------------------
+void getargs( int argc, const char** argv )
+{
+  // Get command line parameters
+
+  prgname = basename(argv[0]);
+
+  while (argc-- > 1) {
+    const char *opt = *++argv;
+    if (*opt == '-') {
+      while (*++opt != '\0') {
+	switch (*opt) {
+	case 'h':
+	  usage();
+	  break;
+	case 'd':
+	  do_debug = true;
+	  break;
+	case 'o':
+	  if (!*++opt) {
+	    if (argc-- < 1)
+	      usage();
+	    opt = *++argv;
+	  }
+	  outfile = opt;
+	  opt = "?";
+	  break;
+	default:
+	  usage();
+	}
+      }
+    } else {
+      infile = *argv;
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+int main( int argc, const char** argv )
+{
+  // const string dashes =
+  //   "#-----------------------------------------------------------------";
+
+  // Parse command line
+  getargs(argc,argv);
+
+  // Read the detector name mapping file. If unavailable, set up defaults.
+
+  // Get a list of all database files, based on Podd's search order rules.
+  // Keep timestamps info with each file. Reading files from the current
+  // directory must be explicitly requested, though.
+
+  // Assign a parser to each database file, based on the name mapping info.
+
+  // Let the parsers translate each file to database keys.
+  // If the original parser supported in-file timestamps, pre-parse the
+  // corresponding files to find any timestamps in them.
+  // Keep all found keys/values along with timestamps in a central map.
+
+  // Write out keys/values to database files in target directory.
+  // All file names will be preserved; a file that existed anywhere
+  // in the source will also appear at least once in the target.
+  // User may request that original directory structure be preserved,
+  // otherwise just write one file per detector name.
+  // Special treatment for keys found in current directory: if requested
+  // write the converted versions into a special subdirectory of target.
+
+  return 0;
+}
+
+
+//-----------------------------------------------------------------------------
+int Cherenkov::ReadDB( FILE* fi )
+{
+  // Read legacy Cherenkov database
+
+  const char* const here = "ReadDatabase";
+
+  const int LEN = 100;
+  char buf[LEN];
+  Int_t nelem;
+
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  Int_t n = fscanf ( fi, "%5d", &nelem );   // Number of mirrors
+  if( n != 1 ) return kInitError;
+
+  // Read detector map.  Assumes that the first half of the entries
+  // is for ADCs, and the second half, for TDCs
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  int i = 0;
+  fDetMap->Clear();
+  while (1) {
+    Int_t crate, slot, first, last, first_chan,model;
+    int pos;
+    fgets ( buf, LEN, fi );
+    sscanf( buf, "%6d %6d %6d %6d %6d %n",
+	    &crate, &slot, &first, &last, &first_chan, &pos );
+    if( n != 1 ) return kInitError;
+    model=atoi(buf+pos); // if there is no model number given, set to zero
+
+    if( crate < 0 ) break;
+    if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
+      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
+	     THaDetMap::kDetMapSize);
+      fclose(fi);
+      return kInitError;
+    }
+  }
+  fgets ( buf, LEN, fi );
+
+  // Read geometry
+
+  Float_t x,y,z;
+  n = fscanf ( fi, "%15f %15f %15f", &x, &y, &z );        // Detector's X,Y,Z coord
+  if( n != 3 ) return kInitError;
+  fOrigin.SetXYZ( x, y, z );
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  n = fscanf ( fi, "%15lf %15lf %15lf", fSize, fSize+1, fSize+2 );   // Sizes of det on X,Y,Z
+  if( n != 3 ) return kInitError;
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+
+  Float_t angle;
+  n = fscanf ( fi, "%15f", &angle );                     // Rotation angle of det
+  if( n != 1 ) return kInitError;
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  const Double_t degrad = TMath::Pi()/180.0;
+
+  DefineAxes(angle*degrad);
+
+  // Dimension arrays
+  // Calibration data
+  if( nelem != fNelem ) {
+    fNelem = nelem;
+    delete [] fOff; delete [] fPed; delete [] fGain;
+    fOff = new Float_t[ fNelem ];
+    fPed = new Float_t[ fNelem ];
+    fGain = new Float_t[ fNelem ];
+  }
+
+  // Read calibrations
+  for (i=0;i<fNelem;i++) {
+    fscanf( fi, "%15f", fOff+i );                   // TDC offsets
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  for (i=0;i<fNelem;i++) {
+    fscanf( fi, "%15f", fPed+i );                   // ADC pedestals
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  for (i=0;i<fNelem;i++) {
+    fscanf( fi, "%15f", fGain+i);                   // ADC gains
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );
+
+  return 0;
+}
+// ----- end Cherenkov ------------
+
+#if 0
+  //------ OLD OLD OLD OLD ----------------
+
+
 // ---- VDC ----
   FILE* file = OpenFile( date );
   if( !file ) return kFileError;
@@ -801,100 +1066,6 @@
   }
 
 
-//-------- Cherenkov ------------------
-
-  static const char* const here = "ReadDatabase()";
-
-  // Read database
-
-  FILE* fi = OpenFile( date );
-  if( !fi ) return kFileError;
-
-  const int LEN = 100;
-  char buf[LEN];
-  Int_t nelem;
-
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  fscanf ( fi, "%5d", &nelem );                      // Number of mirrors
-
-  // Reinitialization only possible for same basic configuration
-  if( fIsInit && nelem != fNelem ) {
-    Error( Here(here), "Cannot re-initalize with different number of mirrors. "
-	   "(was: %d, now: %d). Detector not re-initialized.", fNelem, nelem );
-    fclose(fi);
-    return kInitError;
-  }
-  fNelem = nelem;
-
-  // Read detector map.  Assumes that the first half of the entries
-  // is for ADCs, and the second half, for TDCs
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  int i = 0;
-  fDetMap->Clear();
-  while (1) {
-    Int_t crate, slot, first, last, first_chan,model;
-    int pos;
-    fgets ( buf, LEN, fi );
-    sscanf( buf, "%6d %6d %6d %6d %6d %n",
-	    &crate, &slot, &first, &last, &first_chan, &pos );
-    model=atoi(buf+pos); // if there is no model number given, set to zero
-
-    if( crate < 0 ) break;
-    if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
-      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
-	     THaDetMap::kDetMapSize);
-      fclose(fi);
-      return kInitError;
-    }
-  }
-  fgets ( buf, LEN, fi );
-
-  // Read geometry
-
-  Float_t x,y,z;
-  fscanf ( fi, "%15f %15f %15f", &x, &y, &z );        // Detector's X,Y,Z coord
-  fOrigin.SetXYZ( x, y, z );
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  fscanf ( fi, "%15lf %15lf %15lf", fSize, fSize+1, fSize+2 );   // Sizes of det on X,Y,Z
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-
-  Float_t angle;
-  fscanf ( fi, "%15f", &angle );                       // Rotation angle of det
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  const Double_t degrad = TMath::Pi()/180.0;
-
-  DefineAxes(angle*degrad);
-
-  // Dimension arrays
-  if( !fIsInit ) {
-    // Calibration data
-    fOff = new Float_t[ fNelem ];
-    fPed = new Float_t[ fNelem ];
-    fGain = new Float_t[ fNelem ];
-
-    // Per-event data
-    fT   = new Float_t[ fNelem ];
-    fT_c = new Float_t[ fNelem ];
-    fA   = new Float_t[ fNelem ];
-    fA_p = new Float_t[ fNelem ];
-    fA_c = new Float_t[ fNelem ];
-
-    fIsInit = true;
-  }
-
-  // Read calibrations
-  for (i=0;i<fNelem;i++)
-    fscanf( fi, "%15f", fOff+i );                   // TDC offsets
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  for (i=0;i<fNelem;i++)
-    fscanf( fi, "%15f", fPed+i );                   // ADC pedestals
-  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  for (i=0;i<fNelem;i++)
-    fscanf( fi, "%15f", fGain+i);                   // ADC gains
-  fgets ( buf, LEN, fi );
-
-// ----- end Cherenkov ------------
-
 
 // ------ THaShower --------------
   static const char* const here = "ReadDatabase()";
@@ -1451,3 +1622,4 @@
 //   }
 
 // ---- End TriggerTime ---
+#endif
