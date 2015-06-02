@@ -12,6 +12,7 @@ hana_decode/tstf1tdc
 hana_decode/tstio
 hana_decode/tstoo
 hana_decode/tstskel
+contrib/dbconvert
 
 # Generated files
 *Dict.[Ch]
