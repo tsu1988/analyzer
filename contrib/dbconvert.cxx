@@ -47,6 +47,21 @@ static string outfile = OUTFILE_DEFAULT;
 static const char* prgname;
 
 //-----------------------------------------------------------------------------
+static string format_time( time_t t )
+{
+  char buf[32];
+  ctime_r( &t, buf );
+  // Translate date of the form "Wed Jun 30 21:49:08 1993\n" to
+  // "Jun 30 1993 21:49:08"
+  string ts( buf+4, 4 );
+  if( buf[8] != ' ' ) ts += buf[8];
+  ts += buf[9];
+  ts.append( buf+19, 5 );
+  ts.append( buf+10, 9 );
+  return ts;
+}
+
+//-----------------------------------------------------------------------------
 // Global map of all database keys (in-memory database)
 // This may not scale for gigantic databases, which fortunately we don't have
 struct DBvalue {
@@ -106,9 +121,10 @@ int AddToMap( const string& key, const string& value, time_t start,
   if( range.first != range.second ) {
     for( ; range.first != range.second; ++range.first ) {
       if( *(range.first) == val ) {
-	cerr << "Error: key " << key << " already exists for time " << start;
+	cerr << "Error: key " << key << " already exists for time "
+	     << format_time(start);
 	if( !version.empty() )
-	  cerr << " and version " << version;
+	  cerr << " and version \"" << version << "\"";
 	cerr << endl;
 	return 1;
       }
@@ -116,21 +132,6 @@ int AddToMap( const string& key, const string& value, time_t start,
   }
   vals.insert(val);
   return 0;
-}
-
-//-----------------------------------------------------------------------------
-static string format_time( time_t t )
-{
-  char buf[32];
-  ctime_r( &t, buf );
-  // Translate date of the form "Wed Jun 30 21:49:08 1993\n" to
-  // "Jun 30 1993 21:49:08"
-  string ts( buf+4, 4 );
-  if( buf[8] != ' ' ) ts += buf[8];
-  ts += buf[9];
-  ts.append( buf+19, 5 );
-  ts.append( buf+10, 9 );
-  return ts;
 }
 
 //-----------------------------------------------------------------------------
@@ -439,6 +440,10 @@ int Cherenkov::Save( const string& prefix, time_t start, const string& version )
   AddToMap( prefix+"detmap", MakeValue(fDetMap,flags), start, version, 4+flags );
   AddToMap( prefix+"npmt",   MakeValue(&fNelem), start, version );
   AddToMap( prefix+"angle",  MakeValue(&fAngle), start, version );
+
+  AddToMap( prefix+"tdc.offsets",   MakeValue(fOff,fNelem),  start, version );
+  AddToMap( prefix+"adc.pedestals", MakeValue(fPed,fNelem),  start, version );
+  AddToMap( prefix+"adc.gains",     MakeValue(fGain,fNelem), start, version );
 
   return 0;
 }
