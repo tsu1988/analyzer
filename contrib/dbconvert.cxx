@@ -14,12 +14,17 @@
 #include <cstdio>
 #include <cassert>
 #include <cstring>    // for GNU basename()
+#include <ctime>
 #include <map>
+#include <set>
+#include <utility>
+#include <iterator>
 
 #include "TString.h"
 #include "TDatime.h"
 #include "TMath.h"
 #include "TVector3.h"
+#include "TError.h"
 
 #include "THaAnalysisObject.h"
 #include "THaDetMap.h"
@@ -42,45 +47,189 @@ static string outfile = OUTFILE_DEFAULT;
 static const char* prgname;
 
 //-----------------------------------------------------------------------------
-class Detector
+// Global map of all database keys (in-memory database)
+// This may not scale for gigantic databases, which fortunately we don't have
+struct DBvalue {
+  DBvalue( const string& valstr, time_t start, const string& ver = string(),
+	   int max = 0 )
+    : value(valstr), validity_start(start), version(ver), max_per_line(max) {}
+  string value;
+  time_t validity_start;
+  string version;
+  int    max_per_line;    // Number of values per line (for formatting text db)
+  bool operator<( const DBvalue& rhs ) const {
+    return validity_start < rhs.validity_start;
+  }
+  bool operator==( const DBvalue& rhs ) const {
+    return validity_start == rhs.validity_start && version == rhs.version;
+  }
+};
+
+//-----------------------------------------------------------------------------
+template <class T> string MakeValue( const T* array, int size = 0 )
 {
+  ostringstream ostr;
+  if( size == 0 ) size = 1;
+  for( int i = 0; i < size; ++i ) {
+    ostr << array[i];
+    if( i+1 < size ) ostr << " ";
+  }
+  return ostr.str();
+}
+
+//-----------------------------------------------------------------------------
+template<> string MakeValue( const THaDetMap* detmap, int extras )
+{
+  ostringstream ostr;
+  for( Int_t i = 0; i < detmap->GetSize(); ++i ) {
+    THaDetMap::Module* d = detmap->GetModule(i);
+    ostr << d->crate << " " << d->slot << " " << d->lo << " " << d->hi;
+    if( extras >= 1 ) ostr << " " << d->first;
+    if( extras >= 2 ) ostr << " " << d->GetModel();
+    if( i+1 != detmap->GetSize() ) ostr << " ";
+  }
+  return ostr.str();
+}
+
+typedef multiset<DBvalue> ValSet_t;
+typedef map<string, ValSet_t > DB;
+
+static DB gDB;
+
+//-----------------------------------------------------------------------------
+int AddToMap( const string& key, const string& value, time_t start,
+	      const string& version = string(), int max = 0 )
+{
+  DBvalue val( value, start, version, max );
+  ValSet_t& vals = gDB[key];
+  pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
+  if( range.first != range.second ) {
+    for( ; range.first != range.second; ++range.first ) {
+      if( *(range.first) == val ) {
+	cerr << "Error: key " << key << " already exists for time " << start;
+	if( !version.empty() )
+	  cerr << " and version " << version;
+	cerr << endl;
+	return 1;
+      }
+    }
+  }
+  vals.insert(val);
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static string format_time( time_t t )
+{
+  char buf[32];
+  ctime_r( &t, buf );
+  // Translate date of the form "Wed Jun 30 21:49:08 1993\n" to
+  // "Jun 30 1993 21:49:08"
+  string ts( buf+4, 4 );
+  if( buf[8] != ' ' ) ts += buf[8];
+  ts += buf[9];
+  ts.append( buf+19, 5 );
+  ts.append( buf+10, 9 );
+  return ts;
+}
+
+//-----------------------------------------------------------------------------
+void DumpMap( ostream& os = std::cout )
+{
+  for( DB::const_iterator it = gDB.begin(); it != gDB.end(); ++it ) {
+    DB::value_type item = *it;
+    for( ValSet_t::const_iterator jt = item.second.begin();
+	 jt != item.second.end(); ++jt ) {
+      const DBvalue& val = *jt;
+      os << item.first << " (" << format_time(val.validity_start);
+      if( !val.version.empty() )
+	os << ", \"" << val.version << "\"";
+      os << ") = ";
+      os << val.value << endl;
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+int WriteMap( const char* target_dir )
+{
+
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+// Common detector data
+class Detector {
 public:
-  Detector() : fNelem(0), fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) {
+  Detector() : fDetMapHasModel(false), fNelem(0),
+	       fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) {
     fDetMap = new THaDetMap; 
     fSize[0] = fSize[1] = fSize[2] = kBig;
   }
   virtual ~Detector() { delete fDetMap; }
 
-  virtual int ReadDB( FILE* fi ) = 0;
+  virtual int ReadDB( FILE* infile ) = 0;
+  virtual int Save( const string& prefix, time_t start,
+		    const string& version = string() ) = 0;
 
 protected:
-
-  THaDetMap*  fDetMap;
-  Int_t       fNelem;
-  Double_t    fSize[3];
-  TVector3    fOrigin, fXax, fYax, fZax;
-
   void DefineAxes( Double_t rot ) {
     fXax.SetXYZ( TMath::Cos(rot), 0.0, TMath::Sin(rot) );
     fYax.SetXYZ( 0.0, 1.0, 0.0 );
     fZax = fXax.Cross(fYax);
   }
   const char* Here( const char* here ) { return here; }
+
+  THaDetMap*  fDetMap;
+  bool        fDetMapHasModel;
+  Int_t       fNelem;
+  Double_t    fSize[3];
+  Float_t     fAngle;
+  TVector3    fOrigin, fXax, fYax, fZax;
 };
 
-class Cherenkov : public Detector
-{
+//-----------------------------------------------------------------------------
+// Cherenkov
+class Cherenkov : public Detector {
 public:
-  Cherenkov() {}
-  virtual ~Cherenkov() { delete [] fOff; delete [] fPed; delete [] fGain; }
+  Cherenkov() : fOff(0), fPed(0), fGain(0) {}
+  virtual ~Cherenkov() { DeleteArrays(); }
 
-  virtual int ReadDB( FILE* fi );
+  virtual int ReadDB( FILE* infile );
+  virtual int Save( const string& prefix, time_t start,
+		    const string& version = string() );
 
 private:
-  // Calibration
-  Float_t*   fOff;        // [fNelem] TDC offsets (chan)
-  Float_t*   fPed;        // [fNelem] ADC pedestals (chan)
-  Float_t*   fGain;       // [fNelem] ADC gains
+  // Calibrations
+  Float_t *fOff, *fPed, *fGain;
+
+  void DeleteArrays() { delete [] fOff; delete [] fPed; delete [] fGain; }
+};
+
+//-----------------------------------------------------------------------------
+// Scintillator
+class Scintillator : public Detector {
+public:
+  Scintillator() : fLOff(0), fROff(0), fLPed(0), fRPed(0), fLGain(0),
+		   fRGain(0), fTWalkPar(0), fTrigOff(0) {}
+  virtual ~Scintillator() { DeleteArrays(); }
+
+  virtual int ReadDB( FILE* ) { return 0; } //TODO
+  virtual int Save( const string&, time_t, const string& = string() )
+  { return 0; } // TODO
+
+private:
+  // Configuration
+  Double_t  fTdc2T, fCn, fAdcMIP, fAttenuation, fResolution;
+  Int_t     fNTWalkPar;
+  // Calibrations
+  Double_t  *fLOff, *fROff, *fLPed, *fRPed, *fLGain, *fRGain;
+  Double_t  *fTWalkPar, *fTrigOff;
+
+  void DeleteArrays() {
+    delete [] fLOff; delete [] fROff; delete [] fLPed; delete [] fRPed;
+    delete [] fLGain; delete [] fRGain; delete [] fTWalkPar; delete [] fTrigOff;
+  }
 };
 
 //-----------------------------------------------------------------------------
@@ -158,6 +307,22 @@ int main( int argc, const char** argv )
   // corresponding files to find any timestamps in them.
   // Keep all found keys/values along with timestamps in a central map.
 
+  //TEST
+  Int_t err;
+  FILE* fi = fopen("/home/ole/Develop/analyzer/DB/20030101/db_R.cer.dat","r");
+  TDatime date;
+  time_t itime = date.Convert();
+  if( fi ) {
+    Cherenkov cer;
+    err = cer.ReadDB(fi);
+    if( err )
+      cerr << "Error reading Cherenkov" << endl;
+    else
+      cout << "Successfully read Cherenkov" << endl;
+    fclose(fi);
+    cer.Save("R.cer.", itime);
+  }
+
   // Write out keys/values to database files in target directory.
   // All file names will be preserved; a file that existed anywhere
   // in the source will also appear at least once in the target.
@@ -165,6 +330,8 @@ int main( int argc, const char** argv )
   // otherwise just write one file per detector name.
   // Special treatment for keys found in current directory: if requested
   // write the converted versions into a special subdirectory of target.
+
+  DumpMap();
 
   return 0;
 }
@@ -184,20 +351,27 @@ int Cherenkov::ReadDB( FILE* fi )
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
   Int_t n = fscanf ( fi, "%5d", &nelem );   // Number of mirrors
   if( n != 1 ) return kInitError;
+  if( nelem <= 0 ) {
+    Error( Here(here), "Invalid number of mirrors = %d. Must be > 0.", nelem );
+    return kInitError;
+  }
 
   // Read detector map.  Assumes that the first half of the entries
   // is for ADCs, and the second half, for TDCs
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
   int i = 0;
   fDetMap->Clear();
+  fDetMapHasModel = false;
   while (1) {
     Int_t crate, slot, first, last, first_chan,model;
     int pos;
     fgets ( buf, LEN, fi );
-    sscanf( buf, "%6d %6d %6d %6d %6d %n",
-	    &crate, &slot, &first, &last, &first_chan, &pos );
-    if( n != 1 ) return kInitError;
+    n = sscanf( buf, "%6d %6d %6d %6d %6d %n",
+		&crate, &slot, &first, &last, &first_chan, &pos );
+    if( n < 5 ) return kInitError;
     model=atoi(buf+pos); // if there is no model number given, set to zero
+    if( model != 0 )
+      fDetMapHasModel = true;
 
     if( crate < 0 ) break;
     if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
@@ -210,7 +384,6 @@ int Cherenkov::ReadDB( FILE* fi )
   fgets ( buf, LEN, fi );
 
   // Read geometry
-
   Float_t x,y,z;
   n = fscanf ( fi, "%15f %15f %15f", &x, &y, &z );        // Detector's X,Y,Z coord
   if( n != 3 ) return kInitError;
@@ -220,19 +393,17 @@ int Cherenkov::ReadDB( FILE* fi )
   if( n != 3 ) return kInitError;
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
 
-  Float_t angle;
-  n = fscanf ( fi, "%15f", &angle );                     // Rotation angle of det
+  n = fscanf ( fi, "%15f", &fAngle );                    // Rotation angle of det
   if( n != 1 ) return kInitError;
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
   const Double_t degrad = TMath::Pi()/180.0;
 
-  DefineAxes(angle*degrad);
+  DefineAxes(fAngle*degrad);
 
-  // Dimension arrays
   // Calibration data
   if( nelem != fNelem ) {
+    DeleteArrays();
     fNelem = nelem;
-    delete [] fOff; delete [] fPed; delete [] fGain;
     fOff = new Float_t[ fNelem ];
     fPed = new Float_t[ fNelem ];
     fGain = new Float_t[ fNelem ];
@@ -257,7 +428,24 @@ int Cherenkov::ReadDB( FILE* fi )
 
   return 0;
 }
+
+//-----------------------------------------------------------------------------
+int Cherenkov::Save( const string& prefix, time_t start, const string& version )
+{
+  // Create database keys for current Cherenkov configuration data
+
+  int flags = 1;
+  if( fDetMapHasModel )  flags++;
+  AddToMap( prefix+"detmap", MakeValue(fDetMap,flags), start, version, 4+flags );
+  AddToMap( prefix+"npmt",   MakeValue(&fNelem), start, version );
+  AddToMap( prefix+"angle",  MakeValue(&fAngle), start, version );
+
+  return 0;
+}
+
 // ----- end Cherenkov ------------
+
+//-----------------------------------------------------------------------------
 
 #if 0
   //------ OLD OLD OLD OLD ----------------
