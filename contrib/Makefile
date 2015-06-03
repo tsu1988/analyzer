@@ -1,16 +1,17 @@
 all: dbconvert
 
+CXXFLAGS    = -g -O0 -Wall -Wextra
+
+INCDIRS     = ../src ../hana_decode
+INCLUDES    = $(addprefix -I, $(INCDIRS))
+
 CXX         = $(shell root-config --cxx)
 ROOTCFLAGS  = $(shell root-config --cflags)
 LD          = $(shell root-config --ld)
 LDFLAGS     = $(shell root-config --ldflags)
 
-INCDIRS     = ../src ../hana_decode
-PKGINCLUDES = $(addprefix -I, $(INCDIRS))
-CXXFLAGS    = -g -O2
-
-CXXFLAGS   += $(ROOTCFLAGS) $(PKGINCLUDES)
-INCLUDES    = -I$(shell root-config --incdir) $(PKGINCLUDES)
+CXXFLAGS   += $(ROOTCFLAGS) $(INCLUDES)
+#ALLINCLUDES  = -I$(shell root-config --incdir) $(INCLUDES)
 LIBS        = $(shell root-config --libs) -L.. -lHallA -ldc
 
 dbconvert:	dbconvert.o
