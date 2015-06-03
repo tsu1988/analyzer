@@ -62,25 +62,6 @@ static string format_time( time_t t )
 }
 
 //-----------------------------------------------------------------------------
-// Global map of all database keys (in-memory database)
-// This may not scale for gigantic databases, which fortunately we don't have
-struct DBvalue {
-  DBvalue( const string& valstr, time_t start, const string& ver = string(),
-	   int max = 0 )
-    : value(valstr), validity_start(start), version(ver), max_per_line(max) {}
-  string value;
-  time_t validity_start;
-  string version;
-  int    max_per_line;    // Number of values per line (for formatting text db)
-  bool operator<( const DBvalue& rhs ) const {
-    return validity_start < rhs.validity_start;
-  }
-  bool operator==( const DBvalue& rhs ) const {
-    return validity_start == rhs.validity_start && version == rhs.version;
-  }
-};
-
-//-----------------------------------------------------------------------------
 template <class T> string MakeValue( const T* array, int size = 0 )
 {
   ostringstream ostr;
@@ -106,6 +87,57 @@ template<> string MakeValue( const THaDetMap* detmap, int extras )
   return ostr.str();
 }
 
+//-----------------------------------------------------------------------------
+template<> string MakeValue( const TVector3* vec3, int )
+{
+  ostringstream ostr;
+  ostr << vec3->X() << " " << vec3->Y() << " " << vec3->Z();
+  return ostr.str();
+}
+
+//-----------------------------------------------------------------------------
+template <class T>
+string MakeValueUnless( T default_value, const T* array, int size = 0 )
+{
+  if( size == 0 ) size = 1;
+  int i = 0;
+  for( ; i < size; ++i ) {
+    if( array[i] != default_value )
+      break;
+  }
+  if( i == size )
+    return string();
+
+  return MakeValue( array, size );
+}
+
+//-----------------------------------------------------------------------------
+string MakeValueUnless( double def, const TVector3* vec )
+{
+  if( vec->X() == def && vec->Y() == def && vec->Z() == def )
+    return string();
+  return MakeValue( vec );
+}
+
+//-----------------------------------------------------------------------------
+// Define data structures for local caching of database parameters
+
+struct DBvalue {
+  DBvalue( const string& valstr, time_t start, const string& ver = string(),
+	   int max = 0 )
+    : value(valstr), validity_start(start), version(ver), max_per_line(max) {}
+  string value;
+  time_t validity_start;
+  string version;
+  int    max_per_line;    // Number of values per line (for formatting text db)
+  bool operator<( const DBvalue& rhs ) const {
+    return validity_start < rhs.validity_start;
+  }
+  bool operator==( const DBvalue& rhs ) const {
+    return validity_start == rhs.validity_start && version == rhs.version;
+  }
+};
+
 typedef multiset<DBvalue> ValSet_t;
 typedef map<string, ValSet_t > DB;
 
@@ -115,6 +147,13 @@ static DB gDB;
 int AddToMap( const string& key, const string& value, time_t start,
 	      const string& version = string(), int max = 0 )
 {
+  // Add given key and value with given validity start time and optional
+  // "version" (secondary index) to the in-memory database.
+  // If value is empty, do nothing (for use with MakeValueUnless).
+
+  if( value.empty() )
+    return 0;
+
   DBvalue val( value, start, version, max );
   ValSet_t& vals = gDB[key];
   pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
@@ -137,6 +176,8 @@ int AddToMap( const string& key, const string& value, time_t start,
 //-----------------------------------------------------------------------------
 void DumpMap( ostream& os = std::cout )
 {
+  // Dump contents of the in-memory database to given output
+
   for( DB::const_iterator it = gDB.begin(); it != gDB.end(); ++it ) {
     DB::value_type item = *it;
     for( ValSet_t::const_iterator jt = item.second.begin();
@@ -162,8 +203,7 @@ int WriteMap( const char* target_dir )
 // Common detector data
 class Detector {
 public:
-  Detector() : fDetMapHasModel(false), fNelem(0),
-	       fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) {
+  Detector() : fNelem(0) /*, fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) */{
     fDetMap = new THaDetMap; 
     fSize[0] = fSize[1] = fSize[2] = kBig;
   }
@@ -171,22 +211,23 @@ public:
 
   virtual int ReadDB( FILE* infile ) = 0;
   virtual int Save( const string& prefix, time_t start,
-		    const string& version = string() ) = 0;
+		    const string& version = string() ) const;
 
 protected:
-  void DefineAxes( Double_t rot ) {
-    fXax.SetXYZ( TMath::Cos(rot), 0.0, TMath::Sin(rot) );
-    fYax.SetXYZ( 0.0, 1.0, 0.0 );
-    fZax = fXax.Cross(fYax);
-  }
+  // void DefineAxes( Double_t rot ) {
+  //   fXax.SetXYZ( TMath::Cos(rot), 0.0, TMath::Sin(rot) );
+  //   fYax.SetXYZ( 0.0, 1.0, 0.0 );
+  //   fZax = fXax.Cross(fYax);
+  // }
   const char* Here( const char* here ) { return here; }
 
+  TString     fConfig;
   THaDetMap*  fDetMap;
   bool        fDetMapHasModel;
   Int_t       fNelem;
   Double_t    fSize[3];
   Float_t     fAngle;
-  TVector3    fOrigin, fXax, fYax, fZax;
+  TVector3    fOrigin;//, fXax, fYax, fZax;
 };
 
 //-----------------------------------------------------------------------------
@@ -198,7 +239,7 @@ public:
 
   virtual int ReadDB( FILE* infile );
   virtual int Save( const string& prefix, time_t start,
-		    const string& version = string() );
+		    const string& version = string() ) const;
 
 private:
   // Calibrations
@@ -215,9 +256,8 @@ public:
 		   fRGain(0), fTWalkPar(0), fTrigOff(0) {}
   virtual ~Scintillator() { DeleteArrays(); }
 
-  virtual int ReadDB( FILE* ) { return 0; } //TODO
-  virtual int Save( const string&, time_t, const string& = string() )
-  { return 0; } // TODO
+  virtual int ReadDB( FILE* );
+  virtual int Save( const string&, time_t, const string& = string() ) const;
 
 private:
   // Configuration
@@ -226,6 +266,7 @@ private:
   // Calibrations
   Double_t  *fLOff, *fROff, *fLPed, *fRPed, *fLGain, *fRGain;
   Double_t  *fTWalkPar, *fTrigOff;
+  bool      fHaveExtras;
 
   void DeleteArrays() {
     delete [] fLOff; delete [] fROff; delete [] fLPed; delete [] fRPed;
@@ -321,9 +362,22 @@ int main( int argc, const char** argv )
     else
       cout << "Successfully read Cherenkov" << endl;
     fclose(fi);
-    cer.Save("R.cer.", itime);
+    if( !err )
+      cer.Save("R.cer.", itime);
   }
 
+  fi = fopen("/home/ole/Develop/analyzer/DB/20030101/db_R.s1.dat","r");
+  if( fi ) {
+    Scintillator sci;
+    err = sci.ReadDB(fi);
+    if( err )
+      cerr << "Error reading Scintillator" << endl;
+    else
+      cout << "Successfully read Scintillator" << endl;
+    fclose(fi);
+    if( !err )
+      sci.Save("R.s1.", itime);
+  }
   // Write out keys/values to database files in target directory.
   // All file names will be preserved; a file that existed anywhere
   // in the source will also appear at least once in the target.
@@ -337,6 +391,23 @@ int main( int argc, const char** argv )
   return 0;
 }
 
+//-----------------------------------------------------------------------------
+static char* ReadComment( FILE* fp, char *buf, const int len )
+{
+  // Read database comment lines (those not starting with a space (' ')),
+  // returning the comment.
+  // If the line is data, then nothing is done and NULL is returned,
+  // so one can search for the next data line with:
+  //   while ( ReadComment(fp, buf, len) );
+  int ch = fgetc(fp);  // peak ahead one character
+  ungetc(ch,fp);
+
+  if (ch == EOF || ch == ' ')
+    return NULL; // a real line of data
+  
+  char *s= fgets(buf,len,fp); // read the comment
+  return s;
+}
 
 //-----------------------------------------------------------------------------
 int Cherenkov::ReadDB( FILE* fi )
@@ -369,16 +440,14 @@ int Cherenkov::ReadDB( FILE* fi )
     fgets ( buf, LEN, fi );
     n = sscanf( buf, "%6d %6d %6d %6d %6d %n",
 		&crate, &slot, &first, &last, &first_chan, &pos );
+    if( crate < 0 ) break;
     if( n < 5 ) return kInitError;
     model=atoi(buf+pos); // if there is no model number given, set to zero
     if( model != 0 )
       fDetMapHasModel = true;
-
-    if( crate < 0 ) break;
     if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
       Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
 	     THaDetMap::kDetMapSize);
-      fclose(fi);
       return kInitError;
     }
   }
@@ -397,9 +466,6 @@ int Cherenkov::ReadDB( FILE* fi )
   n = fscanf ( fi, "%15f", &fAngle );                    // Rotation angle of det
   if( n != 1 ) return kInitError;
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
-  const Double_t degrad = TMath::Pi()/180.0;
-
-  DefineAxes(fAngle*degrad);
 
   // Calibration data
   if( nelem != fNelem ) {
@@ -412,43 +478,310 @@ int Cherenkov::ReadDB( FILE* fi )
 
   // Read calibrations
   for (i=0;i<fNelem;i++) {
-    fscanf( fi, "%15f", fOff+i );                   // TDC offsets
+    n = fscanf( fi, "%15f", fOff+i );               // TDC offsets
     if( n != 1 ) return kInitError;
   }
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
   for (i=0;i<fNelem;i++) {
-    fscanf( fi, "%15f", fPed+i );                   // ADC pedestals
+    n = fscanf( fi, "%15f", fPed+i );               // ADC pedestals
     if( n != 1 ) return kInitError;
   }
   fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
   for (i=0;i<fNelem;i++) {
-    fscanf( fi, "%15f", fGain+i);                   // ADC gains
+    n = fscanf( fi, "%15f", fGain+i);               // ADC gains
     if( n != 1 ) return kInitError;
   }
   fgets ( buf, LEN, fi );
+
+  return kOK;
+}
+
+//-----------------------------------------------------------------------------
+int Scintillator::ReadDB( FILE* fi )
+{
+  // Read legacy Scintillator database
+
+  const char* const here = "ReadDatabase";
+  const int LEN = 200;
+  char buf[LEN];
+  Int_t nelem;
+
+  fDetMapHasModel = fHaveExtras = false;
+
+  // Read data from database
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  Int_t n = fscanf ( fi, "%5d", &nelem );                  // Number of  paddles
+  fgets ( buf, LEN, fi );
+  if( n != 1 ) return kInitError;
+  if( nelem <= 0 ) {
+    Error( Here(here), "Invalid number of paddles = %d. Must be > 0.", nelem );
+    return kInitError;
+  }
+
+  // Read detector map. Unless a model-number is given
+  // for the detector type, this assumes that the first half of the entries
+  // are for ADCs and the second half, for TDCs.
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  int i = 0;
+  fDetMap->Clear();
+  while (1) {
+    int pos;
+    Int_t first_chan, model;
+    Int_t crate, slot, first, last;
+    fgets ( buf, LEN, fi );
+    n = sscanf( buf, "%6d %6d %6d %6d %6d %n",
+		&crate, &slot, &first, &last, &first_chan, &pos );
+    if( crate < 0 ) break;
+    if( n < 5 ) return kInitError;
+    model=atoi(buf+pos); // if there is no model number given, set to zero
+    if( model != 0 )
+      fDetMapHasModel = true;
+
+    if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
+      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
+	     THaDetMap::kDetMapSize);
+      return kInitError;
+    }
+  }
+  while ( ReadComment( fi, buf, LEN ) ) {}
+
+  // Read geometry
+  Float_t x,y,z;
+  n = fscanf ( fi, "%15f %15f %15f", &x, &y, &z );   // Detector's X,Y,Z coord
+  if( n != 3 ) return kInitError;
+  fOrigin.SetXYZ( x, y, z );
+  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  n = fscanf ( fi, "%15lf %15lf %15lf", fSize, fSize+1, fSize+2 ); // Sizes of det on X,Y,Z
+  if( n != 3 ) return kInitError;
+  fgets ( buf, LEN, fi );
+  while ( ReadComment( fi, buf, LEN ) ) {}
+
+  n = fscanf ( fi, "%15f", &fAngle );               // Rotation angle of detector
+  if( n != 1 ) return kInitError;
+  fgets ( buf, LEN, fi );
+
+  // Calibration data
+  if( nelem != fNelem ) {
+    DeleteArrays();
+    fNelem = nelem;
+    fLOff  = new Double_t[ fNelem ];
+    fROff  = new Double_t[ fNelem ];
+    fLPed  = new Double_t[ fNelem ];
+    fRPed  = new Double_t[ fNelem ];
+    fLGain = new Double_t[ fNelem ];
+    fRGain = new Double_t[ fNelem ];
+    fTrigOff = new Double_t[ fNelem ];
+
+    fNTWalkPar = 2*fNelem; // 1 paramter per paddle
+    fTWalkPar = new Double_t[ fNTWalkPar ];
+  }
+  memset(fTrigOff,0,fNelem*sizeof(fTrigOff[0]));
+
+  // Set DEFAULT values here
+  // TDC resolution (s/channel)
+  fTdc2T = 0.1e-9;      // seconds/channel
+  fResolution = fTdc2T; // actual timing resolution
+  // Speed of light in the scintillator material
+  fCn = 1.7e+8;    // meters/second
+  // Attenuation length
+  fAttenuation = 0.7; // inverse meters
+  // Time-walk correction parameters
+  fAdcMIP = 1.e10;    // large number for offset, so reference is effectively disabled
+  // timewalk coefficients for tw = coeff*(1./sqrt(ADC-Ped)-1./sqrt(ADCMip))
+  for (int i=0; i<fNTWalkPar; i++) fTWalkPar[i]=0;
+  // trigger-timing offsets (s)
+  for (int i=0; i<fNelem; i++) fTrigOff[i]=0;
+
+  // Read in the timing/adc calibration constants
+  // For fine-tuning of these data, we seek to a matching time stamp, or
+  // if no time stamp found, to a "configuration" section. Examples:
+  //
+  // [ 2002-10-10 15:30:00 ]
+  // #comment line goes here
+  // <left TDC offsets>
+  // <right TDC offsets>
+  // <left ADC peds>
+  // <rigth ADC peds>
+  // <left ADC coeff>
+  // <right ADC coeff>
+  //
+  // if below aren't present, 'default' values are used
+  // <TDC resolution: seconds/channel>
+  // <speed-of-light in medium m/s>
+  // <attenuation length m^-1>
+  // <ADC of MIP>
+  // <number of timewalk parameters>
+  // <timewalk paramters>
+  //
+  //
+  // or
+  //
+  // [ config=highmom ]
+  // comment line
+  // ...etc.
+  //
+  TDatime date; // TODO
+  if( THaAnalysisObject::SeekDBdate( fi, date ) == 0 && fConfig.Length() > 0 &&
+      THaAnalysisObject::SeekDBconfig( fi, fConfig.Data() )) {}
+
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  // Read calibration data
+  for (i=0;i<fNelem;i++) {
+    n = fscanf(fi,"%15lf",fLOff+i);                // Left Pads TDC offsets
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );   // finish line
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  for (i=0;i<fNelem;i++) {
+    n = fscanf(fi,"%15lf",fROff+i);                // Right Pads TDC offsets
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );   // finish line
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  for (i=0;i<fNelem;i++) {
+    n = fscanf(fi,"%15lf",fLPed+i);                // Left Pads ADC Pedest-s
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );   // finish line, etc.
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  for (i=0;i<fNelem;i++) {
+    n = fscanf(fi,"%15lf",fRPed+i);                // Right Pads ADC Pedes-s
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  for (i=0;i<fNelem;i++) {
+    n = fscanf (fi,"%15lf",fLGain+i);              // Left Pads ADC Coeff-s
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  for (i=0;i<fNelem;i++) {
+    n = fscanf (fi,"%15lf",fRGain+i);              // Right Pads ADC Coeff-s
+    if( n != 1 ) return kInitError;
+  }
+  fgets ( buf, LEN, fi );
+
+  while ( ReadComment( fi, buf, LEN ) ) {}
+
+  // Here on down, look ahead line-by-line
+  // stop reading if a '[' is found on a line (corresponding to the next date-tag)
+  // read in TDC resolution (s/channel)
+  if ( ! fgets(buf, LEN, fi) || strchr(buf,'[') ) goto exit;
+  fHaveExtras = true;
+  n = sscanf(buf,"%15lf",&fTdc2T);
+  if( n != 1 ) return kInitError;
+  fResolution = 3.*fTdc2T;      // guess at timing resolution
+
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  // Speed of light in the scintillator material
+  if ( !fgets(buf, LEN, fi) ||  strchr(buf,'[') ) goto exit;
+  n = sscanf(buf,"%15lf",&fCn);
+  if( n != 1 ) return kInitError;
+
+  // Attenuation length (inverse meters)
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  if ( !fgets ( buf, LEN, fi ) ||  strchr(buf,'[') ) goto exit;
+  n = sscanf(buf,"%15lf",&fAttenuation);
+  if( n != 1 ) return kInitError;
+
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  // Time-walk correction parameters
+  if ( !fgets(buf, LEN, fi) ||  strchr(buf,'[') ) goto exit;
+  n = sscanf(buf,"%15lf",&fAdcMIP);
+  if( n != 1 ) return kInitError;
+
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  // timewalk parameters
+  {
+    int cnt=0;
+    while ( cnt<fNTWalkPar && fgets( buf, LEN, fi ) && ! strchr(buf,'[') ) {
+      char *ptr = buf;
+      int pos=0;
+      while ( cnt < fNTWalkPar && sscanf(ptr,"%15lf%n",&fTWalkPar[cnt],&pos)>0 ) {
+	ptr += pos;
+	cnt++;
+      }
+    }
+  }
+
+  while ( ReadComment( fi, buf, LEN ) ) {}
+  // trigger timing offsets
+  {
+    int cnt=0;
+    while ( cnt<fNelem && fgets( buf, LEN, fi ) && ! strchr(buf,'[') ) {
+      char *ptr = buf;
+      int pos=0;
+      while ( cnt < fNelem && sscanf(ptr,"%15lf%n",&fTrigOff[cnt],&pos)>0 ) {
+	ptr += pos;
+	cnt++;
+      }
+    }
+  }
+
+ exit:
+  return kOK;
+}
+
+//-----------------------------------------------------------------------------
+int Detector::Save( const string& prefix, time_t start,
+		    const string& version ) const
+{
+  int flags = 1;
+  if( fDetMapHasModel )  flags++;
+  AddToMap( prefix+"detmap",   MakeValue(fDetMap,flags), start, version, 4+flags );
+  AddToMap( prefix+"nelem",    MakeValue(&fNelem), start, version );
+  AddToMap( prefix+"angle",    MakeValueUnless(0.F,&fAngle), start, version );
+  AddToMap( prefix+"position", MakeValueUnless(0.,&fOrigin), start, version );
+  AddToMap( prefix+"size",     MakeValueUnless(0.,fSize,3), start, version );
 
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-int Cherenkov::Save( const string& prefix, time_t start, const string& version )
+int Cherenkov::Save( const string& prefix, time_t start,
+		     const string& version ) const
 {
   // Create database keys for current Cherenkov configuration data
 
-  int flags = 1;
-  if( fDetMapHasModel )  flags++;
-  AddToMap( prefix+"detmap", MakeValue(fDetMap,flags), start, version, 4+flags );
-  AddToMap( prefix+"npmt",   MakeValue(&fNelem), start, version );
-  AddToMap( prefix+"angle",  MakeValue(&fAngle), start, version );
+  Detector::Save( prefix, start, version );
 
-  AddToMap( prefix+"tdc.offsets",   MakeValue(fOff,fNelem),  start, version );
-  AddToMap( prefix+"adc.pedestals", MakeValue(fPed,fNelem),  start, version );
-  AddToMap( prefix+"adc.gains",     MakeValue(fGain,fNelem), start, version );
+  AddToMap( prefix+"tdc.offsets",   MakeValueUnless(0.F,fOff,fNelem),  start, version );
+  AddToMap( prefix+"adc.pedestals", MakeValueUnless(0.F,fPed,fNelem),  start, version );
+  AddToMap( prefix+"adc.gains",     MakeValueUnless(1.F,fGain,fNelem), start, version );
 
   return 0;
 }
 
-// ----- end Cherenkov ------------
+//-----------------------------------------------------------------------------
+int Scintillator::Save( const string& prefix, time_t start,
+			const string& version ) const
+{
+  // Create database keys for current Scintillator configuration data
+
+  Detector::Save( prefix, start, version );
+
+  AddToMap( prefix+"L.off",    MakeValueUnless(0.,fLOff,fNelem),  start, version );
+  AddToMap( prefix+"L.ped",    MakeValueUnless(0.,fLPed,fNelem),  start, version );
+  AddToMap( prefix+"L.gain",   MakeValueUnless(1.,fLGain,fNelem), start, version );
+  AddToMap( prefix+"R.off",    MakeValueUnless(0.,fROff,fNelem),  start, version );
+  AddToMap( prefix+"R.ped",    MakeValueUnless(0.,fRPed,fNelem),  start, version );
+  AddToMap( prefix+"R.gain",   MakeValueUnless(1.,fRGain,fNelem), start, version );
+
+  if( fHaveExtras ) {
+    AddToMap( prefix+"avgres",   MakeValue(&fResolution), start, version );
+    AddToMap( prefix+"atten",    MakeValue(&fAttenuation), start, version );
+    AddToMap( prefix+"Cn",       MakeValue(&fCn),start, version );
+    AddToMap( prefix+"MIP",      MakeValue(&fAdcMIP), start, version );
+    AddToMap( prefix+"tdc.res",  MakeValue(&fTdc2T), start, version );
+
+    AddToMap( prefix+"timewalk_params",  MakeValue(fTWalkPar,fNTWalkPar), start, version );
+    AddToMap( prefix+"retiming_offsets", MakeValue(fTrigOff,fNelem), start, version );
+  }
+
+  return 0;
+}
 
 //-----------------------------------------------------------------------------
 
@@ -983,281 +1316,6 @@ int Cherenkov::Save( const string& prefix, time_t start, const string& version )
 
   fIsInit = true;
   fclose(file);
-
-
-  //----- THaScintillator
-  // --- OLD OLD OLD ---
-  static const char* const here = "ReadDatabase()";
-  const int LEN = 200;
-  char buf[LEN];
-  Int_t nelem;
-
-  // Read data from database
-  FILE* fi = OpenFile( date );
-  if( !fi ) return kFileError;
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  fscanf ( fi, "%5d", &nelem );                        // Number of  paddles
-  fgets ( buf, LEN, fi );
-
-  // Reinitialization only possible for same basic configuration
-  if( fIsInit && nelem != fNelem ) {
-    Error( Here(here), "Cannot re-initalize with different number of paddles. "
-	   "(was: %d, now: %d). Detector not re-initialized.", fNelem, nelem );
-    fclose(fi);
-    return kInitError;
-  }
-  fNelem = nelem;
-
-  // Read detector map. Unless a model-number is given
-  // for the detector type, this assumes that the first half of the entries
-  // are for ADCs and the second half, for TDCs.
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  int i = 0;
-  fDetMap->Clear();
-  while (1) {
-    int pos;
-    Int_t first_chan, model;
-    Int_t crate, slot, first, last;
-    fgets ( buf, LEN, fi );
-    sscanf( buf, "%6d %6d %6d %6d %6d %n",
-	    &crate, &slot, &first, &last, &first_chan, &pos );
-    if( crate < 0 ) break;
-    model=atoi(buf+pos); // if there is no model number given, set to zero
-
-    if( fDetMap->AddModule( crate, slot, first, last, first_chan, model ) < 0 ) {
-      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
-	     THaDetMap::kDetMapSize);
-      fclose(fi);
-      return kInitError;
-    }
-  }
-  while ( ReadComment( fi, buf, LEN ) ) {}
-
-  Float_t x,y,z;
-  fscanf ( fi, "%15f %15f %15f", &x, &y, &z );       // Detector's X,Y,Z coord
-  fgets ( buf, LEN, fi );
-  fOrigin.SetXYZ( x, y, z );
-  fgets ( buf, LEN, fi );
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  fscanf ( fi, "%15lf %15lf %15lf", fSize, fSize+1, fSize+2 ); // Sizes of det on X,Y,Z
-  fgets ( buf, LEN, fi );
-  while ( ReadComment( fi, buf, LEN ) ) {}
-
-  Float_t angle;
-  fscanf ( fi, "%15f", &angle );                   // Rotation angle of detector
-  fgets ( buf, LEN, fi );
-  const Float_t degrad = TMath::Pi()/180.0;
-
-  DefineAxes(angle*degrad);
-
-  // Dimension arrays
-  if( !fIsInit ) {
-    // Calibration data
-    fLOff  = new Double_t[ fNelem ];
-    fROff  = new Double_t[ fNelem ];
-    fLPed  = new Double_t[ fNelem ];
-    fRPed  = new Double_t[ fNelem ];
-    fLGain = new Double_t[ fNelem ];
-    fRGain = new Double_t[ fNelem ];
-
-    fTrigOff = new Double_t[ fNelem ];
-
-    // Per-event data
-    fLT   = new Double_t[ fNelem ];
-    fLT_c = new Double_t[ fNelem ];
-    fRT   = new Double_t[ fNelem ];
-    fRT_c = new Double_t[ fNelem ];
-    fLA   = new Double_t[ fNelem ];
-    fLA_p = new Double_t[ fNelem ];
-    fLA_c = new Double_t[ fNelem ];
-    fRA   = new Double_t[ fNelem ];
-    fRA_p = new Double_t[ fNelem ];
-    fRA_c = new Double_t[ fNelem ];
-
-    fNTWalkPar = 2*fNelem; // 1 paramter per paddle
-    fTWalkPar = new Double_t[ fNTWalkPar ];
-
-    fHitPad = new Int_t[ fNelem ];
-    fTime   = new Double_t[ fNelem ]; // analysis indexed by paddle (yes, inefficient)
-    fdTime  = new Double_t[ fNelem ];
-    fAmpl   = new Double_t[ fNelem ];
-
-    fYt     = new Double_t[ fNelem ];
-    fYa     = new Double_t[ fNelem ];
-
-    fIsInit = true;
-  }
-  memset(fTrigOff,0,fNelem*sizeof(fTrigOff[0]));
-
-  // Set DEFAULT values here
-  // TDC resolution (s/channel)
-  fTdc2T = 0.1e-9;      // seconds/channel
-  fResolution = fTdc2T; // actual timing resolution
-  // Speed of light in the scintillator material
-  fCn = 1.7e+8;    // meters/second
-  // Attenuation length
-  fAttenuation = 0.7; // inverse meters
-  // Time-walk correction parameters
-  fAdcMIP = 1.e10;    // large number for offset, so reference is effectively disabled
-  // timewalk coefficients for tw = coeff*(1./sqrt(ADC-Ped)-1./sqrt(ADCMip))
-  for (int i=0; i<fNTWalkPar; i++) fTWalkPar[i]=0;
-  // trigger-timing offsets (s)
-  for (int i=0; i<fNelem; i++) fTrigOff[i]=0;
-
-
-  DBRequest list[] = {
-    { "TDC_offsetsL", fLOff, kDouble, static_cast<UInt_t>(fNelem) },
-    { "TDC_offsetsR", fROff, kDouble, static_cast<UInt_t>(fNelem) },
-    { "ADC_pedsL", fLPed, kDouble, static_cast<UInt_t>(fNelem) },
-    { "ADC_pedsR", fRPed, kDouble, static_cast<UInt_t>(fNelem) },
-    { "ADC_coefL", fLGain, kDouble, static_cast<UInt_t>(fNelem) },
-    { "ADC_coefR", fRGain, kDouble, static_cast<UInt_t>(fNelem) },
-    { "TDC_res",   &fTdc2T },
-    { "TransSpd",  &fCn },
-    { "AdcMIP",    &fAdcMIP },
-    { "NTWalk",    &fNTWalkPar, kInt },
-    { "Timewalk",  fTWalkPar, kDouble, 2*static_cast<UInt_t>(fNelem) },
-    { "ReTimeOff", fTrigOff, kDouble, static_cast<UInt_t>(fNelem) },
-    { "AvgRes",    &fResolution },
-    { "Atten",     &fAttenuation },
-    { 0 }
-  };
-
-#if 0
-  if ( gHaDB && gHaDB->LoadValues(GetPrefix(),list,date) ) {
-    goto exit;  // the new database existed -- we're finished
-  }
-#endif
-
-  // otherwise, gHaDB is unavailable, use the old file database
-
-  // Read in the timing/adc calibration constants
-  // For fine-tuning of these data, we seek to a matching time stamp, or
-  // if no time stamp found, to a "configuration" section. Examples:
-  //
-  // [ 2002-10-10 15:30:00 ]
-  // #comment line goes here
-  // <left TDC offsets>
-  // <right TDC offsets>
-  // <left ADC peds>
-  // <rigth ADC peds>
-  // <left ADC coeff>
-  // <right ADC coeff>
-  //
-  // if below aren't present, 'default' values are used
-  // <TDC resolution: seconds/channel>
-  // <speed-of-light in medium m/s>
-  // <attenuation length m^-1>
-  // <ADC of MIP>
-  // <number of timewalk parameters>
-  // <timewalk paramters>
-  //
-  //
-  // or
-  //
-  // [ config=highmom ]
-  // comment line
-  // ...etc.
-  //
-  if( SeekDBdate( fi, date ) == 0 && fConfig.Length() > 0 &&
-      SeekDBconfig( fi, fConfig.Data() )) {}
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  // Read calibration data
-  for (i=0;i<fNelem;i++)
-    fscanf(fi,"%15lf",fLOff+i);                    // Left Pads TDC offsets
-  fgets ( buf, LEN, fi );   // finish line
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  for (i=0;i<fNelem;i++)
-    fscanf(fi,"%15lf",fROff+i);                    // Right Pads TDC offsets
-  fgets ( buf, LEN, fi );   // finish line
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  for (i=0;i<fNelem;i++)
-    fscanf(fi,"%15lf",fLPed+i);                    // Left Pads ADC Pedest-s
-  fgets ( buf, LEN, fi );   // finish line, etc.
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  for (i=0;i<fNelem;i++)
-    fscanf(fi,"%15lf",fRPed+i);                    // Right Pads ADC Pedes-s
-  fgets ( buf, LEN, fi );
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  for (i=0;i<fNelem;i++)
-    fscanf (fi,"%15lf",fLGain+i);                  // Left Pads ADC Coeff-s
-  fgets ( buf, LEN, fi );
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  for (i=0;i<fNelem;i++)
-    fscanf (fi,"%15lf",fRGain+i);                  // Right Pads ADC Coeff-s
-  fgets ( buf, LEN, fi );
-
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  // Here on down, look ahead line-by-line
-  // stop reading if a '[' is found on a line (corresponding to the next date-tag)
-  // read in TDC resolution (s/channel)
-  if ( ! fgets(buf, LEN, fi) || strchr(buf,'[') ) goto exit;
-  sscanf(buf,"%15lf",&fTdc2T);
-  fResolution = 3.*fTdc2T;      // guess at timing resolution
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  // Speed of light in the scintillator material
-  if ( !fgets(buf, LEN, fi) ||  strchr(buf,'[') ) goto exit;
-  sscanf(buf,"%15lf",&fCn);
-
-  // Attenuation length (inverse meters)
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  if ( !fgets ( buf, LEN, fi ) ||  strchr(buf,'[') ) goto exit;
-  sscanf(buf,"%15lf",&fAttenuation);
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  // Time-walk correction parameters
-  if ( !fgets(buf, LEN, fi) ||  strchr(buf,'[') ) goto exit;
-  sscanf(buf,"%15lf",&fAdcMIP);
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  // timewalk parameters
-  {
-    int cnt=0;
-    while ( cnt<fNTWalkPar && fgets( buf, LEN, fi ) && ! strchr(buf,'[') ) {
-      char *ptr = buf;
-      int pos=0;
-      while ( cnt < fNTWalkPar && sscanf(ptr,"%15lf%n",&fTWalkPar[cnt],&pos)>0 ) {
-	ptr += pos;
-	cnt++;
-      }
-    }
-  }
-
-  while ( ReadComment( fi, buf, LEN ) ) {}
-  // trigger timing offsets
-  {
-    int cnt=0;
-    while ( cnt<fNelem && fgets( buf, LEN, fi ) && ! strchr(buf,'[') ) {
-      char *ptr = buf;
-      int pos=0;
-      while ( cnt < fNelem && sscanf(ptr,"%15lf%n",&fTrigOff[cnt],&pos)>0 ) {
-	ptr += pos;
-	cnt++;
-      }
-    }
-  }
-
- exit:
-  fclose(fi);
-
-  if ( fDebug > 1 ) {
-    cout << '\n' << GetPrefix() << " calibration parameters: " << endl;;
-    for ( DBRequest *li = list; li->name; li++ ) {
-      cout << "  " << li->name;
-      UInt_t maxc = li->nelem;
-      if (maxc==0)maxc=1;
-      for (UInt_t i=0; i<maxc; i++) {
-	if (li->type==kDouble) cout << "  " << ((Double_t*)li->var)[i];
-	if (li->type==kInt) cout << "  " << ((Int_t*)li->var)[i];
-      }
-      cout << endl;
-    }
-  }
-
 
 
 // ------ THaShower --------------
