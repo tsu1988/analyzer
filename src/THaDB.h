@@ -4,7 +4,7 @@
 //////////////////////////////////////////////////////////////////////////
 //
 // THaDB
-// 
+//
 //////////////////////////////////////////////////////////////////////////
 
 #include "TDatime.h"
@@ -18,7 +18,7 @@ class THaDB {
  public:
   THaDB( const char* URL );
   virtual ~THaDB();
-  
+
   virtual Int_t Open();
   virtual Int_t Close();
 
@@ -72,4 +72,3 @@ class THaDB {
 };
 
 #endif
-
