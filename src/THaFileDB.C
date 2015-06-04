@@ -43,7 +43,7 @@ THaFileDB::~THaFileDB()
 }
 
 //_____________________________________________________________________________
-Int_t THaFileDB::Open() 
+Int_t THaFileDB::Open()
 {
   // Open the database connection. Currently does nothing.
   // Eventually will read all database files under DB_DIR etc.
@@ -52,7 +52,7 @@ Int_t THaFileDB::Open()
 }
 
 //_____________________________________________________________________________
-Int_t THaFileDB::Close() 
+Int_t THaFileDB::Close()
 {
   // Close the database connection. Frees up memory used by internal containers.
 
@@ -113,7 +113,7 @@ Int_t THaFileDB::LoadValue( const char* key, string& text, const TDatime& date )
 //_____________________________________________________________________________
 static Int_t IsDBdate( const string& line, TDatime& date, bool warn = true )
 {
-  // Check if 'line' contains a valid database time stamp. If so, 
+  // Check if 'line' contains a valid database time stamp. If so,
   // parse the line, set 'date' to the extracted time stamp, and return 1.
   // Else return 0;
   // Time stamps must be in SQL format: [ yyyy-mm-dd hh:mi:ss ]
@@ -203,7 +203,7 @@ static Int_t ReadDBline( FILE* file, char* buf, size_t bufsiz, string& line )
       bool read_more = ( t != '\n' && t != 0 && strchr(c+1,'\n') == 0 );
 
       // Continue reading if there is a continuation, the line wasn't fully
-      // read yet, or the previous read was continued and now we have a pure 
+      // read yet, or the previous read was continued and now we have a pure
       // comment line in the middle of a continuation
       bool only_comment = (t == '#' && !lastc);
       continued = ( t == '\\' || (only_comment && continued) );
@@ -249,7 +249,7 @@ static Int_t ReadDBline( FILE* file, char* buf, size_t bufsiz, string& line )
 Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
 {
   // Load all database keys from the given file, unless already read.
-  // The keys are assumed to be valid for the given date. 
+  // The keys are assumed to be valid for the given date.
   // No prefix is prepended to any keys found.
 
   static const char* const here = "THaFileDB::LoadFile";
@@ -310,7 +310,7 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
 	    fTimeRanges[timerange_id] = theRange;
 	  } else {
 	    timerange_id = itr->first;
-	  }	    
+	  }
 	  StringMap_t::iterator ik = fKeys.find( key );
 	  if( ik == fKeys.end() ) {
 	    // New key
@@ -354,9 +354,9 @@ Int_t THaFileDB::LoadFile( FILE* file, const TDatime& date )
 	  fTimeRanges[timerange_id] = theRange;
 	} else {
 	  timerange_id = itr->first;
-	}	    
-	
-	
+	}
+
+
 
       } else {
 	// No '=' and also no '[...]' -> unrecognized format

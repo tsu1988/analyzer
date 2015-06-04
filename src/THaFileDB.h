@@ -4,7 +4,7 @@
 //////////////////////////////////////////////////////////////////////////
 //
 // THaFileDB
-// 
+//
 // Preliminary version of the file-based database backend.
 //
 //////////////////////////////////////////////////////////////////////////
@@ -21,7 +21,7 @@ class THaFileDB : public THaDB {
  public:
   THaFileDB( const char* DB_DIR = 0 );
   virtual ~THaFileDB();
-  
+
   // Prevent hiding of the overloaded LoadValue instances
   using THaDB::LoadValue;
 
@@ -60,7 +60,7 @@ class THaFileDB : public THaDB {
   typedef std::multimap<UInt_t,Value_t>  ValueMap_t;
   typedef std::map<UInt_t,TimeRange_t>   TimeRangeMap_t;
 
-  class RangeEquals : 
+  class RangeEquals :
     public std::unary_function< TimeRangeMap_t::value_type, bool > {
   public:
     RangeEquals( const TimeRange_t& tr ) : range_to_find(tr) {}
@@ -103,4 +103,3 @@ class THaFileDB : public THaDB {
 };
 
 #endif
-

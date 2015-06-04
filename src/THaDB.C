@@ -41,7 +41,7 @@ THaDB::~THaDB()
 }
 
 //_____________________________________________________________________________
-Int_t THaDB::Close() 
+Int_t THaDB::Close()
 {
   // Close the database connection
 
@@ -53,7 +53,7 @@ Int_t THaDB::Close()
 }
 
 //_____________________________________________________________________________
-Int_t THaDB::Open() 
+Int_t THaDB::Open()
 {
   // Open the database connection
 
@@ -118,7 +118,7 @@ Int_t THaDB::LoadValue( const char* key, TString& text, const TDatime& date )
 }
 
 //_____________________________________________________________________________
-template <typename T> inline Int_t 
+template <typename T> inline Int_t
 _LoadArray( string& line, vector<T>& values, const TDatime& date )
 {
   values.clear();
@@ -264,7 +264,7 @@ static inline Int_t ChopPrefix( string& s )
   if( len<2 )
     goto null;
   pos = s.rfind('.',len-2);
-  if( pos == string::npos ) 
+  if( pos == string::npos )
     goto null;
   s.erase(pos+1);
   for( ssiz_t i = 0; i <= pos; i++ ) {
@@ -283,13 +283,13 @@ static inline Int_t ChopPrefix( string& s )
 Int_t THaDB::Load( const DBRequest* req, const TDatime& date,
 		   const char* prefix, Int_t search )
 {
-  // Load a list of parameters from the database file 'f' according to 
+  // Load a list of parameters from the database file 'f' according to
   // the contents of the 'req' structure (see VarDef.h).
 
   // FIXME: use item->nelem to read arrays?
 
   const char* const here = "THaDB::Load";
-  
+
   if( !req ) return -255;
   if( !prefix ) prefix = "";
   Int_t ret = 0;
@@ -305,7 +305,7 @@ Int_t THaDB::Load( const DBRequest* req, const TDatime& date,
 	Double_t dval = 0.0;
 	ret = LoadValue( key, dval, date );
 	if( ret == 0 ) {
-	  if( item->type == kDouble ) 
+	  if( item->type == kDouble )
 	    *((Double_t*)item->var) = dval;
 	  else
 	    *((Float_t*)item->var) = dval;
@@ -405,7 +405,7 @@ Int_t THaDB::Load( const DBRequest* req, const TDatime& date,
 	    goto nextitem;  // Key found and ok
 	  }
 	}
-	if( item->optional ) 
+	if( item->optional )
 	  ret = 0;
 	else {
 	  if( item->descript ) {
@@ -416,7 +416,7 @@ Int_t THaDB::Load( const DBRequest* req, const TDatime& date,
 	    ::Error( ::Here(here,fPrefix),
 		     "Required key \"%s\" missing in the database.", key );
 	  }
-	  // For missing keys, the return code is the index into the request 
+	  // For missing keys, the return code is the index into the request
 	  // array + 1. In this way the caller knows which key is missing.
 	  ret = 1+(item-req);
 	  break;
@@ -435,7 +435,7 @@ Int_t THaDB::Load( const DBRequest* req, const TDatime& date,
 		 fErrtxt.Data() );
 	break;
       } else {  // other ret < 0: unexpected zero pointer etc.
-	::Error( ::Here(here,fPrefix), 
+	::Error( ::Here(here,fPrefix),
 		 "Program error when trying to read database key \"%s\". "
 		 "CALL EXPERT!", key );
 	break;
