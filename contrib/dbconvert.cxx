@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <cassert>
 #include <cstring>    // for GNU basename()
+#include <unistd.h>   // for getopt
+#include <popt.h>
 #include <ctime>
 #include <map>
 #include <set>
@@ -37,17 +39,99 @@ using namespace std;
 
 #define ALL(c) (c).begin(), (c).end()
 
-#define INFILE_DEFAULT  "db_gemc.dat"
-#define OUTFILE_DEFAULT "db_solid.tracker.dat"
-
 // Command line parameter defaults
-static bool do_debug = false;
-static string infile = INFILE_DEFAULT;
-static string outfile = OUTFILE_DEFAULT;
+static int do_debug = 0, verbose = 0;
+static string srcdir;
+static string destdir;
 static const char* prgname;
 
+static struct poptOption options[] = {
+  //  POPT_AUTOHELP
+  { "help",     'h', POPT_ARG_NONE, 0, 'h', 0, 0  },
+  { "verbose",  'v', POPT_ARG_VAL,  &verbose,  1, 0, 0  },
+  { "debug",    'd', POPT_ARG_VAL,  &do_debug, 1, 0, 0  },
+  POPT_TABLEEND
+};
+
 //-----------------------------------------------------------------------------
-static string format_time( time_t t )
+void help()
+{
+  // Print help message and exit
+
+  cerr << "Usage: " << prgname << " [options] SRC_DIR  DEST_DIR" << endl;
+  cerr << " Convert Podd 1.5 and earlier database files under SRC_DIR to Podd 1.6" << endl;
+  cerr << " and later format, written to DEST_DIR" << endl;
+  //  cerr << endl;
+  cerr << "Options:" << endl;
+  cerr << " -h, --help\t\t\tshow this help message" << endl;
+  cerr << " -v, --verbose\t\t\tincrease verbosity" << endl;
+  cerr << " -d, --debug\t\t\tprint extensive debug info" << endl;
+  // cerr << " -o <outfile>: Write output to <outfile>. Default: "
+  //      << OUTFILE_DEFAULT << endl;
+  // cerr << " <infile>: Read input from <infile>. Default: "
+  //      << INFILE_DEFAULT << endl;
+  exit(0);
+}
+
+//-----------------------------------------------------------------------------
+void usage( poptContext& pc )
+{
+  // Print usage message and exit with error code
+
+  poptPrintUsage(pc, stderr, 0);
+  exit(1);
+}
+
+//-----------------------------------------------------------------------------
+void getargs( int argc, const char** argv )
+{
+  // Get command line parameters
+
+  prgname = basename(argv[0]);
+
+  poptContext pc = poptGetContext("dbconvert", argc, argv, options, 0);
+  poptSetOtherOptionHelp(pc, "SRC_DIR DEST_DIR");
+
+  int opt;
+  while( (opt = poptGetNextOpt(pc)) > 0 ) {
+    switch( opt ) {
+    case 'h':
+      help();
+    default:
+      cerr << "Unhandled option " << (char)opt << endl;
+      exit(1);
+    }
+  }
+  if( opt < -1 ) {
+    cerr << poptBadOption(pc, POPT_BADOPTION_NOALIAS) << ": "
+	 << poptStrerror(opt) << endl;
+    usage(pc);
+  }
+
+  const char* arg = poptGetArg(pc);
+  if( !arg ) {
+    cerr << "Error: Must specify SRC_DIR" << endl;
+    usage(pc);
+  }
+  srcdir = arg;
+  arg = poptGetArg(pc);
+  if( !arg ) {
+    cerr << "Error: Must specify DEST_DIR" << endl;
+    usage(pc);
+  }
+  destdir = arg;
+  if( poptPeekArg(pc) ) {
+    cerr << "Error: too many arguments" << endl;
+    usage(pc);
+  }
+  //DEBUG
+  cout << "Converting from " << srcdir << " to " << destdir << endl;
+
+  poptFreeContext(pc);
+}
+
+//-----------------------------------------------------------------------------
+static inline string format_time( time_t t )
 {
   char buf[32];
   ctime_r( &t, buf );
@@ -97,12 +181,12 @@ template<> string MakeValue( const TVector3* vec3, int )
 
 //-----------------------------------------------------------------------------
 template <class T>
-string MakeValueUnless( T default_value, const T* array, int size = 0 )
+string MakeValueUnless( T trivial_value, const T* array, int size = 0 )
 {
   if( size == 0 ) size = 1;
   int i = 0;
   for( ; i < size; ++i ) {
-    if( array[i] != default_value )
+    if( array[i] != trivial_value )
       break;
   }
   if( i == size )
@@ -112,9 +196,9 @@ string MakeValueUnless( T default_value, const T* array, int size = 0 )
 }
 
 //-----------------------------------------------------------------------------
-string MakeValueUnless( double def, const TVector3* vec )
+string MakeValueUnless( double triv, const TVector3* vec )
 {
-  if( vec->X() == def && vec->Y() == def && vec->Z() == def )
+  if( vec->X() == triv && vec->Y() == triv && vec->Z() == triv )
     return string();
   return MakeValue( vec );
 }
@@ -204,7 +288,7 @@ int WriteMap( const char* target_dir )
 class Detector {
 public:
   Detector() : fNelem(0) /*, fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) */{
-    fDetMap = new THaDetMap; 
+    fDetMap = new THaDetMap;
     fSize[0] = fSize[1] = fSize[2] = kBig;
   }
   virtual ~Detector() { delete fDetMap; }
@@ -273,59 +357,6 @@ private:
     delete [] fLGain; delete [] fRGain; delete [] fTWalkPar; delete [] fTrigOff;
   }
 };
-
-//-----------------------------------------------------------------------------
-void usage()
-{
-  // Print usage message and exit
-  cerr << "Usage: " << prgname << "[-hd] [-o outfile] [infile]" << endl;
-  // cerr << " Convert libsolgem database <infile> to TreeSearch-SoLID database"
-  //      << " <outfile>" << endl;
-  cerr << " -h: Print this help message" << endl;
-  cerr << " -d: Output extensive debug information" << endl;
-  // cerr << " -o <outfile>: Write output to <outfile>. Default: "
-  //      << OUTFILE_DEFAULT << endl;
-  // cerr << " <infile>: Read input from <infile>. Default: "
-  //      << INFILE_DEFAULT << endl;
-  exit(255);
-}
-
-//-----------------------------------------------------------------------------
-void getargs( int argc, const char** argv )
-{
-  // Get command line parameters
-
-  prgname = basename(argv[0]);
-
-  while (argc-- > 1) {
-    const char *opt = *++argv;
-    if (*opt == '-') {
-      while (*++opt != '\0') {
-	switch (*opt) {
-	case 'h':
-	  usage();
-	  break;
-	case 'd':
-	  do_debug = true;
-	  break;
-	case 'o':
-	  if (!*++opt) {
-	    if (argc-- < 1)
-	      usage();
-	    opt = *++argv;
-	  }
-	  outfile = opt;
-	  opt = "?";
-	  break;
-	default:
-	  usage();
-	}
-      }
-    } else {
-      infile = *argv;
-    }
-  }
-}
 
 //-----------------------------------------------------------------------------
 int main( int argc, const char** argv )
@@ -404,7 +435,7 @@ static char* ReadComment( FILE* fp, char *buf, const int len )
 
   if (ch == EOF || ch == ' ')
     return NULL; // a real line of data
-  
+
   char *s= fgets(buf,len,fp); // read the comment
   return s;
 }
@@ -1501,7 +1532,7 @@ int Scintillator::Save( const string& prefix, time_t start,
 
 // ---- THaTotalShower ----
 
-  fgets ( line, LEN, fi ); fgets ( line, LEN, fi );          
+  fgets ( line, LEN, fi ); fgets ( line, LEN, fi );
   fscanf ( fi, "%15f %15f", &fMaxDx, &fMaxDy );  // Max diff of shower centers
 
 // ---- end TotalShower --------------
@@ -1517,9 +1548,9 @@ int Scintillator::Save( const string& prefix, time_t start,
   FILE* fi = OpenFile( date );
   if( !fi) return kInitError;
 
-  // okay, this needs to be changed, but since i dont want to re- or pre-invent 
-  // the wheel, i will keep it ugly and read in my own configuration file with 
-  // a very fixed syntax: 
+  // okay, this needs to be changed, but since i dont want to re- or pre-invent
+  // the wheel, i will keep it ugly and read in my own configuration file with
+  // a very fixed syntax:
 
   sprintf(keyword,"[%s_detmap]",GetName());
   Int_t n=strlen(keyword);
@@ -1568,10 +1599,10 @@ int Scintillator::Save( const string& prefix, time_t start,
 
   fOffset(2)=dummy1;  // z position of the bpm
   fCalibRot=dummy2;   // calibration constant, historical,
-                      // using 0.01887 results in matrix elements 
-                      // between 0.0 and 1.0
-                      // dummy3 and dummy4 are not used in this 
-                      // apparatus, but might be useful for the struck
+		      // using 0.01887 results in matrix elements
+		      // between 0.0 and 1.0
+		      // dummy3 and dummy4 are not used in this
+		      // apparatus, but might be useful for the struck
 
   fgets( buf, LEN, fi);
   sscanf(buf,"%15lf %15lf %15lf %15lf",&dummy1,&dummy2,&dummy3,&dummy4);
@@ -1589,7 +1620,7 @@ int Scintillator::Save( const string& prefix, time_t start,
   fRot2HCSPos(0,1)=dummy2;
   fRot2HCSPos(1,0)=dummy3;
   fRot2HCSPos(1,1)=dummy4;
-  
+
 
   fOffset(0)=dummy5;
   fOffset(1)=dummy6;
@@ -1612,25 +1643,25 @@ int Scintillator::Save( const string& prefix, time_t start,
 
   //  fgets ( buf, LEN, fi ); fgets ( buf, LEN, fi );
   fDetMap->Clear();
-  
+
   int cnt = 0;
-  
+
   fTdcRes[0] = fTdcRes[1] = 0.;
   fTdcOff[0] = fTdcOff[1] = 0.;
-  
+
   while ( 1 ) {
     Int_t model;
     Float_t tres;   //  TDC resolution
     Float_t toff;   //  TDC offset (in seconds)
     char label[21]; // string label for TDC = Stop_by_Start
-                    // Label is a space-holder to be used in the future
-    
+		    // Label is a space-holder to be used in the future
+
     Int_t crate, slot, first, last;
 
     while ( ReadComment( fi, buf, LEN ) ) {}
 
     fgets ( buf, LEN, fi );
-    
+
     int nread = sscanf( buf, "%6d %6d %6d %6d %15f %20s %15f",
 			&crate, &slot, &first, &model, &tres, label, &toff );
     if ( crate < 0 ) break;
@@ -1662,10 +1693,10 @@ int Scintillator::Save( const string& prefix, time_t start,
       fclose(fi);
       return kInitError;
     }
-    
+
     if( fDetMap->AddModule( crate, slot, first, last, ind, model ) < 0 ) {
-      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).", 
-             THaDetMap::kDetMapSize);
+      Error( Here(here), "Too many DetMap modules (maximum allowed - %d).",
+	     THaDetMap::kDetMapSize);
       fclose(fi);
       return kInitError;
     }
@@ -1675,7 +1706,7 @@ int Scintillator::Save( const string& prefix, time_t start,
 	fTdcRes[j] = tres;
 	if (nread>6) fTdcOff[j] = toff;
       }
-    else 
+    else
       Warning( Here(here), "Too many entries. Expected 2 but found %d",
 	       cnt+1);
     cnt+= (last-first+1);
@@ -1694,13 +1725,13 @@ int Scintillator::Save( const string& prefix, time_t start,
   char buf[LEN];
   char *filestatus;
   char keyword[LEN];
-  
+
   FILE* fi = OpenFile( date );
   if( !fi ) return kFileError;
 
-  // okay, this needs to be changed, but since i dont want to re- or pre-invent 
-  // the wheel, i will keep it ugly and read in my own configuration file with 
-  // a very fixed syntax: 
+  // okay, this needs to be changed, but since i dont want to re- or pre-invent
+  // the wheel, i will keep it ugly and read in my own configuration file with
+  // a very fixed syntax:
 
   // Seek our detmap section (e.g. "Raster_detmap")
   sprintf(keyword,"[%s_detmap]",GetName());
@@ -1723,7 +1754,7 @@ int Scintillator::Save( const string& prefix, time_t start,
 
   do {
     fgets( buf, LEN, fi);
-    sscanf(buf,"%6d %6d %6d %6d %6d %6d %6d", 
+    sscanf(buf,"%6d %6d %6d %6d %6d %6d %6d",
 	   &first_chan, &crate, &dummy, &slot, &first, &last, &modulid);
     if (first_chan>=0) {
       if ( fDetMap->AddModule (crate, slot, first, last, first_chan )<0) {
@@ -1768,7 +1799,7 @@ int Scintillator::Save( const string& prefix, time_t start,
   sscanf(buf,"%15lf",&dummy1);
   fPosOff[2].SetZ(dummy1);
 
-  // Find timestamp, if any, for the raster constants. 
+  // Find timestamp, if any, for the raster constants.
   // Give up and rewind to current file position on any non-matching tag.
   // Timestamps should be in ascending order
   SeekDBdate( fi, date, true );
@@ -1814,13 +1845,13 @@ int Scintillator::Save( const string& prefix, time_t start,
   // This could just come from THaDecData, but for robustness we need
   // another copy.
 
-  // Read data from database 
+  // Read data from database
   FILE* fi = OpenFile( date );
   // however, this is not unexpected since most of the time it is un-necessary
   if( !fi ) return kOK;
-  
+
   while ( ReadComment( fi, buf, LEN ) ) {}
-  
+
   // Read in the time offsets, in the format below, to be subtracted from
   // the times measured in other detectors.
   //
@@ -1828,7 +1859,7 @@ int Scintillator::Save( const string& prefix, time_t start,
   //  to all triggers. This gives us a simple single value for adjustments.
   //
   // Trigger types NOT listed are assumed to have a zero offset.
-  // 
+  //
   // <TrgType>   <time offset in seconds>
   // eg:
   //   0              10   -0.5e-9  # global-offset shared by all triggers and s/TDC
@@ -1841,7 +1872,7 @@ int Scintillator::Save( const string& prefix, time_t start,
   fTrgTypes.clear();
   fToffsets.clear();
   fTDCRes = -0.5e-9; // assume 1872 TDC's.
-  
+
   while ( fgets(buf,LEN,fi) ) {
     int fnd = sscanf( buf,"%8d %16f %16f",&trg,&toff,&ch2t);
     if( fnd < 2 ) continue;
@@ -1859,7 +1890,7 @@ int Scintillator::Save( const string& prefix, time_t start,
       fToffsets.push_back(toff);
       fDetMap->AddModule(crate,slot,chan,chan,trg);
     }
-  }    
+  }
   fclose(fi);
 
   // now construct the appropriate arrays
