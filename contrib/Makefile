@@ -12,7 +12,7 @@ LDFLAGS     = $(shell root-config --ldflags)
 
 CXXFLAGS   += $(ROOTCFLAGS) $(INCLUDES)
 #ALLINCLUDES  = -I$(shell root-config --incdir) $(INCLUDES)
-LIBS        = $(shell root-config --libs) -L.. -lHallA -ldc
+LIBS        = $(shell root-config --libs) -L.. -lHallA -ldc -lpopt
 
 dbconvert:	dbconvert.o
 		$(LD) $(LDFLAGS) $(LIBS) -o $@ $^
