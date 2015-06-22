@@ -21,6 +21,7 @@
 #include <set>
 #include <utility>
 #include <iterator>
+#include <cassert>
 
 #include "TString.h"
 #include "TDatime.h"
@@ -43,13 +44,15 @@ using namespace std;
 static int do_debug = 0, verbose = 0;
 static string srcdir;
 static string destdir;
-static const char* prgname;
+static const char* prgname = 0;
+static char* mapfile = 0;
 
 static struct poptOption options[] = {
   //  POPT_AUTOHELP
-  { "help",     'h', POPT_ARG_NONE, 0, 'h', 0, 0  },
-  { "verbose",  'v', POPT_ARG_VAL,  &verbose,  1, 0, 0  },
-  { "debug",    'd', POPT_ARG_VAL,  &do_debug, 1, 0, 0  },
+  { "help",     'h', POPT_ARG_NONE,   0, 'h', 0, 0  },
+  { "verbose",  'v', POPT_ARG_VAL,    &verbose,  1, 0, 0  },
+  { "debug",    'd', POPT_ARG_VAL,    &do_debug, 1, 0, 0  },
+  { "mapfile",  'm', POPT_ARG_STRING, &mapfile,  0, 0, 0  },
   POPT_TABLEEND
 };
 
@@ -125,7 +128,9 @@ void getargs( int argc, const char** argv )
     usage(pc);
   }
   //DEBUG
-  cout << "Converting from " << srcdir << " to " << destdir << endl;
+  if( mapfile )
+    cout << "Mapfile name is \"" << mapfile << "\"" << endl;
+  cout << "Converting from \"" << srcdir << "\" to \"" << destdir << "\"" << endl;
 
   poptFreeContext(pc);
 }
@@ -358,6 +363,92 @@ private:
   }
 };
 
+// Global maps for detector types and names
+enum EDetectorType { kNone = 0, kCherenkov, kScintillator };
+static map<string,EDetectorType> detname_map;
+static map<string,EDetectorType> dettype_map;
+
+//-----------------------------------------------------------------------------
+static Detector* MakeDetector( EDetectorType type )
+{
+  Detector* det = 0;
+  switch( type ) {
+  case kNone:
+    return 0;
+  case kCherenkov:
+    return new Cherenkov;
+  case kScintillator:
+    return new Scintillator;
+  }
+  return det;
+}
+
+//-----------------------------------------------------------------------------
+static int ReadMapfile( const char* filename )
+{
+  ifstream ifs(filename);
+  if( !ifs ) {
+    cerr << "Error opening mapfile \"" << filename << "\""  << endl;
+    return -1;
+  }
+  detname_map.clear();
+  for( string line; getline(ifs,line); ) {
+    string::size_type pos = line.find_first_not_of(" \t");
+    if( pos == string::npos || line[pos] == '#' )
+      continue;
+    istringstream istr(line);
+    string name, type;
+    istr >> name;
+    istr >> type;
+    if( type.empty() ) {
+      cerr << "Mapfile: Missing detector type for name = \""
+	   << name << "\"" << endl;
+      return 1;
+    }
+    map<string,EDetectorType>::iterator it = dettype_map.find(type);
+    if( it == dettype_map.end() ) {
+      cerr << "Mapfile: undefined detector type = \"" << type << "\""
+	   << "for name \"" << name << "\"" << endl;
+      return 2;
+    }
+    // Add new name/type to map
+    pair<map<string,EDetectorType>::iterator, bool> ins =
+      detname_map.insert( make_pair(name,it->second) );
+    // If name already exists, generate an error, but only if the duplicate
+    // line has an inconsistent type. This allows trivial duplicates (repeated
+    // lines) in the mapfile.
+    if( !ins.second && ins.first->second != it->second ) {
+      cerr << "Mapfile: duplicate, inconsistent definition of detector name "
+	   << "= \"" << name << "\"" << endl;
+      return 3;
+    }
+  }
+  ifs.close();
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static void DefaultMap()
+{
+  // Set up default detector names
+
+  struct StringToType {
+    const char*   name;
+    EDetectorType type;
+  };
+  StringToType defaults[] = {
+    //TODO
+    { "R.cer",      kCherenkov },
+    { "R.s1",       kScintillator },
+    { 0,            kNone }
+  };
+  for( StringToType* item = defaults; item->name; ++item ) {
+    pair<map<string,EDetectorType>::iterator, bool> ins =
+      detname_map.insert( make_pair(item->name,item->type) );
+    assert( ins.second ); // else typo in definition of defaults[]
+  }
+}
+
 //-----------------------------------------------------------------------------
 int main( int argc, const char** argv )
 {
@@ -368,6 +459,14 @@ int main( int argc, const char** argv )
   getargs(argc,argv);
 
   // Read the detector name mapping file. If unavailable, set up defaults.
+  Int_t err;
+  if( mapfile ) {
+    err = ReadMapfile(mapfile);
+    if( err )
+      exit(3);  // Error message already printed
+  } else {
+    DefaultMap();
+  }
 
   // Get a list of all database files, based on Podd's search order rules.
   // Keep timestamps info with each file. Reading files from the current
@@ -381,7 +480,6 @@ int main( int argc, const char** argv )
   // Keep all found keys/values along with timestamps in a central map.
 
   //TEST
-  Int_t err;
   FILE* fi = fopen("/home/ole/Develop/analyzer/DB/20030101/db_R.cer.dat","r");
   TDatime date;
   time_t itime = date.Convert();
