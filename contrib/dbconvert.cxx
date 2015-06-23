@@ -22,6 +22,10 @@
 #include <utility>
 #include <iterator>
 #include <cassert>
+#include <sys/types.h>
+#include <sys/stat.h> // for stat/lstat
+#include <dirent.h>   // for opendir/readdir
+#include <cctype>     // for isdigit
 
 #include "TString.h"
 #include "TDatime.h"
@@ -219,6 +223,7 @@ struct DBvalue {
   time_t validity_start;
   string version;
   int    max_per_line;    // Number of values per line (for formatting text db)
+  // Order values by validity start time
   bool operator<( const DBvalue& rhs ) const {
     return validity_start < rhs.validity_start;
   }
@@ -301,6 +306,7 @@ public:
   virtual int ReadDB( FILE* infile ) = 0;
   virtual int Save( const string& prefix, time_t start,
 		    const string& version = string() ) const;
+  virtual const char* GetClassName() const = 0;
 
 protected:
   // void DefineAxes( Double_t rot ) {
@@ -329,6 +335,7 @@ public:
   virtual int ReadDB( FILE* infile );
   virtual int Save( const string& prefix, time_t start,
 		    const string& version = string() ) const;
+  virtual const char* GetClassName() const { return "Cherenkov"; }
 
 private:
   // Calibrations
@@ -347,6 +354,7 @@ public:
 
   virtual int ReadDB( FILE* );
   virtual int Save( const string&, time_t, const string& = string() ) const;
+  virtual const char* GetClassName() const { return "Scintillator"; }
 
 private:
   // Configuration
@@ -364,7 +372,7 @@ private:
 };
 
 // Global maps for detector types and names
-enum EDetectorType { kNone = 0, kCherenkov, kScintillator };
+enum EDetectorType { kNone = 0, kKeep, kCherenkov, kScintillator };
 static map<string,EDetectorType> detname_map;
 static map<string,EDetectorType> dettype_map;
 
@@ -374,6 +382,7 @@ static Detector* MakeDetector( EDetectorType type )
   Detector* det = 0;
   switch( type ) {
   case kNone:
+  case kKeep:
     return 0;
   case kCherenkov:
     return new Cherenkov;
@@ -432,21 +441,141 @@ static void DefaultMap()
 {
   // Set up default detector names
 
-  struct StringToType {
+  struct StringToType_t {
     const char*   name;
     EDetectorType type;
   };
-  StringToType defaults[] = {
+  StringToType_t defaults[] = {
     //TODO
     { "R.cer",      kCherenkov },
     { "R.s1",       kScintillator },
     { 0,            kNone }
   };
-  for( StringToType* item = defaults; item->name; ++item ) {
+  for( StringToType_t* item = defaults; item->name; ++item ) {
     pair<map<string,EDetectorType>::iterator, bool> ins =
-      detname_map.insert( make_pair(item->name,item->type) );
+      detname_map.insert( make_pair(string(item->name),item->type) );
     assert( ins.second ); // else typo in definition of defaults[]
   }
+}
+
+struct Filenames_t {
+  Filenames_t( const string& _path, time_t _start )
+    : path(_path), val_start(_start) {}
+  string    path;
+  time_t    val_start;
+};
+
+//-----------------------------------------------------------------------------
+static inline bool IsDBFileName( const string& fname )
+{
+  return (fname.size() > 7 && fname.substr(0,3) == "db_" &&
+	  fname.substr(fname.size()-4,4) == ".dat" );
+}
+
+//-----------------------------------------------------------------------------
+static inline bool IsDBSubDir( const string& fname, time_t& date )
+{
+  // Check if the given file name is a database subdirectory. If so, extract
+  // corresponding time stamp into 'date'
+
+  if( fname == "DEFAULT" ) {
+    date = 0;
+    return true;
+  }
+  if( fname.size() != 8 )
+    return false;
+
+  string::size_type pos = 0;
+  for( ; pos<8; ++pos )
+    if( !isdigit(fname[pos])) break;
+  if( pos != 8 )
+    return false;
+
+  // Convert date encoded in directory name to time_t
+  int year  = atoi( fname.substr(0,4).c_str() );
+  int month = atoi( fname.substr(4,2).c_str() );
+  int day   = atoi( fname.substr(6,2).c_str() );
+  if( year < 1900 || month == 0 || month > 12 || day > 31 || day < 1 )
+    return false;
+  struct tm td;
+  td.tm_sec   = td.tm_min = td.tm_hour = 0;
+  td.tm_year  = year-1900;
+  td.tm_mon   = month-1;
+  td.tm_mday  = day;
+  td.tm_isdst = -1;
+  date = mktime( &td );
+  return ( date != -1 );
+}
+
+//-----------------------------------------------------------------------------
+static inline string GetDetName( const string& fname )
+{
+  assert( fname.size() > 7 );
+  string::size_type pos = fname.rfind('/');
+  assert( pos == string::npos || pos < fname.size()-7 );
+  if( pos == string::npos )
+    pos = 0;
+  else
+    pos++;
+  return fname.substr(pos+3,fname.size()-pos-7);
+}
+
+//-----------------------------------------------------------------------------
+static int GetFilenames( const string& srcdir, const time_t srcdir_start_time,
+			 vector<Filenames_t>& filenames, int depth = 0 )
+{
+  // Get a list of all database files, based on Podd's search order rules.
+  // Keep timestamps info with each file. Reading files from the current
+  // directory must be explicitly requested, though.
+
+  // Open given directory
+  assert( !srcdir.empty() );
+  bool need_slash = (*srcdir.rbegin() != '/');
+  DIR* dir = opendir(srcdir.c_str());
+  if( !dir ) {
+    stringstream ss("Error opening source directory ",ios::out|ios::app);
+    ss << srcdir;
+    perror(ss.str().c_str());
+    return 1;
+  }
+
+  // Examine the directory's contents
+  size_t len = offsetof(struct dirent, d_name) +
+    pathconf(srcdir.c_str(), _PC_NAME_MAX) + 1;
+  struct dirent* ent = (struct dirent*)malloc(len), *result;
+  int err;
+  while( (err = readdir_r(dir,ent,&result)) == 0 && result != 0 ) {
+    // Skip trivial file names
+    string fname( result->d_name );
+    if( fname.empty() || fname == "." || fname == ".." )
+      continue;
+
+    // Build full directory path and get the file attributes
+    string fpath( srcdir );
+    if( need_slash )
+      fpath += '/';
+    fpath.append( fname );
+    struct stat sb;
+    lstat( fpath.c_str(), &sb );
+
+    // Record files whose names match db_*.dat
+    if( S_ISREG(sb.st_mode) && IsDBFileName(fname) ) {
+      filenames.push_back( Filenames_t(fpath,srcdir_start_time) );
+    }
+
+    // Recurse down one level into valid subdirectories ("YYYYMMDD" and "DEFAULT")
+    else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
+      time_t date;
+      if( IsDBSubDir(fname,date) ) {
+	err = GetFilenames( fpath, date, filenames, depth+1 );
+	if( err ) goto exit;
+      }
+    }
+  }
+ exit:
+  free(ent);
+  closedir(dir);
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -468,45 +597,62 @@ int main( int argc, const char** argv )
     DefaultMap();
   }
 
-  // Get a list of all database files, based on Podd's search order rules.
-  // Keep timestamps info with each file. Reading files from the current
-  // directory must be explicitly requested, though.
+  // Get list of all database files to convert
+  vector<Filenames_t> filenames;
+  err = GetFilenames( srcdir, 0, filenames );
+  if( err )
+    exit(4);  // Error message already printed
 
   // Assign a parser to each database file, based on the name mapping info.
-
   // Let the parsers translate each file to database keys.
   // If the original parser supported in-file timestamps, pre-parse the
   // corresponding files to find any timestamps in them.
   // Keep all found keys/values along with timestamps in a central map.
+  for( size_t i=0; i<filenames.size(); ++i ) {
+    const string& path = filenames[i].path;
+    string detname = GetDetName( path );
+    map<string,EDetectorType>::iterator it = detname_map.find(detname);
 
-  //TEST
-  FILE* fi = fopen("/home/ole/Develop/analyzer/DB/20030101/db_R.cer.dat","r");
-  TDatime date;
-  time_t itime = date.Convert();
-  if( fi ) {
-    Cherenkov cer;
-    err = cer.ReadDB(fi);
+    if( it == detname_map.end() ) {
+      //TODO: make behavior configurable
+      cerr << "WARNING: unknown database file " << path
+	   << " will not be converted" << endl;
+      continue;
+    }
+    EDetectorType type = (*it).second;
+    assert( type != kNone );
+
+    Detector* det = MakeDetector( type );
+    if( !det )
+      continue;
+
+    FILE* fi = fopen( path.c_str(), "r" );
+    if( !fi ) {
+      stringstream ss("Error opening database file ",ios::out|ios::app);
+      ss << path;
+      perror(ss.str().c_str());
+      continue;
+    }
+    err = det->ReadDB(fi);
     if( err )
-      cerr << "Error reading Cherenkov" << endl;
+      cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
+    //DEBUG
     else
-      cout << "Successfully read Cherenkov" << endl;
+      cout << "Read " << path << endl;
+
     fclose(fi);
-    if( !err )
-      cer.Save("R.cer.", itime);
+    if( err )
+      continue;
+
+    string prefix(detname); prefix += '.';
+    det->Save( prefix, filenames[i].val_start );
+    delete det;
   }
 
-  fi = fopen("/home/ole/Develop/analyzer/DB/20030101/db_R.s1.dat","r");
-  if( fi ) {
-    Scintillator sci;
-    err = sci.ReadDB(fi);
-    if( err )
-      cerr << "Error reading Scintillator" << endl;
-    else
-      cout << "Successfully read Scintillator" << endl;
-    fclose(fi);
-    if( !err )
-      sci.Save("R.s1.", itime);
-  }
+  // Prune the key/value map to remove entries that have the exact
+  // same keys/values and only differ by consecutive timestamps.
+  // Keep only the earliest timestamp.
+
   // Write out keys/values to database files in target directory.
   // All file names will be preserved; a file that existed anywhere
   // in the source will also appear at least once in the target.
