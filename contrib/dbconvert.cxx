@@ -25,7 +25,7 @@
 #include <sys/types.h>
 #include <sys/stat.h> // for stat/lstat
 #include <dirent.h>   // for opendir/readdir
-#include <cctype>     // for isdigit
+#include <cctype>     // for isdigit, tolower
 
 #include "TString.h"
 #include "TDatime.h"
@@ -59,6 +59,16 @@ static struct poptOption options[] = {
   { "mapfile",  'm', POPT_ARG_STRING, &mapfile,  0, 0, 0  },
   POPT_TABLEEND
 };
+
+// Information for a single source database file
+struct Filenames_t {
+  Filenames_t( const string& _path, time_t _start )
+    : path(_path), val_start(_start) {}
+  string    path;
+  time_t    val_start;
+};
+
+typedef string::size_type ssiz_t;
 
 //-----------------------------------------------------------------------------
 void help()
@@ -326,6 +336,18 @@ protected:
 };
 
 //-----------------------------------------------------------------------------
+// RunDB - handler for run database
+class RunDB : public Detector {
+public:
+  RunDB() {}
+
+  virtual int ReadDB( FILE* infile );
+  virtual int Save( const string& prefix, time_t start,
+		    const string& version = string() ) const;
+  virtual const char* GetClassName() const { return "RunDB"; }
+};
+
+//-----------------------------------------------------------------------------
 // Cherenkov
 class Cherenkov : public Detector {
 public:
@@ -372,9 +394,15 @@ private:
 };
 
 // Global maps for detector types and names
-enum EDetectorType { kNone = 0, kKeep, kCherenkov, kScintillator };
-static map<string,EDetectorType> detname_map;
-static map<string,EDetectorType> dettype_map;
+enum EDetectorType { kNone = 0, kKeep, kRun, kCherenkov, kScintillator };
+typedef map<string,EDetectorType> NameTypeMap_t;
+static NameTypeMap_t detname_map;
+static NameTypeMap_t dettype_map;
+
+struct StringToType_t {
+  const char*   name;
+  EDetectorType type;
+};
 
 //-----------------------------------------------------------------------------
 static Detector* MakeDetector( EDetectorType type )
@@ -384,12 +412,33 @@ static Detector* MakeDetector( EDetectorType type )
   case kNone:
   case kKeep:
     return 0;
+  case kRun:
+    return new RunDB;
   case kCherenkov:
     return new Cherenkov;
   case kScintillator:
     return new Scintillator;
   }
   return det;
+}
+
+//-----------------------------------------------------------------------------
+static void DefineTypes()
+{
+  // Set up mapping of detector type names to EDetectorType constants
+
+  StringToType_t deftypes[] = {
+    // Names must be all lowercase for case-insensitive find() later
+    { "scintillator",   kScintillator },
+    { "cherenkov",      kCherenkov },
+    { "cerenkov",       kCherenkov },   // common misspelling
+    { 0,                kNone }
+  };
+  for( StringToType_t* item = deftypes; item->name; ++item ) {
+    pair<NameTypeMap_t::iterator, bool> ins =
+      dettype_map.insert( make_pair(string(item->name),item->type) );
+    assert( ins.second ); // else typo in definition of deftypes[]
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -400,9 +449,10 @@ static int ReadMapfile( const char* filename )
     cerr << "Error opening mapfile \"" << filename << "\""  << endl;
     return -1;
   }
+  DefineTypes();
   detname_map.clear();
   for( string line; getline(ifs,line); ) {
-    string::size_type pos = line.find_first_not_of(" \t");
+    ssiz_t pos = line.find_first_not_of(" \t");
     if( pos == string::npos || line[pos] == '#' )
       continue;
     istringstream istr(line);
@@ -414,14 +464,16 @@ static int ReadMapfile( const char* filename )
 	   << name << "\"" << endl;
       return 1;
     }
-    map<string,EDetectorType>::iterator it = dettype_map.find(type);
+    string ltype(type);
+    transform( ALL(type), ltype.begin(), (int(*)(int))tolower );
+    NameTypeMap_t::iterator it = dettype_map.find(ltype);
     if( it == dettype_map.end() ) {
       cerr << "Mapfile: undefined detector type = \"" << type << "\""
 	   << "for name \"" << name << "\"" << endl;
       return 2;
     }
     // Add new name/type to map
-    pair<map<string,EDetectorType>::iterator, bool> ins =
+    pair<NameTypeMap_t::iterator, bool> ins =
       detname_map.insert( make_pair(name,it->second) );
     // If name already exists, generate an error, but only if the duplicate
     // line has an inconsistent type. This allows trivial duplicates (repeated
@@ -433,6 +485,7 @@ static int ReadMapfile( const char* filename )
     }
   }
   ifs.close();
+  dettype_map.clear(); // no longer needed
   return 0;
 }
 
@@ -441,29 +494,19 @@ static void DefaultMap()
 {
   // Set up default detector names
 
-  struct StringToType_t {
-    const char*   name;
-    EDetectorType type;
-  };
   StringToType_t defaults[] = {
     //TODO
     { "R.cer",      kCherenkov },
     { "R.s1",       kScintillator },
+    { "run",        kRun },
     { 0,            kNone }
   };
   for( StringToType_t* item = defaults; item->name; ++item ) {
-    pair<map<string,EDetectorType>::iterator, bool> ins =
+    pair<NameTypeMap_t::iterator, bool> ins =
       detname_map.insert( make_pair(string(item->name),item->type) );
     assert( ins.second ); // else typo in definition of defaults[]
   }
 }
-
-struct Filenames_t {
-  Filenames_t( const string& _path, time_t _start )
-    : path(_path), val_start(_start) {}
-  string    path;
-  time_t    val_start;
-};
 
 //-----------------------------------------------------------------------------
 static inline bool IsDBFileName( const string& fname )
@@ -485,7 +528,7 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
   if( fname.size() != 8 )
     return false;
 
-  string::size_type pos = 0;
+  ssiz_t pos = 0;
   for( ; pos<8; ++pos )
     if( !isdigit(fname[pos])) break;
   if( pos != 8 )
@@ -504,14 +547,14 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
   td.tm_mday  = day;
   td.tm_isdst = -1;
   date = mktime( &td );
-  return ( date != -1 );
+  return ( date != static_cast<time_t>(-1) );
 }
 
 //-----------------------------------------------------------------------------
 static inline string GetDetName( const string& fname )
 {
   assert( fname.size() > 7 );
-  string::size_type pos = fname.rfind('/');
+  ssiz_t pos = fname.rfind('/');
   assert( pos == string::npos || pos < fname.size()-7 );
   if( pos == string::npos )
     pos = 0;
@@ -578,6 +621,85 @@ static int GetFilenames( const string& srcdir, const time_t srcdir_start_time,
   return 0;
 }
 
+//_____________________________________________________________________________
+static Int_t GetLine( FILE* file, char* buf, size_t bufsiz, string& line )
+{
+  // Get a line (possibly longer than 'bufsiz') from 'file' using
+  // using the provided buffer 'buf'. Put result into string 'line'.
+  // This is similar to std::getline, except that C-style I/O is used.
+  // Also, convert all tabs to spaces.
+  // Returns 0 on success, or EOF if no more data (or error).
+
+  char* r = buf;
+  line.clear();
+  while( (r = fgets(buf, bufsiz, file)) ) {
+    char* c = strchr(buf, '\n');
+    if( c )
+      *c = '\0';
+    // Convert all tabs to spaces
+    register char *p = buf;
+    while( (p = strchr(p,'\t')) ) *(p++) = ' ';
+    // Append to string
+    line.append(buf);
+    // If newline was read, the line is finished
+    if( c )
+      break;
+  }
+  // Don't report EOF if we have any data
+  if( !r && line.empty() )
+    return EOF;
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int ParseTimestamps( FILE* fi, vector<time_t>& timestamps )
+{
+  // Put all timestamps from file 'fi' in given vector 'timestamps'
+
+  size_t LEN = 256;
+  char buf[LEN];
+  string line;
+
+  rewind(fi);
+  while( GetLine(fi,buf,LEN,line) == 0 ) {
+    ssiz_t lbrk = line.find('[');
+    if( lbrk == string::npos || lbrk >= line.size()-12 )
+      continue;
+    ssiz_t rbrk = line.find(']',lbrk);
+    if( rbrk == string::npos || rbrk <= lbrk+11 )
+      continue;
+    Int_t yy, mm, dd, hh, mi, ss;
+    if( sscanf( line.substr(lbrk+1,rbrk-lbrk-1).c_str(), "%4d-%2d-%2d %2d:%2d:%2d",
+		&yy, &mm, &dd, &hh, &mi, &ss) != 6
+	|| yy < 1995 || mm < 1 || mm > 12 || dd < 1 || dd > 31
+	|| hh < 0 || hh > 23 || mi < 0 || mi > 59 || ss < 0 || ss > 59 ) {
+      continue;
+    }
+    // Found a timestamp
+    struct tm td;
+    td.tm_sec   = ss;
+    td.tm_min   = mm;
+    td.tm_hour  = hh;
+    td.tm_year  = yy-1900;
+    td.tm_mon   = mm-1;
+    td.tm_mday  = dd;
+    td.tm_isdst = -1;
+    time_t date = mktime( &td );
+    if( date != static_cast<time_t>(-1) )
+      timestamps.push_back(date);
+  }
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int ParseVariations( FILE* fi, vector<string>& variations )
+{
+  rewind(fi);
+  variations.clear();
+
+  return 0;
+}
+
 //-----------------------------------------------------------------------------
 int main( int argc, const char** argv )
 {
@@ -611,7 +733,7 @@ int main( int argc, const char** argv )
   for( size_t i=0; i<filenames.size(); ++i ) {
     const string& path = filenames[i].path;
     string detname = GetDetName( path );
-    map<string,EDetectorType>::iterator it = detname_map.find(detname);
+    NameTypeMap_t::iterator it = detname_map.find(detname);
 
     if( it == detname_map.end() ) {
       //TODO: make behavior configurable
@@ -633,19 +755,27 @@ int main( int argc, const char** argv )
       perror(ss.str().c_str());
       continue;
     }
+
+    // Parse the file for any timestamps and "configurations" (=variations)
+    vector<time_t> timestamps;
+    vector<string> variations;
+    err = ParseTimestamps( fi, timestamps );
+    if( err ) goto exit;
+
+    err = ParseVariations( fi, variations );
+    if( err ) goto exit;
+
     err = det->ReadDB(fi);
     if( err )
       cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
-    //DEBUG
-    else
+    else {
       cout << "Read " << path << endl;
+      string prefix(detname); prefix += '.';
+      det->Save( prefix, filenames[i].val_start );
+    }
 
+  exit:
     fclose(fi);
-    if( err )
-      continue;
-
-    string prefix(detname); prefix += '.';
-    det->Save( prefix, filenames[i].val_start );
     delete det;
   }
 
@@ -682,6 +812,23 @@ static char* ReadComment( FILE* fp, char *buf, const int len )
 
   char *s= fgets(buf,len,fp); // read the comment
   return s;
+}
+
+//-----------------------------------------------------------------------------
+int RunDB::ReadDB( FILE* fi )
+{
+  // Read run database
+
+  //TODO
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+int RunDB::Save( const string& /*prefix*/, time_t /*start*/,
+		 const string& /*version*/ ) const
+{
+
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
