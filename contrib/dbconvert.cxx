@@ -334,8 +334,7 @@ public:
   virtual ~Detector() { delete fDetMap; }
 
   virtual int ReadDB( FILE* infile, time_t date ) = 0;
-  virtual int Save( const string& prefix, time_t start,
-		    const string& version = string() ) const;
+  virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const = 0;
   virtual bool SupportsTimestamps()  const { return false; }
   virtual bool SupportsVariations()  const { return false; }
@@ -370,8 +369,7 @@ public:
   CopyFile( const string& name ) : Detector(name) {}
 
   virtual int ReadDB( FILE* infile, time_t date );
-  virtual int Save( const string& prefix, time_t start,
-		    const string& version = string() ) const;
+  virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "CopyFile"; }
 };
 
@@ -384,8 +382,7 @@ public:
   virtual ~Cherenkov() { DeleteArrays(); }
 
   virtual int ReadDB( FILE* infile, time_t date );
-  virtual int Save( const string& prefix, time_t start,
-		    const string& version = string() ) const;
+  virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Cherenkov"; }
 
 private:
@@ -405,7 +402,7 @@ public:
   virtual ~Scintillator() { DeleteArrays(); }
 
   virtual int ReadDB( FILE* infile, time_t date );
-  virtual int Save( const string&, time_t, const string& = string() ) const;
+  virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Scintillator"; }
   virtual bool SupportsTimestamps()  const { return true; }
   virtual bool SupportsVariations()  const { return true; }
@@ -803,8 +800,7 @@ int main( int argc, const char** argv )
 	cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
       else {
 	cout << "Read " << path << endl;
-	string prefix(detname); prefix += '.';
-	det->Save( prefix, date );
+	det->Save( date );
       }
     }
 
@@ -946,8 +942,7 @@ int CopyFile::ReadDB( FILE* fi, time_t date )
 }
 
 //-----------------------------------------------------------------------------
-int CopyFile::Save( const string& /*prefix*/, time_t /*start*/,
-		    const string& /*version*/ ) const
+int CopyFile::Save( time_t /*start*/, const string& /*version*/ ) const
 {
   // Nothing to do. All keys already saved in ReadDB.
   return 0;
@@ -1269,9 +1264,9 @@ int Scintillator::ReadDB( FILE* fi, time_t date )
 }
 
 //-----------------------------------------------------------------------------
-int Detector::Save( const string& prefix, time_t start,
-		    const string& version ) const
+int Detector::Save( time_t start, const string& version ) const
 {
+  string prefix = fName + ".";
   int flags = 1;
   if( fDetMapHasModel )  flags++;
   AddToMap( prefix+"detmap",   MakeValue(fDetMap,flags), start, version, 4+flags );
@@ -1284,12 +1279,13 @@ int Detector::Save( const string& prefix, time_t start,
 }
 
 //-----------------------------------------------------------------------------
-int Cherenkov::Save( const string& prefix, time_t start,
-		     const string& version ) const
+int Cherenkov::Save( time_t start, const string& version ) const
 {
   // Create database keys for current Cherenkov configuration data
 
-  Detector::Save( prefix, start, version );
+  string prefix = fName + ".";
+
+  Detector::Save( start, version );
 
   AddToMap( prefix+"tdc.offsets",   MakeValueUnless(0.F,fOff,fNelem),  start, version );
   AddToMap( prefix+"adc.pedestals", MakeValueUnless(0.F,fPed,fNelem),  start, version );
@@ -1299,12 +1295,13 @@ int Cherenkov::Save( const string& prefix, time_t start,
 }
 
 //-----------------------------------------------------------------------------
-int Scintillator::Save( const string& prefix, time_t start,
-			const string& version ) const
+int Scintillator::Save( time_t start, const string& version ) const
 {
   // Create database keys for current Scintillator configuration data
 
-  Detector::Save( prefix, start, version );
+  string prefix = fName + ".";
+
+  Detector::Save( start, version );
 
   AddToMap( prefix+"L.off",    MakeValueUnless(0.,fLOff,fNelem),  start, version );
   AddToMap( prefix+"L.ped",    MakeValueUnless(0.,fLPed,fNelem),  start, version );
