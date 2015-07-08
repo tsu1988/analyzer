@@ -323,7 +323,8 @@ int WriteMap( const char* target_dir )
 // Common detector data
 class Detector {
 public:
-  Detector() : fNelem(0) /*, fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) */{
+  Detector( const string& name )
+    : fName(name), fNelem(0) /*, fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) */{
     fDetMap = new THaDetMap;
     fSize[0] = fSize[1] = fSize[2] = kBig;
   }
@@ -344,7 +345,8 @@ protected:
   // }
   const char* Here( const char* here ) { return here; }
 
-  TString     fConfig;
+  string      fName;
+  TString     fConfig;  // TString for compatibility with old API
   THaDetMap*  fDetMap;
   bool        fDetMapHasModel;
   Int_t       fNelem;
@@ -360,7 +362,7 @@ protected:
 
 class CopyFile : public Detector {
 public:
-  CopyFile() {}
+  CopyFile( const string& name ) : Detector(name) {}
 
   virtual int ReadDB( FILE* infile, time_t date );
   virtual int Save( const string& prefix, time_t start,
@@ -372,7 +374,8 @@ public:
 // Cherenkov
 class Cherenkov : public Detector {
 public:
-  Cherenkov() : fOff(0), fPed(0), fGain(0) {}
+  Cherenkov( const string& name )
+    : Detector(name), fOff(0), fPed(0), fGain(0) {}
   virtual ~Cherenkov() { DeleteArrays(); }
 
   virtual int ReadDB( FILE* infile, time_t date );
@@ -391,8 +394,9 @@ private:
 // Scintillator
 class Scintillator : public Detector {
 public:
-  Scintillator() : fLOff(0), fROff(0), fLPed(0), fRPed(0), fLGain(0),
-		   fRGain(0), fTWalkPar(0), fTrigOff(0) {}
+  Scintillator( const string& name )
+    : Detector(name), fLOff(0), fROff(0), fLPed(0), fRPed(0), fLGain(0),
+      fRGain(0), fTWalkPar(0), fTrigOff(0) {}
   virtual ~Scintillator() { DeleteArrays(); }
 
   virtual int ReadDB( FILE* infile, time_t date );
@@ -428,7 +432,7 @@ struct StringToType_t {
 };
 
 //-----------------------------------------------------------------------------
-static Detector* MakeDetector( EDetectorType type )
+static Detector* MakeDetector( EDetectorType type, const string& name )
 {
   Detector* det = 0;
   switch( type ) {
@@ -436,11 +440,11 @@ static Detector* MakeDetector( EDetectorType type )
   case kKeep:
     return 0;
   case kCopyFile:
-    return new CopyFile;
+    return new CopyFile(name);
   case kCherenkov:
-    return new Cherenkov;
+    return new Cherenkov(name);
   case kScintillator:
-    return new Scintillator;
+    return new Scintillator(name);
   }
   return det;
 }
@@ -754,7 +758,7 @@ int main( int argc, const char** argv )
     EDetectorType type = (*it).second;
     assert( type != kNone );
 
-    Detector* det = MakeDetector( type );
+    Detector* det = MakeDetector( type, detname );
     if( !det )
       continue;
 
