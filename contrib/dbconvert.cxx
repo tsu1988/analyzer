@@ -292,7 +292,31 @@ void DumpMap( ostream& os = std::cout )
 }
 
 //-----------------------------------------------------------------------------
-int WriteMap( const char* target_dir )
+int CleanupMap()
+{
+  // Remove duplicate entries for the same key and consecutive timestamps
+
+  for( DB::iterator it = gDB.begin(); it != gDB.end(); ++it ) {
+    ValSet_t& vals = it->second;
+    ValSet_t::iterator jt = vals.begin();
+    while( jt != vals.end() ) {
+      ValSet_t::iterator kt = jt;
+      ++kt;
+      while( kt != vals.end() ) {
+	if( kt->value == jt->value )
+	  vals.erase( kt++ );
+	else
+	  break;
+      }
+      jt = kt;
+    }
+  }
+
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+int WriteMap( const string& /*target_dir*/ )
 {
 
   return 0;
@@ -793,6 +817,8 @@ int main( int argc, const char** argv )
   // same keys/values and only differ by /consecutive/ timestamps.
   // Keep only the earliest timestamp.
 
+  CleanupMap();
+
   // Write out keys/values to database files in target directory.
   // All file names will be preserved; a file that existed anywhere
   // in the source will also appear at least once in the target.
@@ -802,6 +828,8 @@ int main( int argc, const char** argv )
   // write the converted versions into a special subdirectory of target.
 
   DumpMap();
+
+  WriteMap(destdir);
 
   return 0;
 }
