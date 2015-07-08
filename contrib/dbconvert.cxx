@@ -57,6 +57,7 @@ static struct poptOption options[] = {
   { "verbose",  'v', POPT_ARG_VAL,    &verbose,  1, 0, 0  },
   { "debug",    'd', POPT_ARG_VAL,    &do_debug, 1, 0, 0  },
   { "mapfile",  'm', POPT_ARG_STRING, &mapfile,  0, 0, 0  },
+  // "detlist", 'l', ... // list of wildcards of detector names
   POPT_TABLEEND
 };
 
@@ -147,6 +148,20 @@ void getargs( int argc, const char** argv )
   cout << "Converting from \"" << srcdir << "\" to \"" << destdir << "\"" << endl;
 
   poptFreeContext(pc);
+}
+
+//-----------------------------------------------------------------------------
+static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
+{
+  struct tm td;
+  td.tm_sec   = ss;
+  td.tm_min   = mi;
+  td.tm_hour  = hh;
+  td.tm_year  = yy-1900;
+  td.tm_mon   = mm-1;
+  td.tm_mday  = dd;
+  td.tm_isdst = -1;
+  return mktime( &td );
 }
 
 //-----------------------------------------------------------------------------
@@ -260,6 +275,7 @@ int AddToMap( const string& key, const string& value, time_t start,
 
   DBvalue val( value, start, version, max );
   ValSet_t& vals = gDB[key];
+  // Find existing values with the exact timestamp of 'val' (='start')
   pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
   if( range.first != range.second ) {
     for( ; range.first != range.second; ++range.first ) {
@@ -313,10 +329,12 @@ public:
   }
   virtual ~Detector() { delete fDetMap; }
 
-  virtual int ReadDB( FILE* infile ) = 0;
+  virtual int ReadDB( FILE* infile, time_t date ) = 0;
   virtual int Save( const string& prefix, time_t start,
 		    const string& version = string() ) const;
   virtual const char* GetClassName() const = 0;
+  virtual bool SupportsTimestamps()  const { return false; }
+  virtual bool SupportsVariations()  const { return false; }
 
 protected:
   // void DefineAxes( Double_t rot ) {
@@ -336,15 +354,18 @@ protected:
 };
 
 //-----------------------------------------------------------------------------
-// RunDB - handler for run database
-class RunDB : public Detector {
-public:
-  RunDB() {}
+// CopyFile - pseudo-detector for run database and database files that
+// are already in the new format. Extracts all defined keys and copies
+// file essentially verbatim.
 
-  virtual int ReadDB( FILE* infile );
+class CopyFile : public Detector {
+public:
+  CopyFile() {}
+
+  virtual int ReadDB( FILE* infile, time_t date );
   virtual int Save( const string& prefix, time_t start,
 		    const string& version = string() ) const;
-  virtual const char* GetClassName() const { return "RunDB"; }
+  virtual const char* GetClassName() const { return "CopyFile"; }
 };
 
 //-----------------------------------------------------------------------------
@@ -354,7 +375,7 @@ public:
   Cherenkov() : fOff(0), fPed(0), fGain(0) {}
   virtual ~Cherenkov() { DeleteArrays(); }
 
-  virtual int ReadDB( FILE* infile );
+  virtual int ReadDB( FILE* infile, time_t date );
   virtual int Save( const string& prefix, time_t start,
 		    const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Cherenkov"; }
@@ -374,9 +395,11 @@ public:
 		   fRGain(0), fTWalkPar(0), fTrigOff(0) {}
   virtual ~Scintillator() { DeleteArrays(); }
 
-  virtual int ReadDB( FILE* );
+  virtual int ReadDB( FILE* infile, time_t date );
   virtual int Save( const string&, time_t, const string& = string() ) const;
   virtual const char* GetClassName() const { return "Scintillator"; }
+  virtual bool SupportsTimestamps()  const { return true; }
+  virtual bool SupportsVariations()  const { return true; }
 
 private:
   // Configuration
@@ -394,7 +417,7 @@ private:
 };
 
 // Global maps for detector types and names
-enum EDetectorType { kNone = 0, kKeep, kRun, kCherenkov, kScintillator };
+enum EDetectorType { kNone = 0, kKeep, kCopyFile, kCherenkov, kScintillator };
 typedef map<string,EDetectorType> NameTypeMap_t;
 static NameTypeMap_t detname_map;
 static NameTypeMap_t dettype_map;
@@ -412,8 +435,8 @@ static Detector* MakeDetector( EDetectorType type )
   case kNone:
   case kKeep:
     return 0;
-  case kRun:
-    return new RunDB;
+  case kCopyFile:
+    return new CopyFile;
   case kCherenkov:
     return new Cherenkov;
   case kScintillator:
@@ -496,9 +519,9 @@ static void DefaultMap()
 
   StringToType_t defaults[] = {
     //TODO
+    { "run",        kCopyFile },
     { "R.cer",      kCherenkov },
     { "R.s1",       kScintillator },
-    { "run",        kRun },
     { 0,            kNone }
   };
   for( StringToType_t* item = defaults; item->name; ++item ) {
@@ -518,8 +541,9 @@ static inline bool IsDBFileName( const string& fname )
 //-----------------------------------------------------------------------------
 static inline bool IsDBSubDir( const string& fname, time_t& date )
 {
-  // Check if the given file name is a database subdirectory. If so, extract
-  // corresponding time stamp into 'date'
+  // Check if the given file name corresponds to a database subdirectory.
+  // Subdirectories have filenames of the form "YYYYMMDD" and "DEFAULT".
+  // If so, extract its encoded time stamp to 'date'
 
   if( fname == "DEFAULT" ) {
     date = 0;
@@ -540,13 +564,7 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
   int day   = atoi( fname.substr(6,2).c_str() );
   if( year < 1900 || month == 0 || month > 12 || day > 31 || day < 1 )
     return false;
-  struct tm td;
-  td.tm_sec   = td.tm_min = td.tm_hour = 0;
-  td.tm_year  = year-1900;
-  td.tm_mon   = month-1;
-  td.tm_mday  = day;
-  td.tm_isdst = -1;
-  date = mktime( &td );
+  date = MkTime( year, month, day, 0, 0, 0 );
   return ( date != static_cast<time_t>(-1) );
 }
 
@@ -555,7 +573,7 @@ static inline string GetDetName( const string& fname )
 {
   assert( fname.size() > 7 );
   ssiz_t pos = fname.rfind('/');
-  assert( pos == string::npos || pos < fname.size()-7 );
+  assert( pos == string::npos || pos+7 < fname.size() );
   if( pos == string::npos )
     pos = 0;
   else
@@ -676,15 +694,7 @@ static int ParseTimestamps( FILE* fi, vector<time_t>& timestamps )
       continue;
     }
     // Found a timestamp
-    struct tm td;
-    td.tm_sec   = ss;
-    td.tm_min   = mm;
-    td.tm_hour  = hh;
-    td.tm_year  = yy-1900;
-    td.tm_mon   = mm-1;
-    td.tm_mday  = dd;
-    td.tm_isdst = -1;
-    time_t date = mktime( &td );
+    time_t date = MkTime( yy, mm, dd, hh, mi, ss );
     if( date != static_cast<time_t>(-1) )
       timestamps.push_back(date);
   }
@@ -730,7 +740,7 @@ int main( int argc, const char** argv )
   // If the original parser supported in-file timestamps, pre-parse the
   // corresponding files to find any timestamps in them.
   // Keep all found keys/values along with timestamps in a central map.
-  for( size_t i=0; i<filenames.size(); ++i ) {
+  for( vector<Filenames_t>::size_type i = 0; i < filenames.size(); ++i ) {
     const string& path = filenames[i].path;
     string detname = GetDetName( path );
     NameTypeMap_t::iterator it = detname_map.find(detname);
@@ -757,30 +767,45 @@ int main( int argc, const char** argv )
     }
 
     // Parse the file for any timestamps and "configurations" (=variations)
-    vector<time_t> timestamps;
+    vector<time_t> timestamps(1,filenames[i].val_start);
     vector<string> variations;
-    err = ParseTimestamps( fi, timestamps );
-    if( err ) goto exit;
-
-    err = ParseVariations( fi, variations );
-    if( err ) goto exit;
-
-    err = det->ReadDB(fi);
-    if( err )
-      cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
-    else {
-      cout << "Read " << path << endl;
-      string prefix(detname); prefix += '.';
-      det->Save( prefix, filenames[i].val_start );
+    if( det->SupportsTimestamps() ) {
+      err = ParseTimestamps( fi, timestamps );
+      if( err ) goto next;
+      if( timestamps.size() > 1 ) {
+	sort( ALL(timestamps) );
+	if( timestamps[0] < filenames[i].val_start ) {
+	  cerr << "Inconsistent timestamps in file " << path
+	       << ". Skipping file" << endl;
+	  goto next;
+	}
+      }
+    }
+    if( det->SupportsVariations() ) {
+      err = ParseVariations( fi, variations );
+      if( err ) goto next;
     }
 
-  exit:
+    for( vector<time_t>::size_type it = 0; it < timestamps.size(); ++it ) {
+      time_t date = timestamps[it];
+      rewind(fi);
+      err = det->ReadDB(fi,date);
+      if( err )
+	cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
+      else {
+	cout << "Read " << path << endl;
+	string prefix(detname); prefix += '.';
+	det->Save( prefix, date );
+      }
+    }
+
+  next:
     fclose(fi);
     delete det;
   }
 
   // Prune the key/value map to remove entries that have the exact
-  // same keys/values and only differ by consecutive timestamps.
+  // same keys/values and only differ by /consecutive/ timestamps.
   // Keep only the earliest timestamp.
 
   // Write out keys/values to database files in target directory.
@@ -808,37 +833,121 @@ static char* ReadComment( FILE* fp, char *buf, const int len )
   ungetc(ch,fp);
 
   if (ch == EOF || ch == ' ')
-    return NULL; // a real line of data
+    return 0; // a real line of data
 
-  char *s= fgets(buf,len,fp); // read the comment
-  return s;
+  return fgets(buf,len,fp); // read the comment;
+}
+
+//_____________________________________________________________________________
+static Int_t IsDBdate( const string& line, time_t& date )
+{
+  // Check if 'line' contains a valid database time stamp. If so,
+  // parse the line, set 'date' to the extracted time stamp, and return 1.
+  // Else return 0;
+  // Time stamps must be in SQL format: [ yyyy-mm-dd hh:mi:ss ]
+
+  ssiz_t lbrk = line.find('[');
+  if( lbrk == string::npos || lbrk >= line.size()-12 ) return 0;
+  ssiz_t rbrk = line.find(']',lbrk);
+  if( rbrk == string::npos || rbrk <= lbrk+11 ) return 0;
+  Int_t yy, mm, dd, hh, mi, ss;
+  if( sscanf( line.substr(lbrk+1,rbrk-lbrk-1).c_str(), "%4d-%2d-%2d %2d:%2d:%2d",
+	      &yy, &mm, &dd, &hh, &mi, &ss) != 6
+      || yy < 1995 || mm < 1 || mm > 12 || dd < 1 || dd > 31
+      || hh < 0 || hh > 23 || mi < 0 || mi > 59 || ss < 0 || ss > 59 ) {
+    return 0;
+  }
+  date = MkTime( yy, mm, dd, hh, mi, ss );
+  return (date != static_cast<time_t>(-1));
+}
+
+//_____________________________________________________________________________
+static Int_t IsDBkey( const string& line, string& key, string& text )
+{
+  // Check if 'line' is of the form "key = value"
+  // - If there is no '=', then return 0.
+  // - If key found, parse the line, set 'text' to the whitespace-trimmed
+  //   text after the "=" and return +1.
+  //
+  // Note: By construction in ReadDBline, 'line' is not empty, any comments
+  // starting with '#' have been removed, and trailing whitespace has been
+  // trimmed. Also, all tabs have been converted to spaces.
+
+  // Search for "="
+  register const char* ln = line.c_str();
+  const char* eq = strchr(ln, '=');
+  if( !eq ) return 0;
+  // Extract the key
+  while( *ln == ' ' ) ++ln; // find_first_not_of(" ")
+  assert( ln <= eq );
+  if( ln == eq ) return -1;
+  register const char* p = eq-1;
+  assert( p >= ln );
+  while( *p == ' ' ) --p; // find_last_not_of(" ")
+  key = string(ln,p-ln+1);
+  // Extract the value, trimming leading whitespace.
+  ln = eq+1;
+  assert( !*ln || *(ln+strlen(ln)-1) != ' ' ); // Trailing space already trimmed
+  while( *ln == ' ' ) ++ln;
+  text = ln;
+
+  return 1;
 }
 
 //-----------------------------------------------------------------------------
-int RunDB::ReadDB( FILE* fi )
+int CopyFile::ReadDB( FILE* fi, time_t date )
 {
-  // Read run database
+  // Read keys/values from a file that is already in the new format.
+  // This routine is similar to THaAnalysisObject::LoadDBvalue, but it
+  // detects the key names and saves all key/value pairs.
 
-  //TODO
+  const size_t bufsiz = 256;
+  char* buf = new char[bufsiz];
+  string line;
+  time_t curdate = date;
+
+  // Extract and save the keys
+  while( THaAnalysisObject::ReadDBline(fi, buf, bufsiz, line) != EOF ) {
+    if( line.empty() ) continue;
+    string key, value;
+    if( IsDBkey(line, key, value) ) {
+      // cout << "CopyFile date/key/value:"
+      // 	   << format_time(curdate) << ", " << key << " = " << value << endl;
+
+      // TODO: add support for "text variables"?
+
+      // We can add this key/value pair to the database right away
+      AddToMap( key, value, curdate );
+    }
+    else if( IsDBdate(line, curdate) ) {
+      if( curdate < date )
+	cerr << "CopyFile: Warning, in-file timestamp "
+	     << format_time(curdate)
+	     << " less than directory timestamp "
+	     << format_time(date) << endl;
+      continue;
+    }
+  }
+
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-int RunDB::Save( const string& /*prefix*/, time_t /*start*/,
-		 const string& /*version*/ ) const
+int CopyFile::Save( const string& /*prefix*/, time_t /*start*/,
+		    const string& /*version*/ ) const
 {
-
+  // Nothing to do. All keys already saved in ReadDB.
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-int Cherenkov::ReadDB( FILE* fi )
+int Cherenkov::ReadDB( FILE* fi, time_t /* date */ )
 {
   // Read legacy Cherenkov database
 
   const char* const here = "ReadDatabase";
 
-  const int LEN = 100;
+  const int LEN = 256;
   char buf[LEN];
   Int_t nelem;
 
@@ -919,12 +1028,12 @@ int Cherenkov::ReadDB( FILE* fi )
 }
 
 //-----------------------------------------------------------------------------
-int Scintillator::ReadDB( FILE* fi )
+int Scintillator::ReadDB( FILE* fi, time_t date )
 {
   // Read legacy Scintillator database
 
   const char* const here = "ReadDatabase";
-  const int LEN = 200;
+  const int LEN = 256;
   char buf[LEN];
   Int_t nelem;
 
@@ -1043,8 +1152,8 @@ int Scintillator::ReadDB( FILE* fi )
   // comment line
   // ...etc.
   //
-  TDatime date; // TODO
-  if( THaAnalysisObject::SeekDBdate( fi, date ) == 0 && fConfig.Length() > 0 &&
+  TDatime datime(date);
+  if( THaAnalysisObject::SeekDBdate( fi, datime ) == 0 && fConfig.Length() > 0 &&
       THaAnalysisObject::SeekDBconfig( fi, fConfig.Data() )) {}
 
   while ( ReadComment( fi, buf, LEN ) ) {}
