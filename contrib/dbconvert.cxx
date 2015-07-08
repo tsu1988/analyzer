@@ -259,45 +259,19 @@ struct DBvalue {
 
 typedef multiset<DBvalue> ValSet_t;
 typedef map<string, ValSet_t > DB;
+typedef map<string, string> StrMap_t;
+typedef multimap<string, string> MStrMap_t;
 
 static DB gDB;
-
-//-----------------------------------------------------------------------------
-int AddToMap( const string& key, const string& value, time_t start,
-	      const string& version = string(), int max = 0 )
-{
-  // Add given key and value with given validity start time and optional
-  // "version" (secondary index) to the in-memory database.
-  // If value is empty, do nothing (for use with MakeValueUnless).
-
-  if( value.empty() )
-    return 0;
-
-  DBvalue val( value, start, version, max );
-  ValSet_t& vals = gDB[key];
-  // Find existing values with the exact timestamp of 'val' (='start')
-  pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
-  if( range.first != range.second ) {
-    for( ; range.first != range.second; ++range.first ) {
-      if( *(range.first) == val ) {
-	cerr << "Error: key " << key << " already exists for time "
-	     << format_time(start);
-	if( !version.empty() )
-	  cerr << " and version \"" << version << "\"";
-	cerr << endl;
-	return 1;
-      }
-    }
-  }
-  vals.insert(val);
-  return 0;
-}
+static StrMap_t gKeyToDet;
+static MStrMap_t gDetToKey;
 
 //-----------------------------------------------------------------------------
 void DumpMap( ostream& os = std::cout )
 {
   // Dump contents of the in-memory database to given output
 
+  os << "------ Dump of keys in gDB:" << endl;
   for( DB::const_iterator it = gDB.begin(); it != gDB.end(); ++it ) {
     DB::value_type item = *it;
     for( ValSet_t::const_iterator jt = item.second.begin();
@@ -309,6 +283,11 @@ void DumpMap( ostream& os = std::cout )
       os << ") = ";
       os << val.value << endl;
     }
+  }
+  os << "------ Dump of dets in gDetToKey:" << endl;
+  for( MStrMap_t::const_iterator it = gDetToKey.begin(); it != gDetToKey.end();
+       ++it ) {
+    os << it->first << ": " << it->second << endl;
   }
 }
 
@@ -338,6 +317,8 @@ public:
   virtual bool SupportsVariations()  const { return false; }
 
 protected:
+  virtual int AddToMap( const string& key, const string& value, time_t start,
+			const string& version = string(), int max = 0 ) const;
   // void DefineAxes( Double_t rot ) {
   //   fXax.SetXYZ( TMath::Cos(rot), 0.0, TMath::Sin(rot) );
   //   fYax.SetXYZ( 0.0, 1.0, 0.0 );
@@ -1315,6 +1296,49 @@ int Scintillator::Save( const string& prefix, time_t start,
     AddToMap( prefix+"retiming_offsets", MakeValue(fTrigOff,fNelem), start, version );
   }
 
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+int Detector::AddToMap( const string& key, const string& value, time_t start,
+			const string& version, int max ) const
+{
+  // Add given key and value with given validity start time and optional
+  // "version" (secondary index) to the in-memory database.
+  // If value is empty, do nothing (for use with MakeValueUnless).
+
+  if( value.empty() )
+    return 0;
+
+  // Ensure that each key can only be associated with one detector name
+  StrMap_t::iterator itn = gKeyToDet.find( key );
+  if( itn == gKeyToDet.end() ) {
+    gKeyToDet[key] = fName;
+    gDetToKey.insert( make_pair(fName,key) );
+  }
+  else if( itn->second != fName ) {
+      cerr << "Error: key " << key << " already previously found for "
+	   << "detector " << itn->second << ", now for " << fName << endl;
+      return 1;
+  }
+
+  DBvalue val( value, start, version, max );
+  ValSet_t& vals = gDB[key];
+  // Find existing values with the exact timestamp of 'val' (='start')
+  pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
+  if( range.first != range.second ) {
+    for( ; range.first != range.second; ++range.first ) {
+      if( *(range.first) == val ) {
+	cerr << "Error: key " << key << " already exists for time "
+	     << format_time(start);
+	if( !version.empty() )
+	  cerr << " and version \"" << version << "\"";
+	cerr << endl;
+	return 1;
+      }
+    }
+  }
+  vals.insert(val);
   return 0;
 }
 
