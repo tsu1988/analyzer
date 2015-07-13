@@ -45,7 +45,7 @@ using namespace std;
 #define ALL(c) (c).begin(), (c).end()
 
 // Command line parameter defaults
-static int do_debug = 0, verbose = 0;
+static int do_debug = 0, verbose = 0, do_file_copy = 1;
 static string srcdir;
 static string destdir;
 static const char* prgname = 0;
@@ -258,7 +258,14 @@ struct DBvalue {
 };
 
 typedef multiset<DBvalue> ValSet_t;
-typedef map<string, ValSet_t > DB;
+
+struct KeyAttr_t {
+  KeyAttr_t() : isCopy(false) {}
+  bool isCopy;
+  ValSet_t values;
+};
+
+typedef map<string, KeyAttr_t > DB;
 typedef map<string, string> StrMap_t;
 typedef multimap<string, string> MStrMap_t;
 
@@ -274,8 +281,8 @@ void DumpMap( ostream& os = std::cout )
   os << "------ Dump of keys in gDB:" << endl;
   for( DB::const_iterator it = gDB.begin(); it != gDB.end(); ++it ) {
     DB::value_type item = *it;
-    for( ValSet_t::const_iterator jt = item.second.begin();
-	 jt != item.second.end(); ++jt ) {
+    for( ValSet_t::const_iterator jt = item.second.values.begin();
+	 jt != item.second.values.end(); ++jt ) {
       const DBvalue& val = *jt;
       os << item.first << " (" << format_time(val.validity_start);
       if( !val.version.empty() )
@@ -297,7 +304,7 @@ int CleanupMap()
   // Remove duplicate entries for the same key and consecutive timestamps
 
   for( DB::iterator it = gDB.begin(); it != gDB.end(); ++it ) {
-    ValSet_t& vals = it->second;
+    ValSet_t& vals = it->second.values;
     ValSet_t::iterator jt = vals.begin();
     while( jt != vals.end() ) {
       ValSet_t::iterator kt = jt;
@@ -366,11 +373,18 @@ protected:
 
 class CopyFile : public Detector {
 public:
-  CopyFile( const string& name ) : Detector(name) {}
+  CopyFile( const string& name, bool doingFileCopy = true )
+    : Detector(name), fDoingFileCopy(doingFileCopy) {}
 
   virtual int ReadDB( FILE* infile, time_t date );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "CopyFile"; }
+
+protected:
+  virtual int AddToMap( const string& key, const string& value, time_t start,
+			const string& version = string(), int max = 0 ) const;
+
+  bool fDoingFileCopy; // If true, mark DB values with isCopy = true
 };
 
 //-----------------------------------------------------------------------------
@@ -442,7 +456,7 @@ static Detector* MakeDetector( EDetectorType type, const string& name )
   case kKeep:
     return 0;
   case kCopyFile:
-    return new CopyFile(name);
+    return new CopyFile(name,do_file_copy);
   case kCherenkov:
     return new Cherenkov(name);
   case kScintillator:
@@ -800,8 +814,14 @@ int main( int argc, const char** argv )
 	cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
       else {
 	cout << "Read " << path << endl;
+	//TODO: support variations
 	det->Save( date );
       }
+    }
+
+    // Copy any new-format database files
+    if( type == kCopyFile ) {
+
     }
 
   next:
@@ -932,7 +952,7 @@ int CopyFile::ReadDB( FILE* fi, time_t date )
       if( curdate < date )
 	cerr << "CopyFile: Warning, in-file timestamp "
 	     << format_time(curdate)
-	     << " less than directory timestamp "
+	     << " earlier than directory timestamp "
 	     << format_time(date) << endl;
       continue;
     }
@@ -1338,7 +1358,7 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
   // Ensure that each key can only be associated with one detector name
   StrMap_t::iterator itn = gKeyToDet.find( key );
   if( itn == gKeyToDet.end() ) {
-    gKeyToDet[key] = fName;
+    gKeyToDet.insert( make_pair(key,fName) );
     gDetToKey.insert( make_pair(fName,key) );
   }
   else if( itn->second != fName ) {
@@ -1348,7 +1368,7 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
   }
 
   DBvalue val( value, start, version, max );
-  ValSet_t& vals = gDB[key];
+  ValSet_t& vals = gDB[key].values;
   // Find existing values with the exact timestamp of 'val' (='start')
   pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
   if( range.first != range.second ) {
@@ -1364,6 +1384,21 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
     }
   }
   vals.insert(val);
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+int CopyFile::AddToMap( const string& key, const string& value, time_t start,
+			const string& version, int max ) const
+{
+  int err = Detector::AddToMap(key, value, start, version, max);
+  if( err )
+    return err;
+
+  if( fDoingFileCopy ) {
+    KeyAttr_t& attr = gDB[key];
+    attr.isCopy = true;
+  }
   return 0;
 }
 
