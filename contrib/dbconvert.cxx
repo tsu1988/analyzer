@@ -718,13 +718,16 @@ public:
   {
     string fpath = MakePath( dir, fname );
     const char* cpath = fpath.c_str();
+    time_t date;
     struct stat sb;
+
     if( lstat(cpath, &sb) ) {
       perror(cpath);
       return 1;
     }
-    // Regular files matching db_*.dat
-    if( S_ISREG(sb.st_mode) && (IsDBFileName(fname) || fDoAll) ) {
+    // Non-directory (regular, links) files matching db_*.dat or a subdirectory name
+    if( !S_ISDIR(sb.st_mode) && (fDoAll || IsDBFileName(fname) ||
+				IsDBSubDir(fname,date)) ) {
       //      cout << "Would delete " << cpath << endl;
       if( unlink(cpath) ) {
       	perror(cpath);
@@ -735,7 +738,6 @@ public:
 
     // Recurse down one level into valid subdirectories ("YYYYMMDD" and "DEFAULT")
     else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
-      time_t date;
       if( IsDBSubDir(fname,date) ) {
 	// Complete wipe all date-coded subdirectories, otherwise the logic in
 	// THaAnalsysisObject::GetDBFileList may not work correctly. That function finds
