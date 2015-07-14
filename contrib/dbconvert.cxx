@@ -26,6 +26,7 @@
 #include <sys/stat.h> // for stat/lstat
 #include <dirent.h>   // for opendir/readdir
 #include <cctype>     // for isdigit, tolower
+#include <cerrno>
 
 #include "TString.h"
 #include "TDatime.h"
@@ -45,7 +46,8 @@ using namespace std;
 #define ALL(c) (c).begin(), (c).end()
 
 // Command line parameter defaults
-static int do_debug = 0, verbose = 0, do_file_copy = 1;
+static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 1;
+static int do_clean = 0, do_verify = 1;
 static string srcdir;
 static string destdir;
 static const char* prgname = 0;
@@ -58,6 +60,10 @@ static struct poptOption options[] = {
   { "debug",    'd', POPT_ARG_VAL,    &do_debug, 1, 0, 0  },
   { "mapfile",  'm', POPT_ARG_STRING, &mapfile,  0, 0, 0  },
   // "detlist", 'l', ... // list of wildcards of detector names
+  { "preserve-subdirs",    's', POPT_ARG_VAL,    &do_subdirs, 1, 0, 0  },
+  { "no-preserve-subdirs", 0, POPT_ARG_VAL,    &do_subdirs, 0, 0, 0  },
+  { "clean",     0, POPT_ARG_VAL,    &do_clean, 1, 0, 0  },
+  { "no-verify", 0, POPT_ARG_VAL,    &do_verify, 0, 0, 0  },
   POPT_TABLEEND
 };
 
@@ -128,7 +134,7 @@ void getargs( int argc, const char** argv )
 
   const char* arg = poptGetArg(pc);
   if( !arg ) {
-    cerr << "Error: Must specify SRC_DIR" << endl;
+    cerr << "Error: Must specify SRC_DIR and DEST_DIR" << endl;
     usage(pc);
   }
   srcdir = arg;
@@ -602,60 +608,220 @@ static inline string GetDetName( const string& fname )
 }
 
 //-----------------------------------------------------------------------------
-static int GetFilenames( const string& srcdir, const time_t srcdir_start_time,
-			 vector<Filenames_t>& filenames, int depth = 0 )
+template<typename Action>
+static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
 {
-  // Get a list of all database files, based on Podd's search order rules.
-  // Keep timestamps info with each file. Reading files from the current
-  // directory must be explicitly requested, though.
+  errno = 0;
+
+  if( sdir.empty() )
+    return 0;
 
   // Open given directory
-  assert( !srcdir.empty() );
-  bool need_slash = (*srcdir.rbegin() != '/');
-  DIR* dir = opendir(srcdir.c_str());
-  if( !dir ) {
-    stringstream ss("Error opening source directory ",ios::out|ios::app);
-    ss << srcdir;
+  const char* cdir = sdir.c_str();
+  DIR* dir = opendir(cdir);
+  if( !dir || errno ) {
+    stringstream ss("Error opening ",ios::out|ios::app);
+    //    ss << action.GetDescription();
+    ss << sdir;
     perror(ss.str().c_str());
     return 1;
   }
 
-  // Examine the directory's contents
-  size_t len = offsetof(struct dirent, d_name) +
-    pathconf(srcdir.c_str(), _PC_NAME_MAX) + 1;
-  struct dirent* ent = (struct dirent*)malloc(len), *result;
+  // Loop over all directory entries and pass their names to action
+  size_t len = offsetof(struct dirent, d_name) + pathconf(cdir, _PC_NAME_MAX) + 1;
+  struct dirent *ent = (struct dirent*)malloc(len), *result;
   int err;
-  while( (err = readdir_r(dir,ent,&result)) == 0 && result != 0 ) {
-    // Skip trivial file names
-    string fname( result->d_name );
-    if( fname.empty() || fname == "." || fname == ".." )
-      continue;
+  bool unfinished;
+  do {
+    unfinished = false;
+    while( (err = readdir_r(dir,ent,&result)) == 0 && result != 0 ) {
+      // Skip trivial file names
+      string fname(result->d_name);
+      if( fname.empty() || fname == "." || fname == ".." )
+	continue;
 
-    // Build full directory path and get the file attributes
-    string fpath( srcdir );
-    if( need_slash )
-      fpath += '/';
-    fpath.append( fname );
+      // Operate on the name
+      if( (err = action(sdir, fname, depth)) )
+	break;
+    }
+    if( action.MustRewind() ) {
+      rewinddir(dir);
+      unfinished = true;
+    }
+  } while( unfinished );
+
+  free(ent);
+  closedir(dir);
+  return err;
+}
+
+//-----------------------------------------------------------------------------
+static inline string MakePath( const string& dir, const string& fname )
+{
+  bool need_slash = (*dir.rbegin() != '/');
+  string fpath(dir);
+  if( need_slash ) fpath += '/';
+  fpath.append(fname);
+  return fpath;
+}
+
+//-----------------------------------------------------------------------------
+class CopyDBFileName {
+public:
+  CopyDBFileName( vector<Filenames_t>& filenames, vector<string>& subdirs,
+		  const time_t start_time )
+    : fFilenames(filenames), fSubdirs(subdirs), fStart(start_time) {}
+
+  int operator() ( const string& dir, const string& fname, int depth )
+  {
+    string fpath = MakePath( dir, fname );
+    const char* cpath = fpath.c_str();
     struct stat sb;
-    lstat( fpath.c_str(), &sb );
+    if( lstat(cpath, &sb) || errno ) {
+      perror(cpath);
+      return 1;
+    }
 
     // Record files whose names match db_*.dat
     if( S_ISREG(sb.st_mode) && IsDBFileName(fname) ) {
-      filenames.push_back( Filenames_t(fpath,srcdir_start_time) );
+      fFilenames.push_back( Filenames_t(fpath,fStart) );
     }
 
     // Recurse down one level into valid subdirectories ("YYYYMMDD" and "DEFAULT")
     else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
       time_t date;
       if( IsDBSubDir(fname,date) ) {
-	err = GetFilenames( fpath, date, filenames, depth+1 );
-	if( err ) goto exit;
+ 	vector<Filenames_t>::size_type n_before = fFilenames.size();
+ 	if( ForAllFilesInDir(fpath, CopyDBFileName(fFilenames,fSubdirs,date),
+			     depth+1) )
+	  return 2;
+ 	if( fFilenames.size() > n_before )
+ 	  fSubdirs.push_back(fname);
       }
     }
+    return 0;
   }
- exit:
-  free(ent);
-  closedir(dir);
+  bool MustRewind() { return false; }
+private:
+  vector<Filenames_t>& fFilenames;
+  vector<string>&      fSubdirs;
+  time_t               fStart;
+};
+
+//-----------------------------------------------------------------------------
+class DeleteDBFile {
+public:
+  DeleteDBFile() : fMustRewind(false) {}
+  int operator() ( const string& dir, const string& fname, int depth )
+  {
+    string fpath = MakePath( dir, fname );
+    const char* cpath = fpath.c_str();
+    struct stat sb;
+    if( lstat(cpath, &sb) ) {
+      perror(cpath);
+      return 1;
+    }
+    // Regular files matching db_*.dat
+    if( S_ISREG(sb.st_mode) && IsDBFileName(fname) ) {
+      //      cout << "Would delete " << cpath << endl;
+      if( unlink(cpath) ) {
+      	perror(cpath);
+      	return 2;
+      }
+      fMustRewind = true;
+    }
+
+    // Recurse down one level into valid subdirectories ("YYYYMMDD" and "DEFAULT")
+    else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
+      time_t date;
+      if( IsDBSubDir(fname,date) ) {
+ 	if( ForAllFilesInDir(fpath, DeleteDBFile(), depth+1) )
+	  return 2;
+	int err;
+	if( (err = rmdir(cpath)) && errno != ENOTEMPTY ) {
+	  perror(cpath);
+	  return 2;
+	}
+	if( !err )
+	  fMustRewind = true;
+      }
+    }
+    return 0;
+  }
+  bool MustRewind()
+  { if( fMustRewind ) { fMustRewind = false; return true; } else return false; }
+private:
+  bool fMustRewind;
+};
+
+//-----------------------------------------------------------------------------
+static int GetFilenames( const string& srcdir, const time_t start_time,
+			 vector<Filenames_t>& filenames, vector<string>& subdirs )
+{
+  // Get a list of all database files, based on Podd's search order rules.
+  // Keep timestamps info with each file. Reading files from the current
+  // directory must be explicitly requested, though.
+
+  assert( !srcdir.empty() );
+
+  return ForAllFilesInDir( srcdir, CopyDBFileName(filenames, subdirs, start_time) );
+
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int MakeSubdirs( const string& topdir, const vector<string>& subdirs )
+{
+  // Check for subdirectories 'subdirs' in 'topdir' and create them if
+  // necessary. If command line option do_clean is true, remove all
+  // database files and subdirectories from 'topdir' first.
+
+  assert( !topdir.empty() );
+
+  // If requested, remove any existing database files and directories
+  if( do_clean ) {
+    if( do_verify ) {
+    }
+    ForAllFilesInDir( topdir, DeleteDBFile() );
+  }
+
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int CheckDir( const string& path, bool writable )
+{
+  // Check if 'dir' exists and is readable. If 'writable' is true, also
+  // check if it is writable. Print error if any test fails.
+
+  errno = 0;
+
+  if( path.empty() ) {
+    cerr << "Empty directory name" << endl;
+    return -1;
+  }
+
+  struct stat sb;
+  const char* cpath = path.c_str();
+  int mode = R_OK|X_OK;
+  if( writable )  mode |= W_OK;
+
+  if( lstat(cpath,&sb) || errno ) {
+    goto doerr;
+  }
+  if( !S_ISDIR(sb.st_mode) ) {
+    cerr << path << " is not a directory" << endl;
+    return 2;
+  }
+  if( access(cpath,mode) || errno ) {
+  doerr:
+    stringstream ss("Error opening directory ",ios::out|ios::app);
+    ss << path;
+    if( writable )
+      ss << " for writing";
+    perror(ss.str().c_str());
+    return 1;
+  }
   return 0;
 }
 
@@ -739,21 +905,26 @@ int main( int argc, const char** argv )
   // Parse command line
   getargs(argc,argv);
 
+  // Check if destdir exists and can be written to
+  if( CheckDir(destdir, true) )
+    exit(3);
+
   // Read the detector name mapping file. If unavailable, set up defaults.
-  Int_t err;
   if( mapfile ) {
-    err = ReadMapfile(mapfile);
-    if( err )
-      exit(3);  // Error message already printed
+    if( ReadMapfile(mapfile) )
+      exit(5);  // Error message already printed
   } else {
     DefaultMap();
   }
 
   // Get list of all database files to convert
   vector<Filenames_t> filenames;
-  err = GetFilenames( srcdir, 0, filenames );
-  if( err )
+  vector<string> subdirs;
+  if( GetFilenames(srcdir, 0, filenames, subdirs) )
     exit(4);  // Error message already printed
+
+  if( do_subdirs && MakeSubdirs(destdir, subdirs) )
+    exit(6);
 
   // Assign a parser to each database file, based on the name mapping info.
   // Let the parsers translate each file to database keys.
@@ -790,8 +961,8 @@ int main( int argc, const char** argv )
     vector<time_t> timestamps(1,filenames[i].val_start);
     vector<string> variations;
     if( det->SupportsTimestamps() ) {
-      err = ParseTimestamps( fi, timestamps );
-      if( err ) goto next;
+      if( ParseTimestamps(fi, timestamps) )
+	goto next;
       if( timestamps.size() > 1 ) {
 	sort( ALL(timestamps) );
 	if( timestamps[0] < filenames[i].val_start ) {
@@ -802,15 +973,14 @@ int main( int argc, const char** argv )
       }
     }
     if( det->SupportsVariations() ) {
-      err = ParseVariations( fi, variations );
-      if( err ) goto next;
+      if( ParseVariations(fi, variations) )
+	goto next;
     }
 
     for( vector<time_t>::size_type it = 0; it < timestamps.size(); ++it ) {
       time_t date = timestamps[it];
       rewind(fi);
-      err = det->ReadDB(fi,date);
-      if( err )
+      if( det->ReadDB(fi,date) )
 	cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
       else {
 	cout << "Read " << path << endl;
@@ -819,8 +989,8 @@ int main( int argc, const char** argv )
       }
     }
 
-    // Copy any new-format database files
-    if( type == kCopyFile ) {
+    // Save names of new-format database files to be copied
+    if( do_file_copy && type == kCopyFile ) {
 
     }
 
