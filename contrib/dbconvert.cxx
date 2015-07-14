@@ -726,9 +726,8 @@ public:
       return 1;
     }
     // Non-directory (regular, links) files matching db_*.dat or a subdirectory name
-    if( !S_ISDIR(sb.st_mode) && (fDoAll || IsDBFileName(fname) ||
-				IsDBSubDir(fname,date)) ) {
-      //      cout << "Would delete " << cpath << endl;
+    if( !S_ISDIR(sb.st_mode) &&
+	(fDoAll || IsDBFileName(fname) || IsDBSubDir(fname,date)) ) {
       if( unlink(cpath) ) {
       	perror(cpath);
       	return 2;
@@ -736,9 +735,9 @@ public:
       fMustRewind = true;
     }
 
-    // Recurse down one level into valid subdirectories ("YYYYMMDD" and "DEFAULT")
-    else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
-      if( IsDBSubDir(fname,date) ) {
+    // Recurse down into valid subdirectories ("YYYYMMDD" and "DEFAULT")
+    else if( S_ISDIR(sb.st_mode) ) {
+      if( depth > 0 || IsDBSubDir(fname,date) ) {
 	// Complete wipe all date-coded subdirectories, otherwise the logic in
 	// THaAnalsysisObject::GetDBFileList may not work correctly. That function finds
 	// the closest-matching date-coded directory and then assumes that the
