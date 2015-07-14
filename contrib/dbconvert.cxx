@@ -47,7 +47,7 @@ using namespace std;
 
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 1;
-static int do_clean = 0, do_verify = 1;
+static int do_clean = 1, do_verify = 1;
 static string srcdir;
 static string destdir;
 static const char* prgname = 0;
@@ -62,7 +62,7 @@ static struct poptOption options[] = {
   // "detlist", 'l', ... // list of wildcards of detector names
   { "preserve-subdirs",    's', POPT_ARG_VAL,    &do_subdirs, 1, 0, 0  },
   { "no-preserve-subdirs", 0, POPT_ARG_VAL,    &do_subdirs, 0, 0, 0  },
-  { "clean",     0, POPT_ARG_VAL,    &do_clean, 1, 0, 0  },
+  { "no-clean",  0, POPT_ARG_VAL,    &do_clean, 0, 0, 0  },
   { "no-verify", 0, POPT_ARG_VAL,    &do_verify, 0, 0, 0  },
   POPT_TABLEEND
 };
@@ -639,11 +639,13 @@ static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
       string fname(result->d_name);
       if( fname.empty() || fname == "." || fname == ".." )
 	continue;
-
       // Operate on the name
       if( (err = action(sdir, fname, depth)) )
 	break;
     }
+    // In case 'action' caused the directory contents to change, rewind the
+    // directory and scan it again (needed on MacOS HFS file systems, perhaps
+    // elsewhere too)
     if( action.MustRewind() ) {
       rewinddir(dir);
       unfinished = true;
@@ -711,7 +713,7 @@ private:
 //-----------------------------------------------------------------------------
 class DeleteDBFile {
 public:
-  DeleteDBFile() : fMustRewind(false) {}
+  DeleteDBFile( bool do_all = false ) : fDoAll(do_all), fMustRewind(false) {}
   int operator() ( const string& dir, const string& fname, int depth )
   {
     string fpath = MakePath( dir, fname );
@@ -722,7 +724,7 @@ public:
       return 1;
     }
     // Regular files matching db_*.dat
-    if( S_ISREG(sb.st_mode) && IsDBFileName(fname) ) {
+    if( S_ISREG(sb.st_mode) && (IsDBFileName(fname) || fDoAll) ) {
       //      cout << "Would delete " << cpath << endl;
       if( unlink(cpath) ) {
       	perror(cpath);
@@ -735,7 +737,13 @@ public:
     else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
       time_t date;
       if( IsDBSubDir(fname,date) ) {
- 	if( ForAllFilesInDir(fpath, DeleteDBFile(), depth+1) )
+	// Complete wipe all date-coded subdirectories, otherwise the logic in
+	// THaAnalsysisObject::GetDBFileList may not work correctly. That function finds
+	// the closest-matching date-coded directory and then assumes that the
+	// requested file is in that directory. This logic may fail if a closer-matching
+	// directory exists in the target than in the source for a certain timestamp.
+	bool delete_all = (fname != "DEFAULT");
+ 	if( ForAllFilesInDir(fpath, DeleteDBFile(delete_all), depth+1) )
 	  return 2;
 	int err;
 	if( (err = rmdir(cpath)) && errno != ENOTEMPTY ) {
@@ -751,6 +759,7 @@ public:
   bool MustRewind()
   { if( fMustRewind ) { fMustRewind = false; return true; } else return false; }
 private:
+  bool fDoAll;
   bool fMustRewind;
 };
 
@@ -765,25 +774,6 @@ static int GetFilenames( const string& srcdir, const time_t start_time,
   assert( !srcdir.empty() );
 
   return ForAllFilesInDir( srcdir, CopyDBFileName(filenames, subdirs, start_time) );
-
-  return 0;
-}
-
-//-----------------------------------------------------------------------------
-static int MakeSubdirs( const string& topdir, const vector<string>& subdirs )
-{
-  // Check for subdirectories 'subdirs' in 'topdir' and create them if
-  // necessary. If command line option do_clean is true, remove all
-  // database files and subdirectories from 'topdir' first.
-
-  assert( !topdir.empty() );
-
-  // If requested, remove any existing database files and directories
-  if( do_clean ) {
-    if( do_verify ) {
-    }
-    ForAllFilesInDir( topdir, DeleteDBFile() );
-  }
 
   return 0;
 }
@@ -806,22 +796,69 @@ static int CheckDir( const string& path, bool writable )
   int mode = R_OK|X_OK;
   if( writable )  mode |= W_OK;
 
-  if( lstat(cpath,&sb) || errno ) {
-    goto doerr;
+  if( lstat(cpath,&sb) ) {
+    return 1;
   }
   if( !S_ISDIR(sb.st_mode) ) {
     cerr << path << " is not a directory" << endl;
     return 2;
   }
-  if( access(cpath,mode) || errno ) {
-  doerr:
-    stringstream ss("Error opening directory ",ios::out|ios::app);
-    ss << path;
-    if( writable )
-      ss << " for writing";
-    perror(ss.str().c_str());
+  if( access(cpath,mode) ) {
+    return 3;
+  }
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int PrepareOutputDir( const string& topdir, const vector<string>& subdirs )
+{
+  // Create subdirectories 'subdirs' in 'topdir'.
+  // Unless --no-clean is given, remove all database files and subdirectories
+  // from 'topdir' first.
+
+  assert( !topdir.empty() );
+
+  const mode_t mode = 0775; // Default mode for directories
+  const char* ctop = topdir.c_str();
+
+  // Check if target directory exists and can be written to
+  int err = CheckDir(topdir, true);
+  if( err != 0 && err != 1 ) {
+    perror(ctop);
     return 1;
   }
+  if( err == 1 && mkdir(ctop,mode) ) {
+    perror(ctop);
+    return 2;
+  }
+  bool top_existed = ( err == 0 );
+    
+  // If requested, remove any existing database files and time-stamp directories
+  if( do_clean && top_existed ) {
+    bool do_delete = true;
+    if( do_verify ) {
+      cout << "Really delete all database files in \'" << topdir << "\'? " << flush;
+      char c;
+      cin >> c;
+      if( c != 'y' && c != 'Y' )
+	do_delete = false;
+    }
+    if( do_delete ) {
+      if( ForAllFilesInDir(topdir, DeleteDBFile()) )
+	return 3;
+    }
+  }
+
+  // Create requested subdirectories
+  for( vector<string>::size_type i = 0; i < subdirs.size(); ++i ) {
+    string path = MakePath( topdir, subdirs[i] );
+    const char* cpath = path.c_str();
+    if( mkdir(cpath,mode) && errno != EEXIST ) {
+      perror(cpath);
+      return 4;
+    }
+  }
+
   return 0;
 }
 
@@ -905,10 +942,6 @@ int main( int argc, const char** argv )
   // Parse command line
   getargs(argc,argv);
 
-  // Check if destdir exists and can be written to
-  if( CheckDir(destdir, true) )
-    exit(3);
-
   // Read the detector name mapping file. If unavailable, set up defaults.
   if( mapfile ) {
     if( ReadMapfile(mapfile) )
@@ -923,7 +956,7 @@ int main( int argc, const char** argv )
   if( GetFilenames(srcdir, 0, filenames, subdirs) )
     exit(4);  // Error message already printed
 
-  if( do_subdirs && MakeSubdirs(destdir, subdirs) )
+  if( PrepareOutputDir(destdir, subdirs) )
     exit(6);
 
   // Assign a parser to each database file, based on the name mapping info.
