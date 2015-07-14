@@ -779,7 +779,7 @@ static int GetFilenames( const string& srcdir, const time_t start_time,
 }
 
 //-----------------------------------------------------------------------------
-static int CheckDir( const string& path, bool writable )
+static int CheckDir( string path, bool writable )
 {
   // Check if 'dir' exists and is readable. If 'writable' is true, also
   // check if it is writable. Print error if any test fails.
@@ -791,6 +791,11 @@ static int CheckDir( const string& path, bool writable )
     return -1;
   }
 
+  // Chop trailing '/' from the directory name
+  while( !path.empty() && *path.rbegin() == '/' ) {
+    path.erase( path.size()-1 );
+  }
+
   struct stat sb;
   const char* cpath = path.c_str();
   int mode = R_OK|X_OK;
@@ -800,7 +805,6 @@ static int CheckDir( const string& path, bool writable )
     return 1;
   }
   if( !S_ISDIR(sb.st_mode) ) {
-    cerr << path << " is not a directory" << endl;
     return 2;
   }
   if( access(cpath,mode) ) {
@@ -823,13 +827,22 @@ static int PrepareOutputDir( const string& topdir, const vector<string>& subdirs
 
   // Check if target directory exists and can be written to
   int err = CheckDir(topdir, true);
-  if( err != 0 && err != 1 ) {
+  switch( err ) {
+  case 0:
+    break;
+  case 1: 
+    if( mkdir(ctop,mode) ) {
+      perror(ctop);
+      return 2;
+    }
+    break;
+  case 2:
+    cerr << "Output destination " << topdir << " exists but is not a directory. "
+	 << "Move it out of the way." << endl;
+    return 1;
+  default:
     perror(ctop);
     return 1;
-  }
-  if( err == 1 && mkdir(ctop,mode) ) {
-    perror(ctop);
-    return 2;
   }
   bool top_existed = ( err == 0 );
     
