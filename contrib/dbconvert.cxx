@@ -19,6 +19,7 @@
 #include <ctime>
 #include <map>
 #include <set>
+#include <limits>
 #include <utility>
 #include <iterator>
 #include <cassert>
@@ -329,9 +330,72 @@ int CleanupMap()
 }
 
 //-----------------------------------------------------------------------------
-int WriteMap( const string& /*target_dir*/ )
+int WriteMap( const string& target_dir, const vector<string>& subdirs )
 {
+  // TODO: continue here ...
 
+  typedef MStrMap_t::const_iterator iter_t;
+  typedef set<time_t>::iterator siter_t;
+
+  for( iter_t it = gDetToKey.begin(); it != gDetToKey.end(); ) {
+    const string& det = it->first;
+    pair<iter_t,iter_t> range = gDetToKey.equal_range(det);
+
+    // Get all timestamps for this detector
+    set<time_t> tstamps;
+    for( iter_t dt = range.first; dt != range.second; ++dt ) {
+      const string& key = dt->second;
+      DB::const_iterator jt = gDB.find( key );
+      assert( jt != gDB.end() );
+      const KeyAttr_t& attr = jt->second;
+      if( attr.isCopy )
+	continue;
+      const ValSet_t& vals = attr.values;
+      for( ValSet_t::const_iterator vt = vals.begin(); vt != vals.end();
+	   ++vt ) {
+	tstamps.insert( vt->validity_start );
+      }
+    }
+    if( tstamps.empty() ) {
+      it = range.second;
+      continue;
+    }
+
+    // Write keys for applicable time ranges
+    cout << "=== File: db_" << det << ".dat" << endl << endl;
+
+    pair<siter_t,bool> ins = tstamps.insert( numeric_limits<time_t>::max() );
+    for( siter_t tt = tstamps.begin(); tt != ins.first; ) {
+      time_t from = *tt, until = *(++tt);
+      bool header_done = false;
+      for( iter_t dt = range.first; dt != range.second; ++dt ) {
+	const string& key = dt->second;
+	DB::const_iterator jt = gDB.find( key );
+	assert( jt != gDB.end() );
+	const KeyAttr_t& attr = jt->second;
+	if( attr.isCopy )
+	  continue;
+	if( !header_done ) {
+	  cout << "--- timestamp: " << format_time(from) << endl << endl;
+	  header_done = true;
+	}
+	const ValSet_t& vals = attr.values;
+	for( ValSet_t::const_iterator vt = vals.begin(); vt != vals.end(); ++vt ) {
+	  time_t start = vt->validity_start;
+	  if( start > until )
+	    break;
+	  if( from <= start && start < until ) {
+	    cout << key << " = " << vt->value << endl;
+	    // By construction of the tstamps set, there will only ever be either
+	    // zero or one value within a time range, so we can break here
+	    break;
+	  }
+	}
+      }
+      cout << endl;
+    }
+    it = range.second;
+  }
   return 0;
 }
 
@@ -831,7 +895,7 @@ static int PrepareOutputDir( const string& topdir, const vector<string>& subdirs
   switch( err ) {
   case 0:
     break;
-  case 1: 
+  case 1:
     if( mkdir(ctop,mode) ) {
       perror(ctop);
       return 2;
@@ -846,7 +910,7 @@ static int PrepareOutputDir( const string& topdir, const vector<string>& subdirs
     return 1;
   }
   bool top_existed = ( err == 0 );
-    
+
   // If requested, remove any existing database files and time-stamp directories
   if( do_clean && top_existed ) {
     bool do_delete = true;
@@ -1062,7 +1126,7 @@ int main( int argc, const char** argv )
 
   DumpMap();
 
-  WriteMap(destdir);
+  WriteMap(destdir,subdirs);
 
   return 0;
 }
