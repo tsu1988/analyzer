@@ -22,6 +22,7 @@
 #include <limits>
 #include <utility>
 #include <iterator>
+#include <algorithm>
 #include <cassert>
 #include <sys/types.h>
 #include <sys/stat.h> // for stat/lstat
@@ -47,7 +48,7 @@ using namespace std;
 #define ALL(c) (c).begin(), (c).end()
 
 // Command line parameter defaults
-static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 1;
+static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
 static int do_clean = 1, do_verify = 1;
 static string srcdir;
 static string destdir;
@@ -187,6 +188,53 @@ static inline string format_time( time_t t )
 }
 
 //-----------------------------------------------------------------------------
+static inline string MakePath( const string& dir, const string& fname )
+{
+  bool need_slash = (*dir.rbegin() != '/');
+  string fpath(dir);
+  if( need_slash ) fpath += '/';
+  fpath.append(fname);
+  return fpath;
+}
+
+//-----------------------------------------------------------------------------
+static inline bool IsDBFileName( const string& fname )
+{
+  return (fname.size() > 7 && fname.substr(0,3) == "db_" &&
+	  fname.substr(fname.size()-4,4) == ".dat" );
+}
+
+//-----------------------------------------------------------------------------
+static inline bool IsDBSubDir( const string& fname, time_t& date )
+{
+  // Check if the given file name corresponds to a database subdirectory.
+  // Subdirectories have filenames of the form "YYYYMMDD" and "DEFAULT".
+  // If so, extract its encoded time stamp to 'date'
+
+  if( fname == "DEFAULT" ) {
+    date = 0;
+    return true;
+  }
+  if( fname.size() != 8 )
+    return false;
+
+  ssiz_t pos = 0;
+  for( ; pos<8; ++pos )
+    if( !isdigit(fname[pos])) break;
+  if( pos != 8 )
+    return false;
+
+  // Convert date encoded in directory name to time_t
+  int year  = atoi( fname.substr(0,4).c_str() );
+  int month = atoi( fname.substr(4,2).c_str() );
+  int day   = atoi( fname.substr(6,2).c_str() );
+  if( year < 1900 || month == 0 || month > 12 || day > 31 || day < 1 )
+    return false;
+  date = MkTime( year, month, day, 0, 0, 0 );
+  return ( date != static_cast<time_t>(-1) );
+}
+
+//-----------------------------------------------------------------------------
 template <class T> string MakeValue( const T* array, int size = 0 )
 {
   ostringstream ostr;
@@ -275,6 +323,7 @@ struct KeyAttr_t {
 typedef map<string, KeyAttr_t > DB;
 typedef map<string, string> StrMap_t;
 typedef multimap<string, string> MStrMap_t;
+typedef MStrMap_t::const_iterator iter_t;
 
 static DB gDB;
 static StrMap_t gKeyToDet;
@@ -330,16 +379,76 @@ int CleanupMap()
 }
 
 //-----------------------------------------------------------------------------
+static void WriteAllKeysForTime( const iter_t& begin, const iter_t& end,
+				 time_t tstamp, bool find_first = false )
+{
+  bool header_done = false;
+  DBvalue tstamp_val(string(),tstamp);
+  for( iter_t dt = begin; dt != end; ++dt ) {
+    const string& key = dt->second;
+    DB::const_iterator jt = gDB.find( key );
+    assert( jt != gDB.end() );
+    const KeyAttr_t& attr = jt->second;
+    if( attr.isCopy )
+      continue;
+    const ValSet_t& vals = attr.values;
+
+    ValSet_t::const_iterator vt;
+    if( find_first ) {
+      // Find the last element that is not greater than tstamp
+      vt = vals.upper_bound(tstamp_val);
+      if( vt == vals.begin() )
+	continue;
+      --vt;
+    } else {
+      // Find the exact tstamp
+      vt = vals.find(tstamp_val);
+      if( vt == vals.end() )
+	continue;
+    }
+
+    if( !header_done ) {
+      if( tstamp > 0 )
+	cout << "--- timestamp: " << format_time(tstamp) << endl << endl;
+      header_done = true;
+    }
+
+    cout << key << " = " << vt->value << endl;
+  }
+  cout << endl;
+}
+
+//-----------------------------------------------------------------------------
 int WriteMap( const string& target_dir, const vector<string>& subdirs )
 {
-  // TODO: continue here ...
+  // Write all accumulated database keys in gDB to files in 'target_dir'.
+  // If --preserve-subdirs was specified, split the information over
+  // the date-coded directories in 'subdirs'.
 
-  typedef MStrMap_t::const_iterator iter_t;
   typedef set<time_t>::iterator siter_t;
+
+  set<time_t> dir_times;
+  map<time_t,string> dir_names;
+  if( !do_subdirs || subdirs.empty() ) {
+    dir_times.insert(0);
+    dir_names.insert(make_pair(0,target_dir));
+  } else {
+    for( vector<string>::size_type i = 0; i < subdirs.size(); ++i ) {
+      time_t date;
+#ifdef NDEBUG
+      IsDBSubDir(subdirs[i],date);
+#else
+      assert( IsDBSubDir(subdirs[i],date) );
+#endif
+      dir_times.insert(date);
+      dir_names.insert( make_pair(date, MakePath(target_dir,subdirs[i])) );
+    }
+  }
+  siter_t lastdt = dir_times.insert( numeric_limits<time_t>::max() ).first;
 
   for( iter_t it = gDetToKey.begin(); it != gDetToKey.end(); ) {
     const string& det = it->first;
-    pair<iter_t,iter_t> range = gDetToKey.equal_range(det);
+    pair<iter_t,iter_t> range = gDetToKey.equal_range( det );
 
     // Get all timestamps for this detector
     set<time_t> tstamps;
@@ -360,39 +469,25 @@ int WriteMap( const string& target_dir, const vector<string>& subdirs )
       it = range.second;
       continue;
     }
+    //    siter_t lastt = tstamps.insert( numeric_limits<time_t>::max() ).first;
 
-    // Write keys for applicable time ranges
-    cout << "=== File: db_" << det << ".dat" << endl << endl;
+    for( siter_t dt = dir_times.begin(); dt != lastdt; ) {
+      time_t dir_from = *dt, dir_until = *(++dt);
 
-    pair<siter_t,bool> ins = tstamps.insert( numeric_limits<time_t>::max() );
-    for( siter_t tt = tstamps.begin(); tt != ins.first; ) {
-      time_t from = *tt, until = *(++tt);
-      bool header_done = false;
-      for( iter_t dt = range.first; dt != range.second; ++dt ) {
-	const string& key = dt->second;
-	DB::const_iterator jt = gDB.find( key );
-	assert( jt != gDB.end() );
-	const KeyAttr_t& attr = jt->second;
-	if( attr.isCopy )
-	  continue;
-	if( !header_done ) {
-	  cout << "--- timestamp: " << format_time(from) << endl << endl;
-	  header_done = true;
-	}
-	const ValSet_t& vals = attr.values;
-	for( ValSet_t::const_iterator vt = vals.begin(); vt != vals.end(); ++vt ) {
-	  time_t start = vt->validity_start;
-	  if( start > until )
-	    break;
-	  if( from <= start && start < until ) {
-	    cout << key << " = " << vt->value << endl;
-	    // By construction of the tstamps set, there will only ever be either
-	    // zero or one value within a time range, so we can break here
-	    break;
-	  }
-	}
+      if( *tstamps.begin() >= dir_until )
+	continue;   // No values for this diretcory time range
+
+      map<time_t,string>::iterator nt = dir_names.find(dir_from);
+      assert( nt != dir_names.end() );
+      const string& subdir = nt->second;
+      cout << "=== File: " << subdir << "/db_" << det << ".dat" << endl << endl;
+
+      WriteAllKeysForTime( range.first, range.second, dir_from, true );
+
+      for( siter_t tt = tstamps.upper_bound(dir_from); tt != tstamps.end() &&
+	     *tt < dir_until; ++tt ) {
+	WriteAllKeysForTime( range.first, range.second, *tt );
       }
-      cout << endl;
     }
     it = range.second;
   }
@@ -622,43 +717,6 @@ static void DefaultMap()
 }
 
 //-----------------------------------------------------------------------------
-static inline bool IsDBFileName( const string& fname )
-{
-  return (fname.size() > 7 && fname.substr(0,3) == "db_" &&
-	  fname.substr(fname.size()-4,4) == ".dat" );
-}
-
-//-----------------------------------------------------------------------------
-static inline bool IsDBSubDir( const string& fname, time_t& date )
-{
-  // Check if the given file name corresponds to a database subdirectory.
-  // Subdirectories have filenames of the form "YYYYMMDD" and "DEFAULT".
-  // If so, extract its encoded time stamp to 'date'
-
-  if( fname == "DEFAULT" ) {
-    date = 0;
-    return true;
-  }
-  if( fname.size() != 8 )
-    return false;
-
-  ssiz_t pos = 0;
-  for( ; pos<8; ++pos )
-    if( !isdigit(fname[pos])) break;
-  if( pos != 8 )
-    return false;
-
-  // Convert date encoded in directory name to time_t
-  int year  = atoi( fname.substr(0,4).c_str() );
-  int month = atoi( fname.substr(4,2).c_str() );
-  int day   = atoi( fname.substr(6,2).c_str() );
-  if( year < 1900 || month == 0 || month > 12 || day > 31 || day < 1 )
-    return false;
-  date = MkTime( year, month, day, 0, 0, 0 );
-  return ( date != static_cast<time_t>(-1) );
-}
-
-//-----------------------------------------------------------------------------
 static inline string GetDetName( const string& fname )
 {
   assert( fname.size() > 7 );
@@ -719,16 +777,6 @@ static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
   free(ent);
   closedir(dir);
   return err;
-}
-
-//-----------------------------------------------------------------------------
-static inline string MakePath( const string& dir, const string& fname )
-{
-  bool need_slash = (*dir.rbegin() != '/');
-  string fpath(dir);
-  if( need_slash ) fpath += '/';
-  fpath.append(fname);
-  return fpath;
 }
 
 //-----------------------------------------------------------------------------
