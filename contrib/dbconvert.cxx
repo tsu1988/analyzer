@@ -8,6 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <vector>
 #include <string>
 #include <cstdlib>
@@ -185,6 +186,23 @@ static inline string format_time( time_t t )
   ts.append( buf+19, 5 );
   ts.append( buf+10, 9 );
   return ts;
+}
+
+//-----------------------------------------------------------------------------
+static inline string format_tstamp( time_t t )
+{
+  struct tm tms;
+  gmtime_r( &t, &tms );
+  stringstream ss;
+  ss << "--------[ ";
+  ss << tms.tm_year+1900 << "-";
+  ss << setw(2) << setfill('0') << tms.tm_mon+1 << "-";
+  ss << setw(2) << setfill('0') << tms.tm_mday  << " ";
+  ss << setw(2) << setfill('0') << tms.tm_hour  << ":";
+  ss << setw(2) << setfill('0') << tms.tm_min   << ":";
+  ss << setw(2) << setfill('0') << tms.tm_sec;
+  ss << " ]";
+  return ss.str();
 }
 
 //-----------------------------------------------------------------------------
@@ -379,12 +397,14 @@ int CleanupMap()
 }
 
 //-----------------------------------------------------------------------------
-static void WriteAllKeysForTime( const iter_t& begin, const iter_t& end,
-				 time_t tstamp, bool find_first = false )
+static int WriteAllKeysForTime( ofstream& ofs,
+				const iter_t& first, const iter_t& last,
+				time_t tstamp, bool find_first = false )
 {
+  int nwritten = 0;
   bool header_done = false;
   DBvalue tstamp_val(string(),tstamp);
-  for( iter_t dt = begin; dt != end; ++dt ) {
+  for( iter_t dt = first; dt != last; ++dt ) {
     const string& key = dt->second;
     DB::const_iterator jt = gDB.find( key );
     assert( jt != gDB.end() );
@@ -409,17 +429,21 @@ static void WriteAllKeysForTime( const iter_t& begin, const iter_t& end,
 
     if( !header_done ) {
       if( tstamp > 0 )
-	cout << "--- timestamp: " << format_time(tstamp) << endl << endl;
+	ofs << format_tstamp(tstamp) << endl << endl;
       header_done = true;
     }
 
-    cout << key << " = " << vt->value << endl;
+    ofs << key << " = " << vt->value << endl;
+    ++nwritten;
   }
-  cout << endl;
+  if( nwritten > 0 )
+    ofs << endl;
+
+  return nwritten;
 }
 
 //-----------------------------------------------------------------------------
-int WriteMap( const string& target_dir, const vector<string>& subdirs )
+int WriteFileDB( const string& target_dir, const vector<string>& subdirs )
 {
   // Write all accumulated database keys in gDB to files in 'target_dir'.
   // If --preserve-subdirs was specified, split the information over
@@ -446,14 +470,17 @@ int WriteMap( const string& target_dir, const vector<string>& subdirs )
   }
   siter_t lastdt = dir_times.insert( numeric_limits<time_t>::max() ).first;
 
+  // Consider each detector in turn
   for( iter_t it = gDetToKey.begin(); it != gDetToKey.end(); ) {
     const string& det = it->first;
+
+    // Find all keys for this detector
     pair<iter_t,iter_t> range = gDetToKey.equal_range( det );
 
-    // Get all timestamps for this detector
+    // Accumulate all timestamps for this detector
     set<time_t> tstamps;
-    for( iter_t dt = range.first; dt != range.second; ++dt ) {
-      const string& key = dt->second;
+    for( iter_t kt = range.first; kt != range.second; ++kt ) {
+      const string& key = kt->second;
       DB::const_iterator jt = gDB.find( key );
       assert( jt != gDB.end() );
       const KeyAttr_t& attr = jt->second;
@@ -469,25 +496,44 @@ int WriteMap( const string& target_dir, const vector<string>& subdirs )
       it = range.second;
       continue;
     }
-    //    siter_t lastt = tstamps.insert( numeric_limits<time_t>::max() ).first;
 
+    // For each subdirectory, write keys within that directory's time range
     for( siter_t dt = dir_times.begin(); dt != lastdt; ) {
       time_t dir_from = *dt, dir_until = *(++dt);
 
       if( *tstamps.begin() >= dir_until )
 	continue;   // No values for this diretcory time range
 
+      // Build the output file name and open the file
       map<time_t,string>::iterator nt = dir_names.find(dir_from);
       assert( nt != dir_names.end() );
       const string& subdir = nt->second;
-      cout << "=== File: " << subdir << "/db_" << det << ".dat" << endl << endl;
+      string fname = subdir + "/db_" + det + ".dat";
+      ofstream ofs( fname.c_str() );
+      if( !ofs ) {
+	stringstream ss("Error opening ",ios::out|ios::app);
+	ss << fname;
+	perror(ss.str().c_str());
+	return 1;
+      }
 
-      WriteAllKeysForTime( range.first, range.second, dir_from, true );
+      // Because of the search logic for subdirectories, we have to carry keys
+      // whose validity started before this directory's time and extends
+      // into its range. To do this, we need a different key finding logic,
+      // enabled with the find_first parameter of WriteAllKeysForTime.
+      int nw = WriteAllKeysForTime( ofs, range.first, range.second,
+				    dir_from, true );
 
+      // All following keys are found and written using their exact time stamp
       for( siter_t tt = tstamps.upper_bound(dir_from); tt != tstamps.end() &&
 	     *tt < dir_until; ++tt ) {
-	WriteAllKeysForTime( range.first, range.second, *tt );
+	nw += WriteAllKeysForTime( ofs, range.first, range.second, *tt );
       }
+      // Don't create empty files (may never happen?)
+      assert( nw > 0 );
+      // if( nw == 0 ) {
+      // 	unlink( fname.c_str() );
+      // }
     }
     it = range.second;
   }
@@ -1174,7 +1220,7 @@ int main( int argc, const char** argv )
 
   DumpMap();
 
-  WriteMap(destdir,subdirs);
+  WriteFileDB(destdir,subdirs);
 
   return 0;
 }
