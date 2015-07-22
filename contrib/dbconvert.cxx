@@ -74,10 +74,17 @@ static struct poptOption options[] = {
 struct Filenames_t {
   Filenames_t( const string& _path, time_t _start )
     : path(_path), val_start(_start) {}
+  Filenames_t( time_t _start ) : val_start(_start) {}
   string    path;
   time_t    val_start;
+  // Order by validity time
+  bool operator<( const Filenames_t& rhs ) const {
+    return val_start < rhs.val_start;
+  }
 };
 
+typedef map<string, multiset<Filenames_t> > FilenameMap_t;
+typedef multiset<Filenames_t>::iterator fiter_t;
 typedef string::size_type ssiz_t;
 
 //-----------------------------------------------------------------------------
@@ -373,7 +380,7 @@ void DumpMap( ostream& os = std::cout )
 }
 
 //-----------------------------------------------------------------------------
-int CleanupMap()
+int PruneMap()
 {
   // Remove duplicate entries for the same key and consecutive timestamps
 
@@ -545,12 +552,17 @@ int WriteFileDB( const string& target_dir, const vector<string>& subdirs )
 class Detector {
 public:
   Detector( const string& name )
-    : fName(name), fNelem(0) /*, fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) */{
-    fDetMap = new THaDetMap;
+    : fName(name), fDetMap(new THaDetMap), fDetMapHasModel(false),
+      fNelem(0), fAngle(0) /*, fXax(1.,0,0), fYax(0,1.,0), fZax(0,0,1.) */{
     fSize[0] = fSize[1] = fSize[2] = kBig;
   }
   virtual ~Detector() { delete fDetMap; }
 
+  virtual void Clear() {
+    fConfig = ""; fDetMap->Clear(); fDetMapHasModel = false;
+    fSize[0] = fSize[1] = fSize[2] = kBig;
+    fAngle = 0; fOrigin.SetXYZ(0,0,0);
+  }
   virtual int ReadDB( FILE* infile, time_t date ) = 0;
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const = 0;
@@ -779,6 +791,7 @@ static inline string GetDetName( const string& fname )
 template<typename Action>
 static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
 {
+  int n_add = 0;
   errno = 0;
 
   if( sdir.empty() )
@@ -792,7 +805,7 @@ static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
     //    ss << action.GetDescription();
     ss << sdir;
     perror(ss.str().c_str());
-    return 1;
+    return -1;
   }
 
   // Loop over all directory entries and pass their names to action
@@ -808,11 +821,13 @@ static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
       if( fname.empty() || fname == "." || fname == ".." )
 	continue;
       // Operate on the name
-      if( (err = action(sdir, fname, depth)) )
+      if( (err = action(sdir, fname, depth)) < 0 )
 	break;
+      n_add += err;
+      err = 0;
     }
     // In case 'action' caused the directory contents to change, rewind the
-    // directory and scan it again (needed on MacOS HFS file systems, perhaps
+    // directory and scan it again (needed for MacOS HFS file systems, perhaps
     // elsewhere too)
     if( action.MustRewind() ) {
       rewinddir(dir);
@@ -822,50 +837,55 @@ static int ForAllFilesInDir( const string& sdir, Action action, int depth = 0 )
 
   free(ent);
   closedir(dir);
-  return err;
+  if( err )
+    return err;
+  return n_add;
 }
 
 //-----------------------------------------------------------------------------
 class CopyDBFileName {
 public:
-  CopyDBFileName( vector<Filenames_t>& filenames, vector<string>& subdirs,
+  CopyDBFileName( FilenameMap_t& filenames, vector<string>& subdirs,
 		  const time_t start_time )
     : fFilenames(filenames), fSubdirs(subdirs), fStart(start_time) {}
 
   int operator() ( const string& dir, const string& fname, int depth )
   {
+    int n_add = 0;
     string fpath = MakePath( dir, fname );
     const char* cpath = fpath.c_str();
     struct stat sb;
     if( stat(cpath, &sb) || errno ) {
       perror(cpath);
-      return 1;
+      return -1;
     }
 
-    // Record files whose names match db_*.dat
+    // Record regular files whose names match db_*.dat
     if( S_ISREG(sb.st_mode) && IsDBFileName(fname) ) {
-      fFilenames.push_back( Filenames_t(fpath,fStart) );
+      fFilenames[GetDetName(fpath)].insert( Filenames_t(fpath,fStart) );
+      n_add = 1;
     }
 
     // Recurse down one level into valid subdirectories ("YYYYMMDD" and "DEFAULT")
     else if( S_ISDIR(sb.st_mode) && depth == 0 ) {
       time_t date;
       if( IsDBSubDir(fname,date) ) {
- 	vector<Filenames_t>::size_type n_before = fFilenames.size();
- 	if( ForAllFilesInDir(fpath, CopyDBFileName(fFilenames,fSubdirs,date),
-			     depth+1) )
-	  return 2;
- 	if( fFilenames.size() > n_before )
+	int err =
+	  ForAllFilesInDir(fpath,CopyDBFileName(fFilenames,fSubdirs,date),depth+1);
+	if( err < 0 )
+	  return err;
+	n_add = err;
+	if( n_add > 0 )
  	  fSubdirs.push_back(fname);
       }
     }
-    return 0;
+    return n_add;
   }
   bool MustRewind() { return false; }
 private:
-  vector<Filenames_t>& fFilenames;
-  vector<string>&      fSubdirs;
-  time_t               fStart;
+  FilenameMap_t&    fFilenames;
+  vector<string>&   fSubdirs;
+  time_t            fStart;
 };
 
 //-----------------------------------------------------------------------------
@@ -881,14 +901,14 @@ public:
 
     if( lstat(cpath, &sb) ) {
       perror(cpath);
-      return 1;
+      return -1;
     }
     // Non-directory (regular, links) files matching db_*.dat or a subdirectory name
     if( !S_ISDIR(sb.st_mode) &&
 	(fDoAll || IsDBFileName(fname) || IsDBSubDir(fname,date)) ) {
       if( unlink(cpath) ) {
       	perror(cpath);
-      	return 2;
+	return -2;
       }
       fMustRewind = true;
     }
@@ -903,11 +923,11 @@ public:
 	// directory exists in the target than in the source for a certain timestamp.
 	bool delete_all = (fname != "DEFAULT");
  	if( ForAllFilesInDir(fpath, DeleteDBFile(delete_all), depth+1) )
-	  return 2;
+	  return -2;
 	int err;
 	if( (err = rmdir(cpath)) && errno != ENOTEMPTY ) {
 	  perror(cpath);
-	  return 2;
+	  return -2;
 	}
 	if( !err )
 	  fMustRewind = true;
@@ -924,7 +944,7 @@ private:
 
 //-----------------------------------------------------------------------------
 static int GetFilenames( const string& srcdir, const time_t start_time,
-			 vector<Filenames_t>& filenames, vector<string>& subdirs )
+			 FilenameMap_t& filenames, vector<string>& subdirs )
 {
   // Get a list of all database files, based on Podd's search order rules.
   // Keep timestamps info with each file. Reading files from the current
@@ -1106,11 +1126,89 @@ static int ParseVariations( FILE* fi, vector<string>& variations )
 }
 
 //-----------------------------------------------------------------------------
+class MatchesOneOf : public unary_function<string,bool>
+{
+public:
+  MatchesOneOf( multiset<Filenames_t>& filenames ) : fFnames(filenames) {}
+  bool operator() ( const string& subdir ) {
+    if( subdir == "DEFAULT" )
+      return true;
+    string chunk = "/" + subdir + "/db_";
+    for( fiter_t it = fFnames.begin(); it != fFnames.end(); ++it ) {
+      if( it->path.find(chunk) != string::npos )
+	return true;
+    }
+    return false;
+  }
+private:
+  multiset<Filenames_t>& fFnames;
+};
+
+//-----------------------------------------------------------------------------
+static int InsertDefaultFiles( const vector<string>& subdirs,
+			       multiset<Filenames_t>& filenames )
+{
+  // If there are default files, select the one that the analyzer would pick
+  Filenames_t defval(0);
+  pair<fiter_t,fiter_t> defs = filenames.equal_range(defval);
+  int ndef = distance( defs.first, defs.second );
+  string deffile;
+  switch( ndef ) {
+  case 0:
+    break;
+  case 1:
+    deffile = defs.first->path;
+    break;
+  case 2:
+    if( defs.first->path.find("/DEFAULT/db_") != string::npos ) {
+      filenames.erase( defs.second );
+      deffile = defs.first->path;
+    } else if( defs.second->path.find("/DEFAULT/db_") != string::npos ) {
+      filenames.erase( defs.first );
+      deffile = defs.second->path;
+    } else {
+      cerr << "ERROR: Unrecognized default file location: " << endl
+	   << defs.first->path << ", " << defs.second->path << endl
+	   << "This is a bug. Call expert." << endl;
+      return -1;
+    }
+    break;
+  default:
+    cerr << "More than 2 default files " << defs.first->path << "... ??? "
+	 << "This is a bug. Call expert." << endl;
+    return -1;
+    break;
+  }
+  // If there is a default file and any date-coded subdirectories, we must
+  // check if this detector has a file in each such subdirectory. For any
+  // subdirectory where there is no file, the default file applies.
+  if( !deffile.empty() ) {
+    vector<string> missing;
+    MatchesOneOf match(filenames);
+    remove_copy_if( ALL(subdirs), back_inserter(missing), match );
+    if( !missing.empty() ) {
+      for( vector<string>::iterator mt = missing.begin(); mt != missing.end();
+	   ++mt ) {
+	const string& subdir = *mt;
+	time_t date;
+#ifdef NDEBUG
+	IsDBSubdir(subdir,date);
+	filenames.insert( Filenames_t(deffile,date) );
+#else
+	assert( IsDBSubDir(subdir,date) );
+	Filenames_t ins(deffile,date);
+	assert( filenames.find(ins) == filenames.end() );
+	filenames.insert(ins);
+#endif
+      }
+    }
+  }
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
 int main( int argc, const char** argv )
 {
-  // const string dashes =
-  //   "#-----------------------------------------------------------------";
-
   // Parse command line
   getargs(argc,argv);
 
@@ -1123,84 +1221,94 @@ int main( int argc, const char** argv )
   }
 
   // Get list of all database files to convert
-  vector<Filenames_t> filenames;
+  FilenameMap_t filemap;
   vector<string> subdirs;
-  if( GetFilenames(srcdir, 0, filenames, subdirs) )
+  if( GetFilenames(srcdir, 0, filemap, subdirs) < 0 )
     exit(4);  // Error message already printed
 
-  if( PrepareOutputDir(destdir, subdirs) )
-    exit(6);
+  bool have_dated_subdirs = !subdirs.empty() &&
+    (subdirs.size() > 1 || subdirs[0] != "DEFAULT");
 
   // Assign a parser to each database file, based on the name mapping info.
   // Let the parsers translate each file to database keys.
   // If the original parser supported in-file timestamps, pre-parse the
   // corresponding files to find any timestamps in them.
   // Keep all found keys/values along with timestamps in a central map.
-  for( vector<Filenames_t>::size_type i = 0; i < filenames.size(); ++i ) {
-    const string& path = filenames[i].path;
-    string detname = GetDetName( path );
-    NameTypeMap_t::iterator it = detname_map.find(detname);
+  for( FilenameMap_t::iterator ft = filemap.begin(); ft != filemap.end();
+       ++ft ) {
+    const string& detname = ft->first;
+    multiset<Filenames_t>& filenames = ft->second;
+    assert( !filenames.empty() ); // else bug in GetFilenames
 
+    // Check if we know what to do with this detector name
+    NameTypeMap_t::iterator it = detname_map.find(detname);
     if( it == detname_map.end() ) {
       //TODO: make behavior configurable
-      cerr << "WARNING: unknown database file " << path
-	   << " will not be converted" << endl;
+      cerr << "WARNING: unknown detector name " << detname
+	   << ". Corresponding files will not be converted" << endl;
       continue;
     }
     EDetectorType type = (*it).second;
     assert( type != kNone );
-
     Detector* det = MakeDetector( type, detname );
     if( !det )
       continue;
 
-    FILE* fi = fopen( path.c_str(), "r" );
-    if( !fi ) {
-      stringstream ss("Error opening database file ",ios::out|ios::app);
-      ss << path;
-      perror(ss.str().c_str());
-      continue;
-    }
+    if( have_dated_subdirs && InsertDefaultFiles(subdirs, filenames) )
+      exit(8);
 
-    // Parse the file for any timestamps and "configurations" (=variations)
-    vector<time_t> timestamps(1,filenames[i].val_start);
-    vector<string> variations;
-    if( det->SupportsTimestamps() ) {
-      if( ParseTimestamps(fi, timestamps) )
-	goto next;
-      if( timestamps.size() > 1 ) {
-	sort( ALL(timestamps) );
-	if( timestamps[0] < filenames[i].val_start ) {
-	  cerr << "Inconsistent timestamps in file " << path
-	       << ". Skipping file" << endl;
+    for( fiter_t st = filenames.begin(); st != filenames.end(); ++st ) {
+      const string& path = st->path;
+
+      FILE* fi = fopen( path.c_str(), "r" );
+      if( !fi ) {
+	stringstream ss("Error opening database file ",ios::out|ios::app);
+	ss << path;
+	perror(ss.str().c_str());
+	continue;
+      }
+
+      // Parse the file for any timestamps and "configurations" (=variations)
+      vector<time_t> timestamps(1,st->val_start); //FIXME: use set
+      vector<string> variations;
+      if( det->SupportsTimestamps() ) {
+	if( ParseTimestamps(fi, timestamps) )
 	  goto next;
+	if( timestamps.size() > 1 ) {
+	  sort( ALL(timestamps) );
+	  if( timestamps[0] < st->val_start ) {
+	    cerr << "Inconsistent timestamps in file " << path
+		 << ". Skipping file" << endl;
+	    goto next;
+	  }
 	}
       }
-    }
-    if( det->SupportsVariations() ) {
-      if( ParseVariations(fi, variations) )
-	goto next;
-    }
-
-    for( vector<time_t>::size_type it = 0; it < timestamps.size(); ++it ) {
-      time_t date = timestamps[it];
-      rewind(fi);
-      if( det->ReadDB(fi,date) )
-	cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
-      else {
-	cout << "Read " << path << endl;
-	//TODO: support variations
-	det->Save( date );
+      if( det->SupportsVariations() ) {
+	if( ParseVariations(fi, variations) )
+	  goto next;
       }
+
+      for( vector<time_t>::size_type it = 0; it < timestamps.size(); ++it ) {
+	time_t date = timestamps[it];
+	rewind(fi);
+	if( det->ReadDB(fi,date) )
+	  cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
+	else {
+	  cout << "Read " << path << endl;
+	  //TODO: support variations
+	  det->Save( date );
+	}
+      }
+
+      // Save names of new-format database files to be copied
+      if( do_file_copy && type == kCopyFile ) {
+
+      }
+
+    next:
+      fclose(fi);
+      det->Clear();
     }
-
-    // Save names of new-format database files to be copied
-    if( do_file_copy && type == kCopyFile ) {
-
-    }
-
-  next:
-    fclose(fi);
     delete det;
   }
 
@@ -1208,7 +1316,7 @@ int main( int argc, const char** argv )
   // same keys/values and only differ by /consecutive/ timestamps.
   // Keep only the earliest timestamp.
 
-  CleanupMap();
+  PruneMap();
 
   // Write out keys/values to database files in target directory.
   // All file names will be preserved; a file that existed anywhere
@@ -1220,7 +1328,11 @@ int main( int argc, const char** argv )
 
   DumpMap();
 
-  WriteFileDB(destdir,subdirs);
+  if( PrepareOutputDir(destdir, subdirs) )
+    exit(6);
+
+  if( WriteFileDB(destdir,subdirs) )
+    exit(7);
 
   return 0;
 }
