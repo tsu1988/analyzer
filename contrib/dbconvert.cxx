@@ -837,7 +837,7 @@ public:
     string fpath = MakePath( dir, fname );
     const char* cpath = fpath.c_str();
     struct stat sb;
-    if( lstat(cpath, &sb) || errno ) {
+    if( stat(cpath, &sb) || errno ) {
       perror(cpath);
       return 1;
     }
