@@ -48,6 +48,8 @@ using namespace std;
 
 #define ALL(c) (c).begin(), (c).end()
 
+static bool IsDBdate( const string& line, time_t& date );
+
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
 static int do_clean = 1, do_verify = 1;
@@ -86,6 +88,7 @@ struct Filenames_t {
 typedef map<string, multiset<Filenames_t> > FilenameMap_t;
 typedef multiset<Filenames_t>::iterator fiter_t;
 typedef string::size_type ssiz_t;
+typedef set<time_t>::iterator siter_t;
 
 //-----------------------------------------------------------------------------
 void help()
@@ -328,16 +331,18 @@ struct DBvalue {
   time_t validity_start;
   string version;
   int    max_per_line;    // Number of values per line (for formatting text db)
-  // Order values by validity start time
+  // Order values by validity start time, then version
   bool operator<( const DBvalue& rhs ) const {
-    return validity_start < rhs.validity_start;
+    if( validity_start < rhs.validity_start ) return true;
+    if( validity_start > rhs.validity_start ) return false;
+    return version < rhs.version;
   }
   bool operator==( const DBvalue& rhs ) const {
     return validity_start == rhs.validity_start && version == rhs.version;
   }
 };
 
-typedef multiset<DBvalue> ValSet_t;
+typedef set<DBvalue> ValSet_t;
 
 struct KeyAttr_t {
   KeyAttr_t() : isCopy(false) {}
@@ -455,8 +460,6 @@ int WriteFileDB( const string& target_dir, const vector<string>& subdirs )
   // Write all accumulated database keys in gDB to files in 'target_dir'.
   // If --preserve-subdirs was specified, split the information over
   // the date-coded directories in 'subdirs'.
-
-  typedef set<time_t>::iterator siter_t;
 
   set<time_t> dir_times;
   map<time_t,string> dir_names;
@@ -1085,7 +1088,7 @@ static Int_t GetLine( FILE* file, char* buf, size_t bufsiz, string& line )
 }
 
 //-----------------------------------------------------------------------------
-static int ParseTimestamps( FILE* fi, vector<time_t>& timestamps )
+static int ParseTimestamps( FILE* fi, set<time_t>& timestamps )
 {
   // Put all timestamps from file 'fi' in given vector 'timestamps'
 
@@ -1095,23 +1098,9 @@ static int ParseTimestamps( FILE* fi, vector<time_t>& timestamps )
 
   rewind(fi);
   while( GetLine(fi,buf,LEN,line) == 0 ) {
-    ssiz_t lbrk = line.find('[');
-    if( lbrk == string::npos || lbrk >= line.size()-12 )
-      continue;
-    ssiz_t rbrk = line.find(']',lbrk);
-    if( rbrk == string::npos || rbrk <= lbrk+11 )
-      continue;
-    Int_t yy, mm, dd, hh, mi, ss;
-    if( sscanf( line.substr(lbrk+1,rbrk-lbrk-1).c_str(), "%4d-%2d-%2d %2d:%2d:%2d",
-		&yy, &mm, &dd, &hh, &mi, &ss) != 6
-	|| yy < 1995 || mm < 1 || mm > 12 || dd < 1 || dd > 31
-	|| hh < 0 || hh > 23 || mi < 0 || mi > 59 || ss < 0 || ss > 59 ) {
-      continue;
-    }
-    // Found a timestamp
-    time_t date = MkTime( yy, mm, dd, hh, mi, ss );
-    if( date != static_cast<time_t>(-1) )
-      timestamps.push_back(date);
+    time_t date;
+    if( IsDBdate(line, date) )
+      timestamps.insert(date);
   }
   return 0;
 }
@@ -1269,14 +1258,15 @@ int main( int argc, const char** argv )
       }
 
       // Parse the file for any timestamps and "configurations" (=variations)
-      vector<time_t> timestamps(1,st->val_start); //FIXME: use set
+      set<time_t> timestamps;
       vector<string> variations;
+      timestamps.insert(st->val_start);
       if( det->SupportsTimestamps() ) {
 	if( ParseTimestamps(fi, timestamps) )
 	  goto next;
 	if( timestamps.size() > 1 ) {
-	  sort( ALL(timestamps) );
-	  if( timestamps[0] < st->val_start ) {
+	  // FIXME: better handling
+	  if( *(timestamps.begin()) < st->val_start ) {
 	    cerr << "Inconsistent timestamps in file " << path
 		 << ". Skipping file" << endl;
 	    goto next;
@@ -1288,11 +1278,12 @@ int main( int argc, const char** argv )
 	  goto next;
       }
 
-      for( vector<time_t>::size_type it = 0; it < timestamps.size(); ++it ) {
-	time_t date = timestamps[it];
+      for( siter_t it = timestamps.begin(); it != timestamps.end(); ++it ) {
+	time_t date = *it;
 	rewind(fi);
 	if( det->ReadDB(fi,date) )
-	  cerr << "Error reading " << path << " as " << det->GetClassName() << endl;
+	  cerr << "Error reading " << path << " as " << det->GetClassName()
+	       << endl;
 	else {
 	  cout << "Read " << path << endl;
 	  //TODO: support variations
@@ -1355,7 +1346,7 @@ static char* ReadComment( FILE* fp, char *buf, const int len )
 }
 
 //_____________________________________________________________________________
-static Int_t IsDBdate( const string& line, time_t& date )
+static bool IsDBdate( const string& line, time_t& date )
 {
   // Check if 'line' contains a valid database time stamp. If so,
   // parse the line, set 'date' to the extracted time stamp, and return 1.
@@ -1363,15 +1354,15 @@ static Int_t IsDBdate( const string& line, time_t& date )
   // Time stamps must be in SQL format: [ yyyy-mm-dd hh:mi:ss ]
 
   ssiz_t lbrk = line.find('[');
-  if( lbrk == string::npos || lbrk >= line.size()-12 ) return 0;
+  if( lbrk == string::npos || lbrk >= line.size()-12 ) return false;
   ssiz_t rbrk = line.find(']',lbrk);
-  if( rbrk == string::npos || rbrk <= lbrk+11 ) return 0;
+  if( rbrk == string::npos || rbrk <= lbrk+11 ) return false;
   Int_t yy, mm, dd, hh, mi, ss;
   if( sscanf( line.substr(lbrk+1,rbrk-lbrk-1).c_str(), "%4d-%2d-%2d %2d:%2d:%2d",
 	      &yy, &mm, &dd, &hh, &mi, &ss) != 6
       || yy < 1995 || mm < 1 || mm > 12 || dd < 1 || dd > 31
       || hh < 0 || hh > 23 || mi < 0 || mi > 59 || ss < 0 || ss > 59 ) {
-    return 0;
+    return false;
   }
   date = MkTime( yy, mm, dd, hh, mi, ss );
   return (date != static_cast<time_t>(-1));
