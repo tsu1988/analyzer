@@ -1436,6 +1436,7 @@ int CopyFile::ReadDB( FILE* fi, time_t date )
     }
   }
 
+  delete [] buf;
   return 0;
 }
 
