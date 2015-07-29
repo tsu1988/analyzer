@@ -327,6 +327,8 @@ struct DBvalue {
   DBvalue( const string& valstr, time_t start, const string& ver = string(),
 	   int max = 0 )
     : value(valstr), validity_start(start), version(ver), max_per_line(max) {}
+  DBvalue( time_t start, const string& ver = string() )
+    : validity_start(start), version(ver), max_per_line(0) {}
   string value;
   time_t validity_start;
   string version;
@@ -566,7 +568,7 @@ public:
     fSize[0] = fSize[1] = fSize[2] = kBig;
     fAngle = 0; fOrigin.SetXYZ(0,0,0);
   }
-  virtual int ReadDB( FILE* infile, time_t date ) = 0;
+  virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until ) = 0;
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const = 0;
   virtual bool SupportsTimestamps()  const { return false; }
@@ -602,7 +604,8 @@ public:
   CopyFile( const string& name, bool doingFileCopy = true )
     : Detector(name), fDoingFileCopy(doingFileCopy) {}
 
-  virtual int ReadDB( FILE* infile, time_t date );
+  virtual void Clear();
+  virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "CopyFile"; }
 
@@ -611,6 +614,7 @@ protected:
 			const string& version = string(), int max = 0 ) const;
 
   bool fDoingFileCopy; // If true, mark DB values with isCopy = true
+  DB   fDB;
 };
 
 //-----------------------------------------------------------------------------
@@ -621,7 +625,7 @@ public:
     : Detector(name), fOff(0), fPed(0), fGain(0) {}
   virtual ~Cherenkov() { DeleteArrays(); }
 
-  virtual int ReadDB( FILE* infile, time_t date );
+  virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Cherenkov"; }
 
@@ -641,7 +645,7 @@ public:
       fRGain(0), fTWalkPar(0), fTrigOff(0) {}
   virtual ~Scintillator() { DeleteArrays(); }
 
-  virtual int ReadDB( FILE* infile, time_t date );
+  virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Scintillator"; }
   virtual bool SupportsTimestamps()  const { return true; }
@@ -1045,12 +1049,14 @@ static int PrepareOutputDir( const string& topdir, const vector<string>& subdirs
   }
 
   // Create requested subdirectories
-  for( vector<string>::size_type i = 0; i < subdirs.size(); ++i ) {
-    string path = MakePath( topdir, subdirs[i] );
-    const char* cpath = path.c_str();
-    if( mkdir(cpath,mode) && errno != EEXIST ) {
-      perror(cpath);
-      return 4;
+  if( do_subdirs ) {
+    for( vector<string>::size_type i = 0; i < subdirs.size(); ++i ) {
+      string path = MakePath( topdir, subdirs[i] );
+      const char* cpath = path.c_str();
+      if( mkdir(cpath,mode) && errno != EEXIST ) {
+	perror(cpath);
+	return 4;
+      }
     }
   }
 
@@ -1246,8 +1252,10 @@ int main( int argc, const char** argv )
     if( have_dated_subdirs && InsertDefaultFiles(subdirs, filenames) )
       exit(8);
 
-    for( fiter_t st = filenames.begin(); st != filenames.end(); ++st ) {
+    fiter_t lastf = filenames.insert( Filenames_t(numeric_limits<time_t>::max()) );
+    for( fiter_t st = filenames.begin(); st != lastf; ) {
       const string& path = st->path;
+      time_t val_from = st->val_start, val_until = (++st)->val_start;
 
       FILE* fi = fopen( path.c_str(), "r" );
       if( !fi ) {
@@ -1260,34 +1268,33 @@ int main( int argc, const char** argv )
       // Parse the file for any timestamps and "configurations" (=variations)
       set<time_t> timestamps;
       vector<string> variations;
-      timestamps.insert(st->val_start);
+      timestamps.insert(val_from);
       if( det->SupportsTimestamps() ) {
 	if( ParseTimestamps(fi, timestamps) )
 	  goto next;
-	if( timestamps.size() > 1 ) {
-	  // FIXME: better handling
-	  if( *(timestamps.begin()) < st->val_start ) {
-	    cerr << "Inconsistent timestamps in file " << path
-		 << ". Skipping file" << endl;
-	    goto next;
-	  }
-	}
       }
       if( det->SupportsVariations() ) {
 	if( ParseVariations(fi, variations) )
 	  goto next;
       }
 
-      for( siter_t it = timestamps.begin(); it != timestamps.end(); ++it ) {
-	time_t date = *it;
-	rewind(fi);
-	if( det->ReadDB(fi,date) )
-	  cerr << "Error reading " << path << " as " << det->GetClassName()
-	       << endl;
-	else {
-	  cout << "Read " << path << endl;
-	  //TODO: support variations
-	  det->Save( date );
+      timestamps.insert( numeric_limits<time_t>::max() );
+      {
+	siter_t it = timestamps.lower_bound( val_from );
+	siter_t lastt  = timestamps.lower_bound( val_until );
+	for( ; it != lastt; ) {
+	  time_t date_from = *it, date_until = *(++it);
+	  if( date_from  < val_from  )  date_from  = val_from;
+	  if( date_until > val_until )  date_until = val_until;
+	  rewind(fi);
+	  if( det->ReadDB(fi,date_from,date_until) )
+	    cerr << "Error reading " << path << " as " << det->GetClassName()
+		 << endl;
+	  else {
+	    cout << "Read " << path << endl;
+	    //TODO: support variations
+	    det->Save( date_from );
+	  }
 	}
       }
 
@@ -1402,38 +1409,54 @@ static Int_t IsDBkey( const string& line, string& key, string& text )
 }
 
 //-----------------------------------------------------------------------------
-int CopyFile::ReadDB( FILE* fi, time_t date )
+void CopyFile::Clear()
+{
+  Detector::Clear();
+  fDB.clear();
+}
+
+//-----------------------------------------------------------------------------
+int CopyFile::ReadDB( FILE* fi, time_t date, time_t date_until )
 {
   // Read keys/values from a file that is already in the new format.
   // This routine is similar to THaAnalysisObject::LoadDBvalue, but it
   // detects the key names and saves all key/value pairs.
 
+  assert( date < date_until );
+
   const size_t bufsiz = 256;
   char* buf = new char[bufsiz];
-  string line;
+  string line, version;
   time_t curdate = date;
+  bool ignore = false;
 
   // Extract and save the keys
   while( THaAnalysisObject::ReadDBline(fi, buf, bufsiz, line) != EOF ) {
     if( line.empty() ) continue;
     string key, value;
-    if( IsDBkey(line, key, value) ) {
+    if( !ignore && IsDBkey(line, key, value) ) {
       // cout << "CopyFile date/key/value:"
       // 	   << format_time(curdate) << ", " << key << " = " << value << endl;
 
       // TODO: add support for "text variables"?
 
-      // We can add this key/value pair to the database right away
-      AddToMap( key, value, curdate );
+      // Add this key/value pair to our local database
+      DBvalue val( value, curdate, version );
+      ValSet_t& vals = fDB[key].values;
+      ValSet_t::iterator pos = vals.find(val);
+      // If key already exists for this time & version, overwrite its value
+      // (this is the behavior in THaAnalysisObject::LoadDBvalue)
+      if( pos != vals.end() ) {
+	const_cast<DBvalue&>(*pos).value = value;
+      } else {
+	vals.insert(val);
+      }
     }
     else if( IsDBdate(line, curdate) ) {
-      if( curdate < date )
-	cerr << "CopyFile: Warning, in-file timestamp "
-	     << format_time(curdate)
-	     << " earlier than directory timestamp "
-	     << format_time(date) << endl;
-      continue;
+      // Ignore timestamp sections past the requested validity range
+      ignore = ( curdate >= date_until );
     }
+    // TODO: parse version tags
   }
 
   delete [] buf;
@@ -1441,14 +1464,41 @@ int CopyFile::ReadDB( FILE* fi, time_t date )
 }
 
 //-----------------------------------------------------------------------------
-int CopyFile::Save( time_t /*start*/, const string& /*version*/ ) const
+int CopyFile::Save( time_t start, const string& /*version*/ ) const
 {
-  // Nothing to do. All keys already saved in ReadDB.
+  // Copy the keys found to the global database. If multiple keys with
+  // timestamps earlier than 'start' are present, use only the latest.
+
+  for( DB::const_iterator dt = fDB.begin(); dt != fDB.end(); ++dt ) {
+    const DB::value_type& keyval = *dt;
+    const ValSet_t& vals = keyval.second.values;
+    DBvalue startval(start);
+    ValSet_t::const_iterator vt = vals.upper_bound(startval);
+    if( vt != vals.begin() )
+      --vt;
+#ifndef NDEBUG
+    bool forwarded = false;
+#endif
+    for( ; vt != vals.end(); ++vt ) {
+      time_t date = vt->validity_start;
+      if( date < start ) {
+	date = start;
+#ifndef NDEBUG
+	// This should only ever happen at most once in this loop,
+	// else the upper_bound logic above is buggy
+	assert( !forwarded );
+	forwarded = true;
+#endif
+      }
+      AddToMap( keyval.first, vt->value, date, vt->version,
+		vt->max_per_line );
+    }
+  }
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-int Cherenkov::ReadDB( FILE* fi, time_t /* date */ )
+int Cherenkov::ReadDB( FILE* fi, time_t /* date */, time_t /* date_until */ )
 {
   // Read legacy Cherenkov database
 
@@ -1535,7 +1585,7 @@ int Cherenkov::ReadDB( FILE* fi, time_t /* date */ )
 }
 
 //-----------------------------------------------------------------------------
-int Scintillator::ReadDB( FILE* fi, time_t date )
+int Scintillator::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
 {
   // Read legacy Scintillator database
 
@@ -1849,20 +1899,28 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
   DBvalue val( value, start, version, max );
   ValSet_t& vals = gDB[key].values;
   // Find existing values with the exact timestamp of 'val' (='start')
-  pair<ValSet_t::iterator,ValSet_t::iterator> range = vals.equal_range(val);
-  if( range.first != range.second ) {
-    for( ; range.first != range.second; ++range.first ) {
-      if( *(range.first) == val ) {
-	cerr << "Error: key " << key << " already exists for time "
-	     << format_time(start);
-	if( !version.empty() )
-	  cerr << " and version \"" << version << "\"";
-	cerr << endl;
-	return 1;
-      }
+  ValSet_t::iterator pos = vals.find(val);
+  if( pos != vals.end() ) {
+    if( pos->value != val.value ) {
+      // User database inconsistent (can this ever happen now?)
+      // (This case is silently ignored in THaAnalysisObject::LoadDBvalue,
+      // which simply takes the last value encountered.)
+      cerr << "WARNING: key " << key << " already exists for time "
+	   << format_time(start);
+      if( !version.empty() )
+	cerr << " and version \"" << version << "\"";
+      cerr << ", but with a different value:" << endl;
+      cerr << " old = " << pos->value << endl;
+      cerr << " new = " << value << endl;
+      const_cast<DBvalue&>(*pos).value = value;
     }
+    return 0;
   }
+#ifdef NDEBUG
   vals.insert(val);
+#else
+  assert( vals.insert(val).second );
+#endif
   return 0;
 }
 
