@@ -1031,8 +1031,8 @@ public:
 	if( err < 0 )
 	  return err;
 	n_add = err;
-	if( n_add > 0 )
- 	  fSubdirs.push_back(fname);
+	// if( n_add > 0 )  // Must keep the directory, even if empty!
+	fSubdirs.push_back(fname);
       }
     }
     return n_add;
