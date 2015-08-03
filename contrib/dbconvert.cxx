@@ -617,7 +617,7 @@ protected:
   // Bits for flags parameter of ReadBlock()
   enum kReadBlockFlags {
     kQuietOnErrors      = BIT(0),
-    kQuietOnNvalError   = BIT(1),
+    kQuietOnTooMany     = BIT(1),
     kQuietOnTooFew      = BIT(2),
     kNoNegativeValues   = BIT(3),
     kRequireGreaterZero = BIT(4),
@@ -627,6 +627,9 @@ protected:
     kStopAtNval         = BIT(8),
     kStopAtSection      = BIT(9)
   };
+  enum kReadBlockRetvals {
+    kSuccess = 0, kNoValues = -1, kTooFewValues = -2, kTooManyValues = -3,
+    kFileError = -4, kNegativeFound = -5, kLessEqualZeroFound = -6 };
   template <class T>
   int ReadBlock( FILE* fi, T* data, int nval, const char* here, int flags = 0 );
 
@@ -1508,12 +1511,14 @@ int main( int argc, const char** argv )
 	  if( date_until > val_until )  date_until = val_until;
 	  rewind(fi);
 	  if( det->ReadDB(fi,date_from,date_until) == 0 ) {
-	  //   cerr << "Error reading " << path << " as " << det->GetClassName()
-	  // 	 << endl;
 	  // } else {
 	  //   cout << "Read " << path << endl;
 	    //TODO: support variations
 	    det->Save( date_from );
+	  }
+	  else {
+	    cerr << "Error reading " << path << " as " << det->GetClassName()
+		 << endl;
 	  }
 	}
       }
@@ -1691,7 +1696,7 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
       // Data
       if( nval <= 0 ) {
 	fseeko(fi,pos,SEEK_SET);
-	return 0;
+	return kSuccess;
       }
       got_data = true;
       istringstream is(line.c_str());
@@ -1703,14 +1708,14 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
 	      Error( Here(here), "Negative values not allowed here:\n \"%s\"",
 		     line.c_str() );
 	    fseeko(fi,pos_on_entry,SEEK_SET);
-	    return -5;
+	    return kNegativeFound;
 	  }
 	  if( TestBit(flags,kRequireGreaterZero) && data[nread] <= 0 ) {
 	    if( !TestBit(flags,kQuietOnErrors) )
 	      Error( Here(here), "Values must be greater then zero:\n \"%s\"",
 		     line.c_str() );
 	    fseeko(fi,pos_on_entry,SEEK_SET);
-	    return -6;
+	    return kLessEqualZeroFound;
 	  }
 	  ++nread;
 	}
@@ -1721,7 +1726,7 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
 	T x;
 	is >> x;
 	if( !is.fail() ) {
-	  if( !TestBit(flags,kQuietOnErrors) && !TestBit(flags,kQuietOnNvalError) ) {
+	  if( !TestBit(flags,kQuietOnErrors) && !TestBit(flags,kQuietOnTooMany) ) {
 	    ostringstream msg;
 	    msg << "Too many values (expected " << nval << ") at file position "
 		<< ftello(fi) << endl
@@ -1732,11 +1737,11 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
 	      Warning( Here(here), msg.str().c_str() );
 	  }
 	  fseeko(fi,pos_on_entry,SEEK_SET);
-	  return -3;
+	  return kTooManyValues;
 	}
 	if( TestBit(flags,kStopAtNval) ) {
 	  // If requested, stop here, regardless of whether there is another data line
-	  return 0;
+	  return kSuccess;
 	}
       }
     } else {
@@ -1749,19 +1754,18 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
 	// Success
 	// Rewind to start of terminating line
 	fseeko(fi,pos,SEEK_SET);
-	return 0;
+	return kSuccess;
       }
     }
     pos = ftello(fi);
   }
   if( errno ) {
     perror( Here(here) );
-    return -4;
+    return kFileError;
   }
   if( nread < nval ) {
   toofew:
-    if( !TestBit(flags,kQuietOnErrors) && !TestBit(flags,kQuietOnNvalError) &&
-	!TestBit(flags,kQuietOnTooFew) ) {
+    if( !TestBit(flags,kQuietOnErrors) && !TestBit(flags,kQuietOnTooFew) ) {
       ostringstream msg;
       msg << "Too few values (expected " << nval << ") at file position "
 	  << ftello(fi) << endl
@@ -1770,10 +1774,10 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
     }
     fseeko(fi,pos_on_entry,SEEK_SET);
     if( nread == 0 )
-      return -1;
-    return -2;
+      return kNoValues;
+    return kTooFewValues;
   }
-  return 0;
+  return kSuccess;
 }
 
 //-----------------------------------------------------------------------------
@@ -2075,9 +2079,9 @@ int Scintillator::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
   // line without the check for "too many values".
 
   // Left pads TDC offsets
-  Int_t err = ReadBlock(fi,fLOff,fNelem,here,flags|kStopAtNval|kQuietOnNvalError);
+  Int_t err = ReadBlock(fi,fLOff,fNelem,here,flags|kStopAtNval|kQuietOnTooMany);
   if( err ) {
-    if( fNelem > 1 || err != -3 )
+    if( fNelem > 1 || err != kTooManyValues )
       return kInitError;
     // Attempt to recover S0 databases with nelem == 1 that have L/R values
     // on a single line
@@ -2093,9 +2097,9 @@ int Scintillator::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
   }
 
   // Left pads ADC pedestals
-  err = ReadBlock(fi,fLPed,fNelem,here,flags|kNoNegativeValues|kStopAtNval|kQuietOnNvalError);
+  err = ReadBlock(fi,fLPed,fNelem,here,flags|kNoNegativeValues|kStopAtNval|kQuietOnTooMany);
   if( err ) {
-    if( fNelem > 1 || err != -3 )
+    if( fNelem > 1 || err != kTooManyValues )
       return kInitError;
     Double_t dval[2];
     if( ReadBlock(fi,dval,2,here,flags|kNoNegativeValues) )
@@ -2109,9 +2113,9 @@ int Scintillator::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
   }
 
   // Left pads ADC gains
-  err = ReadBlock(fi,fLGain,fNelem,here,flags|kNoNegativeValues|kStopAtNval|kQuietOnNvalError);
+  err = ReadBlock(fi,fLGain,fNelem,here,flags|kNoNegativeValues|kStopAtNval|kQuietOnTooMany);
   if( err ) {
-    if( fNelem > 1 || err != -3 )
+    if( fNelem > 1 || err != kTooManyValues )
       return kInitError;
     Double_t dval[2];
     if( ReadBlock(fi,dval,2,here,flags|kNoNegativeValues) )
@@ -2148,7 +2152,7 @@ int Scintillator::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
   err = ReadBlock(fi,fTrigOff,fNelem,here,flags);
 
  exit:
-  if( err && err != -2 )
+  if( err && err != kNoValues )
     return kInitError;
   return kOK;
 }
@@ -2169,9 +2173,9 @@ int Shower::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
 
   // Blocks, rows, max blocks per cluster
   Int_t ivals[3];
-  Int_t err = ReadBlock(fi,ivals,2,here,kRequireGreaterZero|kQuietOnNvalError);
+  Int_t err = ReadBlock(fi,ivals,2,here,kRequireGreaterZero|kQuietOnTooMany);
   if( err ) {
-    if( err != -3 )
+    if( err != kTooManyValues )
       return kInitError;
     // > 2 values - may be an old-style DB with 3 numbers on first line
     if( ReadBlock(fi,ivals,3,here,kRequireGreaterZero) )
@@ -2255,9 +2259,9 @@ int Shower::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
     return kInitError;
 
   // Try new format: two values here
-  err = ReadBlock(fi,fXY,2,here,flags|kQuietOnNvalError);       // Block 1 center position
+  err = ReadBlock(fi,fXY,2,here,flags|kQuietOnTooMany);    // Block 1 center position
   if( err ) {
-    if( err != -3 )
+    if( err != kTooManyValues )
       return kInitError;
     old_format = true;
   }
