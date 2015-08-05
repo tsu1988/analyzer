@@ -1424,6 +1424,17 @@ static int InsertDefaultFiles( const vector<string>& subdirs,
       }
     }
   }
+  // Eliminate consecutive identical paths - these would cause the same file
+  // to be read multiple times with artificial validity start times at
+  // directory boundaries, which would then get collapsed again in PruneMap
+  fiter_t it = filenames.begin();
+  while( it != filenames.end() ) {
+    fiter_t jt = it;
+    ++jt;
+    while( jt != filenames.end() && it->path == jt->path )
+      filenames.erase( jt++ );
+    it = jt;
+  }
   return 0;
 }
 
