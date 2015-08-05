@@ -407,12 +407,8 @@ int PruneMap()
     while( jt != vals.end() ) {
       ValSet_t::iterator kt = jt;
       ++kt;
-      while( kt != vals.end() ) {
-	if( kt->value == jt->value )
-	  vals.erase( kt++ );
-	else
-	  break;
-      }
+      while( kt != vals.end() && kt->value == jt->value )
+	vals.erase( kt++ );
       jt = kt;
     }
   }
