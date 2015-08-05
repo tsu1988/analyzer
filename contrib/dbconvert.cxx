@@ -720,7 +720,7 @@ private:
 // Global maps for detector types and names
 enum EDetectorType { kNone = 0, kKeep, kCopyFile, kCherenkov, kScintillator,
 		     kShower, kTotalShower, kBPM, kRaster, kCoincTime,
-		     kVDC, kVDCeff };
+		     kTriggerTime, kVDC, kVDCeff, kDecData };
 typedef map<string,EDetectorType> NameTypeMap_t;
 static NameTypeMap_t detname_map;
 static NameTypeMap_t dettype_map;
@@ -738,6 +738,7 @@ public:
     : Detector(name), fPed(0), fGain(0) {}
   virtual ~Shower() { DeleteArrays(); }
 
+  virtual void Clear() { Detector::Clear(); fMaxCl = -1; }
   virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Shower"; }
@@ -753,6 +754,7 @@ private:
   Int_t      fNrows;
   Float_t    fXY[2], fDXY[2];
   Float_t    fEmin;
+  Int_t      fMaxCl;   // Maximum number of clusters, used by BigBite shower code
 
   // Calibrations
   Float_t   *fPed, *fGain;
@@ -825,6 +827,22 @@ private:
 };
 
 //-----------------------------------------------------------------------------
+// TriggerTime
+class TriggerTime : public Detector {
+public:
+  TriggerTime( const string& name )
+    : Detector(name), fGlOffset(0), fTDCRes(-0.5e-9) {}
+
+  virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
+  virtual int Save( time_t start, const string& version = string() ) const;
+  virtual const char* GetClassName() const { return "TriggerTime"; }
+
+private:
+  Double_t fGlOffset, fTDCRes;
+  vector<string> fTrgDef;
+};
+
+//-----------------------------------------------------------------------------
 static Detector* MakeDetector( EDetectorType type, const string& name )
 {
   Detector* det = 0;
@@ -848,9 +866,13 @@ static Detector* MakeDetector( EDetectorType type, const string& name )
     return new Raster(name);
   case kCoincTime:
     return new CoincTime(name);
+  case kTriggerTime:
+    return new TriggerTime(name);
   case kVDC:
     return 0; //TODO
   case kVDCeff:
+    return 0; //TODO
+  case kDecData:
     return 0; //TODO
   }
   return det;
@@ -938,20 +960,26 @@ static void DefaultMap()
     { "L.cer",      kCherenkov },
     { "L.aero1",    kCherenkov },
     { "L.aero2",    kCherenkov },
+    { "L.a1",       kCherenkov },
     { "R.s0",       kScintillator },
     { "R.s1",       kScintillator },
     { "R.s2",       kScintillator },
     { "L.s0",       kScintillator },
     { "L.s1",       kScintillator },
     { "L.s2",       kScintillator },
+    { "TA.E",       kScintillator },
+    { "TA.dE",      kScintillator },
     { "R.sh",       kShower },
     { "R.ps",       kShower },
     { "L.sh",       kShower },
     { "L.ps",       kShower },
     { "L.prl1",     kShower },
     { "L.prl2",     kShower },
+    { "BB.ts.ps",   kShower },
+    { "BB.ts.sh",   kShower },
     { "R.ts",       kTotalShower },
     { "L.ts",       kTotalShower },
+    { "BB.ts",      kTotalShower },
     { "CT",         kCoincTime },
     // { "R.vdc",      kVDC },
     // { "L.vdc",      kVDC },
@@ -991,6 +1019,7 @@ static void DefaultMap()
     { "Rrb.Raster", kRaster },
     { "Lrb.Raster", kRaster },
     { "BBrb.Raster",kRaster },
+    { "BB.mwdc",    kCopyFile },
     { 0,            kNone }
   };
   for( StringToType_t* item = defaults; item->name; ++item ) {
@@ -1469,8 +1498,8 @@ int main( int argc, const char** argv )
     NameTypeMap_t::iterator it = detname_map.find(detname);
     if( it == detname_map.end() ) {
       //TODO: make behavior configurable
-      // cerr << "WARNING: unknown detector name \"" << detname
-      // 	   << "\", corresponding files will not be converted" << endl;
+      cerr << "===WARNING: unknown detector name \"" << detname
+	   << "\", corresponding files will not be converted" << endl;
       continue;
     }
     EDetectorType type = (*it).second;
@@ -1517,6 +1546,7 @@ int main( int argc, const char** argv )
 	  if( date_from  < val_from  )  date_from  = val_from;
 	  if( date_until > val_until )  date_until = val_until;
 	  rewind(fi);
+	  det->Clear();
 	  if( det->ReadDB(fi,date_from,date_until) == 0 ) {
 	  // } else {
 	  //   cout << "Read " << path << endl;
@@ -1524,7 +1554,7 @@ int main( int argc, const char** argv )
 	    det->Save( date_from );
 	  }
 	  else {
-	    cerr << "Error reading " << path << " as " << det->GetClassName()
+	    cerr << "Failed to read " << path << " as " << det->GetClassName()
 		 << endl;
 	  }
 	}
@@ -1537,7 +1567,6 @@ int main( int argc, const char** argv )
 
     next:
       fclose(fi);
-      det->Clear();
     }
     delete det;
   }
@@ -2330,6 +2359,16 @@ int Shower::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
     if( ReadBlock(fi,&fEmin,1,here,flags|kNoNegativeValues) ) // Emin thresh for center
       return kInitError;
 
+    // The BigBite shower has one extra parameter here: the max number of clusters
+    // Attempt to read it
+    if( fNelem > 1 ) {
+      // Read as double to detect "too many values" from the pedestals block reliably
+      Double_t maxcl;
+      err = ReadBlock(fi,&maxcl,1,here,flags|kNoNegativeValues|kQuietOnTooMany );
+      if( err == kSuccess )
+	fMaxCl = TMath::Nint(maxcl);
+    }
+
     // Search for optional time stamp or configuration section
     TDatime datime(date);
     if( THaAnalysisObject::SeekDBdate( fi, datime ) == 0 && fConfig.Length() > 0 &&
@@ -2337,15 +2376,16 @@ int Shower::ReadDB( FILE* fi, time_t date, time_t /* date_until */ )
   }
 
   // Read calibrations
-
-  // Read ADC pedestals and gains (in order of logical channel number)
+  // ADC pedestals (in order of logical channel number)
   if( ReadBlock(fi,fPed,fNelem,here,flags) )
     return kInitError;
+  // ADC gains
   if( ReadBlock(fi,fGain,fNelem,here,flags|kNoNegativeValues) )
     return kInitError;
 
   if( old_format ) {
-    if( ReadBlock(fi,&fEmin,1,here,flags|kNoNegativeValues) ) // Emin thresh for center
+    // Emin thresh for center
+    if( ReadBlock(fi,&fEmin,1,here,flags|kNoNegativeValues) )
       return kInitError;
   }
 
@@ -2612,6 +2652,58 @@ int CoincTime::ReadDB( FILE* fi, time_t, time_t )
 }
 
 //-----------------------------------------------------------------------------
+int TriggerTime::ReadDB( FILE* fi, time_t, time_t )
+{
+  // Legacy THaTriggerTime database reader
+
+  const char* const here = "TriggerTime::ReadDB";
+
+  const int LEN = 200;
+  char buf[LEN];
+
+  // Read in the time offsets, in the format below, to be subtracted from
+  // the times measured in other detectors.
+  //
+  // TrgType 0 is special, in that it is a global offset that is applied
+  //  to all triggers. This gives us a simple single value for adjustments.
+  //
+  // Trigger types NOT listed are assumed to have a zero offset.
+  //
+  // <TrgType>   <time offset in seconds>
+  // eg:
+  //   0              10   -0.5e-9  # global-offset shared by all triggers and s/TDC
+  //   1               0       crate slot chan
+  //   2              10.e-9
+  Double_t toff, ch2t=-0.5e-9; // assume 1872 TDC's.
+  Int_t trg,crate,slot,chan;
+  fTrgDef.clear();
+  fTDCRes = ch2t;
+
+  while( ReadComment(fi,buf,LEN) );
+
+  while ( fgets(buf,LEN,fi) ) {
+    int fnd = sscanf( buf,"%8d %16lf %16lf",&trg,&toff,&ch2t);
+    if( fnd < 2 ) goto err;
+    if( trg == 0 ) {
+      fGlOffset = toff;
+      fTDCRes = ch2t;
+    } else {
+      fnd = sscanf( buf,"%8d %16lf %8d %8d %8d",&trg,&toff,&crate,&slot,&chan);
+      if( fnd != 5 ) {
+      err:
+	Error( Here(here), "Cannot parse line:\n \"%s\"", buf );
+	return kInitError;
+      }
+      ostringstream ostr;
+      ostr << trg << " " << toff << " " << crate << " " << slot << " " << chan;
+      fTrgDef.push_back(ostr.str());
+    }
+  }
+
+  return kOK;
+}
+
+//-----------------------------------------------------------------------------
 int Detector::Save( time_t start, const string& version ) const
 {
   string prefix = fName + ".";
@@ -2687,9 +2779,11 @@ int Shower::Save( time_t start, const string& version ) const
 
   AddToMap( prefix+"ncols",     MakeValue(&fNcols), start, version );
   AddToMap( prefix+"nrows",     MakeValue(&fNrows), start, version );
-  AddToMap( prefix+"xy",        MakeValue(fXY,2),  start, version );
-  AddToMap( prefix+"dxdy",      MakeValue(fDXY,2), start, version );
+  AddToMap( prefix+"xy",        MakeValue(fXY,2),   start, version );
+  AddToMap( prefix+"dxdy",      MakeValue(fDXY,2),  start, version );
   AddToMap( prefix+"emin",      MakeValue(&fEmin),  start, version );
+  if( fMaxCl != -1 )
+    AddToMap( prefix+"maxcl",   MakeValue(&fMaxCl), start, version );
 
   AddToMap( prefix+"pedestals", MakeValueUnless(0.F,fPed,fNelem),  start, version );
   AddToMap( prefix+"gains",     MakeValueUnless(1.F,fGain,fNelem), start, version );
@@ -2755,12 +2849,24 @@ int CoincTime::Save( time_t start, const string& version ) const
   string prefix0 = fName + "." + fTdcLabels[0].Data() + ".";
   string prefix1 = fName + "." + fTdcLabels[1].Data() + ".";
 
-  AddToMap( prefix0+"detmap", MakeDetmapElemValue(fDetMap,0,2), start, version );
+  AddToMap( prefix0+"detmap",     MakeDetmapElemValue(fDetMap,0,2), start, version );
   AddToMap( prefix0+"tdc_res",    MakeValue(fTdcRes), start, version );
   AddToMap( prefix0+"tdc_offset", MakeValueUnless(0.,fTdcOff), start, version );
-  AddToMap( prefix1+"detmap", MakeDetmapElemValue(fDetMap,0,2), start, version );
+  AddToMap( prefix1+"detmap",     MakeDetmapElemValue(fDetMap,0,2), start, version );
   AddToMap( prefix1+"tdc_res",    MakeValue(fTdcRes+1), start, version );
   AddToMap( prefix1+"tdc_offset", MakeValueUnless(0.,fTdcOff+1), start, version );
+
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+int TriggerTime::Save( time_t start, const string& version ) const
+{
+  string prefix = fName + ".";
+
+  AddToMap( prefix+"tdc_res",  MakeValue(&fTDCRes),   start, version );
+  AddToMap( prefix+"glob_off", MakeValue(&fGlOffset), start, version );
+  AddToMap( prefix+"trigdef",  MakeValue(&fTrgDef[0],fTrgDef.size()), start, version );
 
   return 0;
 }
@@ -3367,72 +3473,4 @@ int CopyFile::AddToMap( const string& key, const string& value, time_t start,
 
 
 
-// ----- THaTriggerTime ----
-
-  const int LEN = 200;
-  char buf[LEN];
-
-  // first is the list of channels to watch to determine the event type
-  // This could just come from THaDecData, but for robustness we need
-  // another copy.
-
-  // Read data from database
-  FILE* fi = OpenFile( date );
-  // however, this is not unexpected since most of the time it is un-necessary
-  if( !fi ) return kOK;
-
-  while( ReadComment(fi, buf, LEN) );
-
-  // Read in the time offsets, in the format below, to be subtracted from
-  // the times measured in other detectors.
-  //
-  // TrgType 0 is special, in that it is a global offset that is applied
-  //  to all triggers. This gives us a simple single value for adjustments.
-  //
-  // Trigger types NOT listed are assumed to have a zero offset.
-  //
-  // <TrgType>   <time offset in seconds>
-  // eg:
-  //   0              10   -0.5e-9  # global-offset shared by all triggers and s/TDC
-  //   1               0       crate slot chan
-  //   2              10.e-9
-  int trg;
-  float toff;
-  float ch2t=-0.5e-9;
-  int crate,slot,chan;
-  fTrgTypes.clear();
-  fToffsets.clear();
-  fTDCRes = -0.5e-9; // assume 1872 TDC's.
-
-  while ( fgets(buf,LEN,fi) ) {
-    int fnd = sscanf( buf,"%8d %16f %16f",&trg,&toff,&ch2t);
-    if( fnd < 2 ) continue;
-    if( trg == 0 ) {
-      fGlOffset = toff;
-      fTDCRes = ch2t;
-    }
-    else {
-      fnd = sscanf( buf,"%8d %16f %8d %8d %8d",&trg,&toff,&crate,&slot,&chan);
-      if( fnd != 5 ) {
-	cerr << "Cannot parse line: " << buf << endl;
-	continue;
-      }
-      fTrgTypes.push_back(trg);
-      fToffsets.push_back(toff);
-      fDetMap->AddModule(crate,slot,chan,chan,trg);
-    }
-  }
-  fclose(fi);
-
-  // now construct the appropriate arrays
-  delete [] fTrgTimes;
-  fNTrgType = fTrgTypes.size();
-  fTrgTimes = new Double_t[fNTrgType];
-//   for (unsigned int i=0; i<fTrgTypes.size(); i++) {
-//     if (fTrgTypes[i]==0) continue;
-//     fTrg_gl.push_back(gHaVars->Find(Form("%s.bit%d",fDecDataNm.Data(),
-// 					 fTrgTypes[i])));
-//   }
-
-// ---- End TriggerTime ---
 #endif
