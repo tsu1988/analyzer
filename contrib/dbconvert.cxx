@@ -52,7 +52,7 @@ static bool IsDBdate( const string& line, time_t& date );
 
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
-static int do_clean = 1, do_verify = 1, do_dump = 0;
+static int do_clean = 1, do_verify = 1, do_dump = 0, purge_all_default_keys = 1;
 static string srcdir;
 static string destdir;
 static const char* prgname = 0;
@@ -307,30 +307,6 @@ template<> string MakeValue( const TVector3* vec3, int )
 }
 
 //-----------------------------------------------------------------------------
-template <class T>
-string MakeValueUnless( T trivial_value, const T* array, int size = 0 )
-{
-  if( size == 0 ) size = 1;
-  int i = 0;
-  for( ; i < size; ++i ) {
-    if( array[i] != trivial_value )
-      break;
-  }
-  if( i == size )
-    return string();
-
-  return MakeValue( array, size );
-}
-
-//-----------------------------------------------------------------------------
-string MakeValueUnless( double triv, const TVector3* vec )
-{
-  if( vec->X() == triv && vec->Y() == triv && vec->Z() == triv )
-    return string();
-  return MakeValue( vec );
-}
-
-//-----------------------------------------------------------------------------
 // Define data structures for local caching of database parameters
 
 struct DBvalue {
@@ -365,7 +341,7 @@ struct KeyAttr_t {
 typedef map<string, KeyAttr_t > DB;
 typedef map<string, string> StrMap_t;
 typedef multimap<string, string> MStrMap_t;
-typedef MStrMap_t::const_iterator iter_t;
+typedef MStrMap_t::iterator iter_t;
 
 static DB gDB;
 static StrMap_t gKeyToDet;
@@ -585,6 +561,8 @@ public:
   virtual const char* GetClassName() const = 0;
   virtual bool SupportsTimestamps()  const { return false; }
   virtual bool SupportsVariations()  const { return false; }
+  virtual void RegisterDefaults();
+  virtual int  PurgeAllDefaultKeys();
 
 protected:
   virtual int AddToMap( const string& key, const string& value, time_t start,
@@ -639,6 +617,8 @@ protected:
   Double_t    fAngle;
   TVector3    fOrigin;//, fXax, fYax, fZax;
 
+  StrMap_t    fDefaults;
+
 private:
   bool TestBit(int flags, int bit) { return (flags & bit) != 0; }
 
@@ -679,6 +659,7 @@ public:
   virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Cherenkov"; }
+  virtual void RegisterDefaults();
 
 private:
   // Calibrations
@@ -701,6 +682,7 @@ public:
   virtual const char* GetClassName() const { return "Scintillator"; }
   virtual bool SupportsTimestamps()  const { return true; }
   virtual bool SupportsVariations()  const { return true; }
+  virtual void RegisterDefaults();
 
 private:
   // Configuration
@@ -744,6 +726,7 @@ public:
   virtual const char* GetClassName() const { return "Shower"; }
   virtual bool SupportsTimestamps()  const { return true; }
   virtual bool SupportsVariations()  const { return true; }
+  virtual void RegisterDefaults();
 
 private:
   // Mapping
@@ -786,6 +769,7 @@ public:
   virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "BPM"; }
+  virtual void RegisterDefaults();
 
 private:
   Double_t fCalibRot;
@@ -803,6 +787,7 @@ public:
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "Raster"; }
   virtual bool SupportsTimestamps()  const { return true; }
+  virtual void RegisterDefaults();
 
 private:
   Double_t fFreq[2], fRPed[2], fSPed[2];
@@ -820,6 +805,7 @@ public:
   virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "CoincTime"; }
+  virtual void RegisterDefaults();
 
 private:
   Double_t fTdcRes[2], fTdcOff[2];
@@ -1451,7 +1437,7 @@ static int InsertDefaultFiles( const vector<string>& subdirs,
   }
   // Eliminate consecutive identical paths - these would cause the same file
   // to be read multiple times with artificial validity start times at
-  // directory boundaries, which would then get collapsed again in PruneMap
+  // directory boundaries, which would then be deleted again in PruneMap
   fiter_t it = filenames.begin();
   while( it != filenames.end() ) {
     fiter_t jt = it;
@@ -1502,7 +1488,7 @@ int main( int argc, const char** argv )
 	   << "\", corresponding files will not be converted" << endl;
       continue;
     }
-    EDetectorType type = (*it).second;
+    EDetectorType type = it->second;
     Detector* det = MakeDetector( type, detname );
     if( !det )
       continue;
@@ -1564,12 +1550,16 @@ int main( int argc, const char** argv )
       if( do_file_copy && type == kCopyFile ) {
 
       }
-
     next:
       fclose(fi);
-    }
+    } // end for st = filenames
+
+    // If requested, remove keys for this detector that only have default values
+    if( purge_all_default_keys )
+      det->PurgeAllDefaultKeys();
+    // Done with this detector
     delete det;
-  }
+  } // end for ft = filemap
 
   // Prune the key/value map to remove entries that have the exact
   // same keys/values and only differ by /consecutive/ timestamps.
@@ -1814,6 +1804,54 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
     return kTooFewValues;
   }
   return kSuccess;
+}
+
+//-----------------------------------------------------------------------------
+int Detector::PurgeAllDefaultKeys()
+{
+  // Remove all keys of this detector that have only default values
+
+  if( fDefaults.empty() )
+    RegisterDefaults();
+
+  for( StrMap_t::iterator it = fDefaults.begin(); it != fDefaults.end(); ++it ) {
+    string key = fName + "." + it->first;
+    DB::iterator jt = gDB.find( key );
+    if( jt == gDB.end() )
+      continue;
+    const KeyAttr_t& attr = jt->second;
+    if( attr.isCopy )
+      continue;
+    // Got a registered key. Compare all its values to the default.
+    // Since the "values" are actually a string, we do a string comparison
+    // for simplicity. This means that default values need to be registered
+    // exactly in the form in which MakeValue would return them as a string.
+    const ValSet_t& vals = attr.values;
+    const string& defval = it->second;
+    bool all_defaults = true;
+    for( ValSet_t::const_iterator vt = vals.begin();
+	 vt != vals.end() && all_defaults; ++vt ) {
+      istringstream istr( vt->value.c_str() );
+      string val;
+      while( istr >> val ) {
+	if( val != defval ) {
+	  all_defaults = false;
+	  break;
+	}
+      }
+    }
+    if( all_defaults ) {
+      gDB.erase( jt );
+      pair<iter_t,iter_t> range = gDetToKey.equal_range( fName );
+      for( iter_t kt = range.first; kt != range.second; ++kt ) {
+	if( kt->second == key ) {
+	  gDetToKey.erase( kt );
+	  break;
+	}
+      }
+    }
+  }
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -2710,10 +2748,10 @@ int Detector::Save( time_t start, const string& version ) const
   int flags = 1;
   if( fDetMapHasModel )  flags++;
   AddToMap( prefix+"detmap",   MakeValue(fDetMap,flags), start, version, 4+flags );
-  AddToMap( prefix+"nelem",    MakeValueUnless(0,&fNelem), start, version );
-  AddToMap( prefix+"angle",    MakeValueUnless(0.,&fAngle), start, version );
-  AddToMap( prefix+"position", MakeValueUnless(0.,&fOrigin), start, version );
-  AddToMap( prefix+"size",     MakeValueUnless(0.,fSize,3), start, version );
+  AddToMap( prefix+"nelem",    MakeValue(&fNelem),       start, version );
+  AddToMap( prefix+"angle",    MakeValue(&fAngle),       start, version );
+  AddToMap( prefix+"position", MakeValue(&fOrigin),      start, version );
+  AddToMap( prefix+"size",     MakeValue(fSize,3),       start, version );
 
   return 0;
 }
@@ -2727,9 +2765,9 @@ int Cherenkov::Save( time_t start, const string& version ) const
 
   Detector::Save( start, version );
 
-  AddToMap( prefix+"tdc.offsets",   MakeValueUnless(0.F,fOff,fNelem),  start, version );
-  AddToMap( prefix+"adc.pedestals", MakeValueUnless(0.F,fPed,fNelem),  start, version );
-  AddToMap( prefix+"adc.gains",     MakeValueUnless(1.F,fGain,fNelem), start, version );
+  AddToMap( prefix+"tdc.offsets",   MakeValue(fOff,fNelem),  start, version );
+  AddToMap( prefix+"adc.pedestals", MakeValue(fPed,fNelem),  start, version );
+  AddToMap( prefix+"adc.gains",     MakeValue(fGain,fNelem), start, version );
 
   return 0;
 }
@@ -2743,12 +2781,12 @@ int Scintillator::Save( time_t start, const string& version ) const
 
   Detector::Save( start, version );
 
-  AddToMap( prefix+"L.off",    MakeValueUnless(0.,fLOff,fNelem),  start, version );
-  AddToMap( prefix+"L.ped",    MakeValueUnless(0.,fLPed,fNelem),  start, version );
-  AddToMap( prefix+"L.gain",   MakeValueUnless(1.,fLGain,fNelem), start, version );
-  AddToMap( prefix+"R.off",    MakeValueUnless(0.,fROff,fNelem),  start, version );
-  AddToMap( prefix+"R.ped",    MakeValueUnless(0.,fRPed,fNelem),  start, version );
-  AddToMap( prefix+"R.gain",   MakeValueUnless(1.,fRGain,fNelem), start, version );
+  AddToMap( prefix+"L.off",    MakeValue(fLOff,fNelem),  start, version );
+  AddToMap( prefix+"L.ped",    MakeValue(fLPed,fNelem),  start, version );
+  AddToMap( prefix+"L.gain",   MakeValue(fLGain,fNelem), start, version );
+  AddToMap( prefix+"R.off",    MakeValue(fROff,fNelem),  start, version );
+  AddToMap( prefix+"R.ped",    MakeValue(fRPed,fNelem),  start, version );
+  AddToMap( prefix+"R.gain",   MakeValue(fRGain,fNelem), start, version );
 
   if( fHaveExtras ) {
     AddToMap( prefix+"avgres",   MakeValue(&fResolution), start, version );
@@ -2785,8 +2823,8 @@ int Shower::Save( time_t start, const string& version ) const
   if( fMaxCl != -1 )
     AddToMap( prefix+"maxcl",   MakeValue(&fMaxCl), start, version );
 
-  AddToMap( prefix+"pedestals", MakeValueUnless(0.F,fPed,fNelem),  start, version );
-  AddToMap( prefix+"gains",     MakeValueUnless(1.F,fGain,fNelem), start, version );
+  AddToMap( prefix+"pedestals", MakeValue(fPed,fNelem),  start, version );
+  AddToMap( prefix+"gains",     MakeValue(fGain,fNelem), start, version );
 
   return 0;
 }
@@ -2815,8 +2853,8 @@ int BPM::Save( time_t start, const string& version ) const
   Detector::Save( start, version );
 
   AddToMap( prefix+"calib_rot",  MakeValue(&fCalibRot), start, version );
-  AddToMap( prefix+"pedestals",  MakeValueUnless(0.,fPed,4), start, version );
-  AddToMap( prefix+"rotmatrix",  MakeValueUnless(0.,fRot,4), start, version );
+  AddToMap( prefix+"pedestals",  MakeValue(fPed,4),     start, version );
+  AddToMap( prefix+"rotmatrix",  MakeValue(fRot,4),     start, version );
 
   return 0;
 }
@@ -2830,10 +2868,10 @@ int Raster::Save( time_t start, const string& version ) const
 
   Detector::Save( start, version );
 
-  AddToMap( prefix+"zpos",        MakeValue(fZpos,3), start, version );
-  AddToMap( prefix+"freqs",       MakeValue(fFreq,2), start, version );
-  AddToMap( prefix+"rast_peds",   MakeValueUnless(0.,fRPed,2), start, version );
-  AddToMap( prefix+"slope_peds",  MakeValueUnless(0.,fSPed,2), start, version );
+  AddToMap( prefix+"zpos",        MakeValue(fZpos,3),   start, version );
+  AddToMap( prefix+"freqs",       MakeValue(fFreq,2),   start, version );
+  AddToMap( prefix+"rast_peds",   MakeValue(fRPed,2),   start, version );
+  AddToMap( prefix+"slope_peds",  MakeValue(fSPed,2),   start, version );
   AddToMap( prefix+"raw2posA",    MakeValue(fCalibA,6), start, version );
   AddToMap( prefix+"raw2posB",    MakeValue(fCalibB,6), start, version );
   AddToMap( prefix+"raw2posT",    MakeValue(fCalibT,6), start, version );
@@ -2851,10 +2889,10 @@ int CoincTime::Save( time_t start, const string& version ) const
 
   AddToMap( prefix0+"detmap",     MakeDetmapElemValue(fDetMap,0,2), start, version );
   AddToMap( prefix0+"tdc_res",    MakeValue(fTdcRes), start, version );
-  AddToMap( prefix0+"tdc_offset", MakeValueUnless(0.,fTdcOff), start, version );
+  AddToMap( prefix0+"tdc_offset", MakeValue(fTdcOff), start, version );
   AddToMap( prefix1+"detmap",     MakeDetmapElemValue(fDetMap,0,2), start, version );
   AddToMap( prefix1+"tdc_res",    MakeValue(fTdcRes+1), start, version );
-  AddToMap( prefix1+"tdc_offset", MakeValueUnless(0.,fTdcOff+1), start, version );
+  AddToMap( prefix1+"tdc_offset", MakeValue(fTdcOff+1), start, version );
 
   return 0;
 }
@@ -2872,12 +2910,86 @@ int TriggerTime::Save( time_t start, const string& version ) const
 }
 
 //-----------------------------------------------------------------------------
+void Detector::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  fDefaults["angle"] = "0";
+  fDefaults["position"] = "0";
+  fDefaults["size"] = "0";
+}
+
+//-----------------------------------------------------------------------------
+void Cherenkov::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  Detector::RegisterDefaults();
+  fDefaults["offsets"] = "0";
+  fDefaults["pedestals"] = "0";
+  fDefaults["gains"] = "1";
+}
+
+//-----------------------------------------------------------------------------
+void Scintillator::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  Detector::RegisterDefaults();
+  fDefaults["L.off"] = "0";
+  fDefaults["L.ped"] = "0";
+  fDefaults["L.gain"] = "1";
+  fDefaults["R.off"] = "0";
+  fDefaults["R.ped"] = "0";
+  fDefaults["R.gain"] = "1";
+}
+
+//-----------------------------------------------------------------------------
+void Shower::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  Detector::RegisterDefaults();
+  fDefaults["pedestals"] = "0";
+  fDefaults["gains"] = "1";
+}
+
+//-----------------------------------------------------------------------------
+void BPM::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  Detector::RegisterDefaults();
+  fDefaults["pedestals"] = "0";
+  fDefaults["rotmatrix"] = "0"; // FIXME: correct?
+}
+
+//-----------------------------------------------------------------------------
+void Raster::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  Detector::RegisterDefaults();
+  fDefaults["rast_peds"] = "0";
+  fDefaults["slope_peds"] = "0";
+}
+
+//-----------------------------------------------------------------------------
+void CoincTime::RegisterDefaults()
+{
+  // Register default values for certain keys
+
+  Detector::RegisterDefaults();
+  fDefaults["tdc_offset"] = "0";
+}
+
+//-----------------------------------------------------------------------------
 int Detector::AddToMap( const string& key, const string& value, time_t start,
 			const string& version, int max ) const
 {
   // Add given key and value with given validity start time and optional
   // "version" (secondary index) to the in-memory database.
-  // If value is empty, do nothing (for use with MakeValueUnless).
+  // If value is empty, do nothing.
 
   if( value.empty() )
     return 0;
