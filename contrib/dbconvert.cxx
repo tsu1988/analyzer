@@ -30,6 +30,7 @@
 #include <dirent.h>   // for opendir/readdir
 #include <cctype>     // for isdigit, tolower
 #include <cerrno>
+#include <cmath>
 
 #include "TString.h"
 #include "TDatime.h"
@@ -264,27 +265,142 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
 }
 
 //-----------------------------------------------------------------------------
-template <class T> string MakeValue( const T* array, int size = 0 )
+static inline size_t Order( int n )
 {
-  ostringstream ostr;
-  w = 0;
-  if( size <= 0 ) size = 1;
-  for( int i = 0; i < size; ++i ) {
-    ssiz_t len = ostr.str().size();
-    ostr << array[i]; w = max(ostr.str().size()-len,w);
-    if( i+1 < size ) ostr << " ";
-  }
-  return ostr.str();
+  if( n >= 1000000 ) return 7;
+  if( n >=  100000 ) return 6;
+  if( n >=   10000 ) return 5;
+  if( n >=    1000 ) return 4;
+  if( n >=     100 ) return 3;
+  if( n >=      10 ) return 2;
+  if( n >=       1 ) return 1;
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
-static inline string MakeDetmapElemValue( const THaDetMap* detmap, int n,
-					  int extras )
+template <class T> static inline
+size_t GetSignificantDigits( T x, T round_level )
+{
+  // Get number of significant *decimal* digits of x when rounded at level
+
+  T xx;
+  if( x >= 0.0 )
+    xx = x - std::floor(x);
+  else
+    xx = std::ceil(x) - x;
+  int ix = xx/round_level + 0.5;
+  size_t nn = Order(ix), n = nn;
+  for( size_t j = 1; j < nn; ++j ) {
+    int ix1 = ix/10;
+    if( 10*ix1 != ix )
+      break;
+    --n;
+    ix = ix1;
+  }
+  return n;
+}
+
+//-----------------------------------------------------------------------------
+template <class T> static inline
+void PrepareStreamImpl( ostringstream& str, vector<T> arr, T round_level )
+{
+  // Determine formatting for floating point data
+
+  // Formatting only matters for groups of numbers; we want them to line up
+  if( arr.size() < 2 )
+    return;
+
+  size_t ndigits = 0;
+  bool sci = false;
+  const T zero = 0.L, one = 1.L, ten = 10.L;
+  typename vector<T>::size_type i;
+  for( i = 0; i < arr.size(); ++i ) {
+    if( arr[i] != zero && std::abs(arr[i]) < 1e-3L ) {
+      sci = true;
+      break;
+    }
+  }
+  if( sci ) {
+    // Scientific format
+    for( i = 0; i < arr.size(); ++i ) {
+      T x = std::abs(arr[i]);
+      if( x == zero ) continue;
+      x *= std::pow( ten, -std::ceil(std::log10(x)) );
+      assert( x < ten );
+      if( x >= one ) x /= ten;
+      ndigits = max( ndigits, GetSignificantDigits(x,round_level) );
+    }
+    if( ndigits > 0 )
+      str << scientific << setprecision(ndigits-1);
+    return;
+  }
+  else {
+    // Fixed format
+    for( i = 0; i < arr.size(); ++i ) {
+      T x = std::abs(arr[i]);
+      ndigits = max( ndigits, GetSignificantDigits(x,round_level) );
+    }
+    if( ndigits > 0 )
+      str << fixed << setprecision(ndigits);
+  }
+}
+
+//-----------------------------------------------------------------------------
+template <class T> static inline
+void PrepareStream( ostringstream&, const T*, int )
+{
+  // Prepare formatting of stream 'str' based on data in array.
+  // By default, do nothing.
+}
+
+//-----------------------------------------------------------------------------
+template <> inline
+void PrepareStream( ostringstream& str, const double* array, int size )
+{
+  vector<double> arr( array, array+size );
+  PrepareStreamImpl( str, arr, 1e-7 );
+}
+
+//-----------------------------------------------------------------------------
+template <> inline
+void PrepareStream( ostringstream& str, const float* array, int size )
+{
+  vector<float> arr( array, array+size );
+  PrepareStreamImpl( str, arr, 1e-5F );
+}
+
+//-----------------------------------------------------------------------------
+struct Value_t {
+  Value_t( const string& v, int n, ssiz_t w ) : value(v), nelem(n), width(w) {}
+  string value;
+  int    nelem;
+  ssiz_t width;
+};
+
+//-----------------------------------------------------------------------------
+template <class T> static inline
+Value_t MakeValue( const T* array, int size = 0 )
+{
+  ostringstream ostr;
+  ssiz_t w = 0;
+  if( size <= 0 ) size = 1;
+  PrepareStream( ostr, array, size );
+  for( int i = 0; i < size; ++i ) {
+    ssiz_t len = ostr.str().size();
+    ostr << array[i];
+    w = max(w, ostr.str().size()-len);
+    if( i+1 < size ) ostr << "  ";
+  }
+  return Value_t(ostr.str(), size, w);
+}
+
+//-----------------------------------------------------------------------------
+static inline
+Value_t MakeDetmapElemValue( const THaDetMap* detmap, int n, int extras )
 {
   ostringstream ostr;
   THaDetMap::Module* d = detmap->GetModule(n);
-  ssiz_t len;
-  w = 0;
+  ssiz_t len, w = 0;
   ostr << d->crate; w = ostr.str().size();
   ostr << " ";
   len = ostr.str().size();
@@ -305,34 +421,33 @@ static inline string MakeDetmapElemValue( const THaDetMap* detmap, int n,
     len = ostr.str().size();
     ostr << d->GetModel(); w = max(ostr.str().size()-len,w);
   }
-  return ostr.str();
+  return Value_t(ostr.str(), 4+extras, w);
 }
 
 //-----------------------------------------------------------------------------
-template<> string MakeValue( const THaDetMap* detmap, int extras )
+template<> inline
+Value_t MakeValue( const THaDetMap* detmap, int extras )
 {
   ostringstream ostr;
+  ssiz_t w = 0;
+  int nelem = 0;
   for( Int_t i = 0; i < detmap->GetSize(); ++i ) {
-    ostr << MakeDetmapElemValue( detmap, i, extras, w );
+    Value_t v = MakeDetmapElemValue( detmap, i, extras );
+    ostr << v.value;
+    w = max(w,v.width);
+    nelem += v.nelem;
     if( i+1 != detmap->GetSize() ) ostr << " ";
   }
-  return ostr.str();
+  return Value_t(ostr.str(), nelem, w);
 }
 
 //-----------------------------------------------------------------------------
-template<> string MakeValue( const TVector3* vec3, int )
+template<> inline
+Value_t MakeValue( const TVector3* vec3, int )
 {
-  ostringstream ostr;
-  ssiz_t len;
-  w = 0;
-  ostr << vec3->X(); w = ostr.str().size();
-  ostr << " ";
-  len = ostr.str().size();
-  ostr << vec3->Y(); w = max(ostr.str().size()-len,w);
-  ostr << " ";
-  len = ostr.str().size();
-  ostr << vec3->Z(); w = max(ostr.str().size()-len,w);
-  return ostr.str();
+  Double_t darr[3];
+  vec3->GetXYZ( darr );
+  return MakeValue( darr, 3 );
 }
 
 //-----------------------------------------------------------------------------
@@ -340,13 +455,23 @@ template<> string MakeValue( const TVector3* vec3, int )
 
 struct DBvalue {
   DBvalue( const string& valstr, time_t start, const string& ver = string(),
+	   int maxv = 0 )
+    : value(valstr), validity_start(start), version(ver), nelem(0),
+      max_per_line(maxv)
+  {
+    istringstream istr; string item;
+    while( istr >> item )  ++nelem;
+  }
+  DBvalue( const Value_t& valobj, time_t start, const string& ver = string(),
 	   int max = 0 )
-    : value(valstr), validity_start(start), version(ver), max_per_line(max) {}
+    : value(valobj.value), validity_start(start), version(ver),
+      nelem(valobj.nelem), max_per_line(max) {}
   DBvalue( time_t start, const string& ver = string() )
-    : validity_start(start), version(ver), max_per_line(0) {}
+    : validity_start(start), version(ver), nelem(0), max_per_line(0) {}
   string value;
   time_t validity_start;
   string version;
+  int    nelem;
   int    max_per_line;    // Number of values per line (for formatting text db)
   // Order values by validity start time, then version
   bool operator<( const DBvalue& rhs ) const {
@@ -365,6 +490,7 @@ struct KeyAttr_t {
   KeyAttr_t() : isCopy(false), width(0) {}
   bool isCopy;
   ssiz_t width;
+  string comment;
   ValSet_t values;
 };
 
@@ -467,19 +593,20 @@ static int WriteAllKeysForTime( ofstream& ofs,
     }
 
     // Write the key, pretty-printing if requested
-    ofs << key << " = ";
+    ofs << key << " =";
     int ncol = vt->max_per_line;
     if( ncol <= 0 )
-      ofs << vt->value << endl;
+      ofs << " " << vt->value << endl;
     else {
       // Tokenize on whitespace
       stringstream istr( vt->value.c_str() );
       string val;
       int num_to_do = ncol, nelem = 0;
+      ofs << endl;
       while( istr >> val ) {
-	if( num_to_do == ncol && nelem != 0 )
+	if( num_to_do == ncol )
 	  ofs << "  "; // New line indentation
-	ofs << setw(attr.width) << val;
+	ofs << setw(attr.width + 1) << val;
 	++nelem;
 	if( --num_to_do == 0 ) {
 	  ofs << endl;
@@ -630,7 +757,7 @@ public:
   virtual int  PurgeAllDefaultKeys();
 
 protected:
-  virtual int AddToMap( const string& key, const string& value, time_t start,
+  virtual int AddToMap( const string& key, const Value_t& value, time_t start,
 			const string& version = string(), int max = 0 ) const;
   // void DefineAxes( Double_t rot ) {
   //   fXax.SetXYZ( TMath::Cos(rot), 0.0, TMath::Sin(rot) );
@@ -677,7 +804,7 @@ protected:
   TString     fConfig;  // TString for compatibility with old API
   THaDetMap*  fDetMap;
   bool        fDetMapHasModel;
-  Int_t       fNelem;
+  mutable Int_t fNelem;
   Double_t    fSize[3];
   Double_t    fAngle;
   TVector3    fOrigin;//, fXax, fYax, fZax;
@@ -706,7 +833,7 @@ public:
   virtual const char* GetClassName() const { return "CopyFile"; }
 
 protected:
-  virtual int AddToMap( const string& key, const string& value, time_t start,
+  virtual int AddToMap( const string& key, const Value_t& value, time_t start,
 			const string& version = string(), int max = 0 ) const;
 
   bool fDoingFileCopy; // If true, mark DB values with isCopy = true
@@ -1984,7 +2111,8 @@ int CopyFile::Save( time_t start, const string& /*version*/ ) const
 
   for( DB::const_iterator dt = fDB.begin(); dt != fDB.end(); ++dt ) {
     const DB::value_type& keyval = *dt;
-    const ValSet_t& vals = keyval.second.values;
+    const KeyAttr_t& attr = keyval.second;
+    const ValSet_t& vals = attr.values;
     DBvalue startval(start);
     ValSet_t::const_iterator vt = vals.upper_bound(startval);
     if( vt != vals.begin() )
@@ -2003,8 +2131,8 @@ int CopyFile::Save( time_t start, const string& /*version*/ ) const
 	forwarded = true;
 #endif
       }
-      AddToMap( keyval.first, vt->value, date, vt->version,
-		vt->max_per_line );
+      AddToMap( keyval.first, Value_t(vt->value,vt->nelem,attr.width),
+		date, vt->version, vt->max_per_line );
     }
   }
   return 0;
@@ -2849,10 +2977,10 @@ int Scintillator::Save( time_t start, const string& version ) const
   Detector::Save( start, version );
 
   AddToMap( prefix+"L.off",    MakeValue(fLOff,fNelem),  start, version );
-  AddToMap( prefix+"L.ped",    MakeValue(fLPed,fNelem),  start, version );
-  AddToMap( prefix+"L.gain",   MakeValue(fLGain,fNelem), start, version );
   AddToMap( prefix+"R.off",    MakeValue(fROff,fNelem),  start, version );
+  AddToMap( prefix+"L.ped",    MakeValue(fLPed,fNelem),  start, version );
   AddToMap( prefix+"R.ped",    MakeValue(fRPed,fNelem),  start, version );
+  AddToMap( prefix+"L.gain",   MakeValue(fLGain,fNelem), start, version );
   AddToMap( prefix+"R.gain",   MakeValue(fRGain,fNelem), start, version );
 
   if( fHaveExtras ) {
@@ -2862,7 +2990,8 @@ int Scintillator::Save( time_t start, const string& version ) const
     AddToMap( prefix+"MIP",      MakeValue(&fAdcMIP), start, version );
     AddToMap( prefix+"tdc.res",  MakeValue(&fTdc2T), start, version );
 
-    AddToMap( prefix+"timewalk_params",  MakeValue(fTWalkPar,fNTWalkPar), start, version );
+    AddToMap( prefix+"timewalk_params",  MakeValue(fTWalkPar,fNTWalkPar),
+	      start, version, fNelem );
     AddToMap( prefix+"retiming_offsets", MakeValue(fTrigOff,fNelem), start, version );
   }
 
@@ -2876,22 +3005,27 @@ int Shower::Save( time_t start, const string& version ) const
 
   string prefix = fName + ".";
 
-  Detector::Save( start, version );
+  Int_t nelem = fNelem;
+  fNelem = 0; // nelem is redundant here because it equals fNcols*fNrows
 
-  if( !fChanMap.empty() )
-    AddToMap( prefix+"chanmap", MakeValue(&fChanMap[0], fChanMap.size()),
-	      start, version );
+  Detector::Save( start, version );
+  fNelem = nelem;
 
   AddToMap( prefix+"ncols",     MakeValue(&fNcols), start, version );
   AddToMap( prefix+"nrows",     MakeValue(&fNrows), start, version );
+
+  if( !fChanMap.empty() )
+    AddToMap( prefix+"chanmap", MakeValue(&fChanMap[0], fChanMap.size()),
+	      start, version, fNcols );
+
   AddToMap( prefix+"xy",        MakeValue(fXY,2),   start, version );
   AddToMap( prefix+"dxdy",      MakeValue(fDXY,2),  start, version );
   AddToMap( prefix+"emin",      MakeValue(&fEmin),  start, version );
   if( fMaxCl != -1 )
     AddToMap( prefix+"maxcl",   MakeValue(&fMaxCl), start, version );
 
-  AddToMap( prefix+"pedestals", MakeValue(fPed,fNelem),  start, version );
-  AddToMap( prefix+"gains",     MakeValue(fGain,fNelem), start, version );
+  AddToMap( prefix+"pedestals", MakeValue(fPed,fNelem),  start, version, fNcols );
+  AddToMap( prefix+"gains",     MakeValue(fGain,fNelem), start, version, fNcols );
 
   return 0;
 }
@@ -2981,6 +3115,7 @@ void Detector::RegisterDefaults()
 {
   // Register default values for certain keys
 
+  fDefaults["nelem"] = "0";
   fDefaults["angle"] = "0";
   fDefaults["position"] = "0";
   fDefaults["size"] = "0";
@@ -3051,15 +3186,16 @@ void CoincTime::RegisterDefaults()
 }
 
 //-----------------------------------------------------------------------------
-int Detector::AddToMap( const string& key, const string& value, time_t start,
-			const string& version, int max ) const
+int Detector::AddToMap( const string& key, const Value_t& v, time_t start,
+			const string& version, int maxv ) const
 {
   // Add given key and value with given validity start time and optional
   // "version" (secondary index) to the in-memory database.
   // If value is empty, do nothing.
 
-  if( value.empty() )
+  if( v.value.empty() )
     return 0;
+  assert( v.nelem > 0 );
 
   // Ensure that each key can only be associated with one detector name
   StrMap_t::iterator itn = gKeyToDet.find( key );
@@ -3073,7 +3209,7 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
     return 1;
   }
 
-  DBvalue val( value, start, version, maxv );
+  DBvalue val( v, start, version, maxv );
   KeyAttr_t& attr = gDB[key];
   ValSet_t& vals = attr.values;
   // Find existing values with the exact timestamp of 'val' (='start')
@@ -3089,8 +3225,8 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
 	cerr << " and version \"" << version << "\"";
       cerr << ", but with a different value:" << endl;
       cerr << " old = " << pos->value << endl;
-      cerr << " new = " << value << endl;
-      const_cast<DBvalue&>(*pos).value = value;
+      cerr << " new = " << v.value << endl;
+      const_cast<DBvalue&>(*pos).value = v.value;
     }
     return 0;
   }
@@ -3099,14 +3235,17 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
 #else
   assert( vals.insert(val).second );
 #endif
+
+  attr.width = max(attr.width,v.width);
+
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-int CopyFile::AddToMap( const string& key, const string& value, time_t start,
-			const string& version, int max ) const
+int CopyFile::AddToMap( const string& key, const Value_t& value, time_t start,
+			const string& version, int maxv ) const
 {
-  int err = Detector::AddToMap(key, value, start, version, max);
+  int err = Detector::AddToMap(key, value, start, version, maxv);
   if( err )
     return err;
 
