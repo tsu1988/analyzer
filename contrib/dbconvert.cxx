@@ -267,9 +267,11 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
 template <class T> string MakeValue( const T* array, int size = 0 )
 {
   ostringstream ostr;
-  if( size == 0 ) size = 1;
+  w = 0;
+  if( size <= 0 ) size = 1;
   for( int i = 0; i < size; ++i ) {
-    ostr << array[i];
+    ssiz_t len = ostr.str().size();
+    ostr << array[i]; w = max(ostr.str().size()-len,w);
     if( i+1 < size ) ostr << " ";
   }
   return ostr.str();
@@ -281,9 +283,28 @@ static inline string MakeDetmapElemValue( const THaDetMap* detmap, int n,
 {
   ostringstream ostr;
   THaDetMap::Module* d = detmap->GetModule(n);
-  ostr << d->crate << " " << d->slot << " " << d->lo << " " << d->hi;
-  if( extras >= 1 ) ostr << " " << d->first;
-  if( extras >= 2 ) ostr << " " << d->GetModel();
+  ssiz_t len;
+  w = 0;
+  ostr << d->crate; w = ostr.str().size();
+  ostr << " ";
+  len = ostr.str().size();
+  ostr << d->slot; w = max(ostr.str().size()-len,w);
+  ostr << " ";
+  len = ostr.str().size();
+  ostr << d->lo;   w = max(ostr.str().size()-len,w);
+  ostr << " ";
+  len = ostr.str().size();
+  ostr << d->hi;   w = max(ostr.str().size()-len,w);
+  if( extras >= 1 ) {
+    ostr << " ";
+    len = ostr.str().size();
+    ostr << d->first; w = max(ostr.str().size()-len,w);
+  }
+  if( extras >= 2 ) {
+    ostr << " ";
+    len = ostr.str().size();
+    ostr << d->GetModel(); w = max(ostr.str().size()-len,w);
+  }
   return ostr.str();
 }
 
@@ -292,7 +313,7 @@ template<> string MakeValue( const THaDetMap* detmap, int extras )
 {
   ostringstream ostr;
   for( Int_t i = 0; i < detmap->GetSize(); ++i ) {
-    ostr << MakeDetmapElemValue( detmap, i, extras );
+    ostr << MakeDetmapElemValue( detmap, i, extras, w );
     if( i+1 != detmap->GetSize() ) ostr << " ";
   }
   return ostr.str();
@@ -302,7 +323,15 @@ template<> string MakeValue( const THaDetMap* detmap, int extras )
 template<> string MakeValue( const TVector3* vec3, int )
 {
   ostringstream ostr;
-  ostr << vec3->X() << " " << vec3->Y() << " " << vec3->Z();
+  ssiz_t len;
+  w = 0;
+  ostr << vec3->X(); w = ostr.str().size();
+  ostr << " ";
+  len = ostr.str().size();
+  ostr << vec3->Y(); w = max(ostr.str().size()-len,w);
+  ostr << " ";
+  len = ostr.str().size();
+  ostr << vec3->Z(); w = max(ostr.str().size()-len,w);
   return ostr.str();
 }
 
@@ -333,8 +362,9 @@ struct DBvalue {
 typedef set<DBvalue> ValSet_t;
 
 struct KeyAttr_t {
-  KeyAttr_t() : isCopy(false) {}
+  KeyAttr_t() : isCopy(false), width(0) {}
   bool isCopy;
+  ssiz_t width;
   ValSet_t values;
 };
 
@@ -397,9 +427,15 @@ static int WriteAllKeysForTime( ofstream& ofs,
 				const iter_t& first, const iter_t& last,
 				time_t tstamp, bool find_first = false )
 {
+  // Write all keys in the range [first,last) to 'ofs' whose timestamp is exactly
+  // 'tstamp'. If 'find_first' is true, modify the logic: If the key has a time-
+  // stamp equal to 'tstamp', use it (as before), but if such a timestamp does
+  // not exist, use the largest timestamp preceding 'tstamp' (validity started
+  // before this time, but extends into it).
+
   int nwritten = 0;
   bool header_done = false;
-  DBvalue tstamp_val(string(),tstamp);
+  DBvalue tstamp_val(tstamp);
   for( iter_t dt = first; dt != last; ++dt ) {
     const string& key = dt->second;
     DB::const_iterator jt = gDB.find( key );
@@ -423,13 +459,42 @@ static int WriteAllKeysForTime( ofstream& ofs,
 	continue;
     }
 
+    // Write timestamp header for this group of keys
     if( !header_done ) {
       if( tstamp > 0 )
 	ofs << format_tstamp(tstamp) << endl << endl;
       header_done = true;
     }
 
-    ofs << key << " = " << vt->value << endl;
+    // Write the key, pretty-printing if requested
+    ofs << key << " = ";
+    int ncol = vt->max_per_line;
+    if( ncol <= 0 )
+      ofs << vt->value << endl;
+    else {
+      // Tokenize on whitespace
+      stringstream istr( vt->value.c_str() );
+      string val;
+      int num_to_do = ncol, nelem = 0;
+      while( istr >> val ) {
+	if( num_to_do == ncol && nelem != 0 )
+	  ofs << "  "; // New line indentation
+	ofs << setw(attr.width) << val;
+	++nelem;
+	if( --num_to_do == 0 ) {
+	  ofs << endl;
+	  num_to_do = ncol;
+	} else {
+	  ofs << " ";
+	}
+      }
+      if( num_to_do != ncol ) {
+	cerr << "Warning: number of elements of key " << key
+	     << " does not divide evenly by requested number of columns,"
+	     << " nelem/ncol = " << nelem << "/" << ncol << endl;
+	ofs << endl;
+      }
+    }
     ++nwritten;
   }
   if( nwritten > 0 )
@@ -1888,8 +1953,10 @@ int CopyFile::ReadDB( FILE* fi, time_t date, time_t date_until )
 
       // Add this key/value pair to our local database
       DBvalue val( value, curdate, version );
-      ValSet_t& vals = fDB[key].values;
+      KeyAttr_t attr = fDB[key];
+      ValSet_t& vals = attr.values;
       ValSet_t::iterator pos = vals.find(val);
+      attr.width = max(attr.width,value.size());
       // If key already exists for this time & version, overwrite its value
       // (this is the behavior in THaAnalysisObject::LoadDBvalue)
       if( pos != vals.end() ) {
@@ -3001,18 +3068,19 @@ int Detector::AddToMap( const string& key, const string& value, time_t start,
     gDetToKey.insert( make_pair(fName,key) );
   }
   else if( itn->second != fName ) {
-      cerr << "Error: key " << key << " already previously found for "
-	   << "detector " << itn->second << ", now for " << fName << endl;
-      return 1;
+    cerr << "Error: key " << key << " already previously found for "
+	 << "detector " << itn->second << ", now for " << fName << endl;
+    return 1;
   }
 
-  DBvalue val( value, start, version, max );
-  ValSet_t& vals = gDB[key].values;
+  DBvalue val( value, start, version, maxv );
+  KeyAttr_t& attr = gDB[key];
+  ValSet_t& vals = attr.values;
   // Find existing values with the exact timestamp of 'val' (='start')
   ValSet_t::iterator pos = vals.find(val);
   if( pos != vals.end() ) {
     if( pos->value != val.value ) {
-      // User database inconsistent (can this ever happen now?)
+      // User database inconsistent (FIXME: can this ever happen now?)
       // (This case is silently ignored in THaAnalysisObject::LoadDBvalue,
       // which simply takes the last value encountered.)
       cerr << "WARNING: key " << key << " already exists for time "
