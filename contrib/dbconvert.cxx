@@ -54,6 +54,7 @@ static bool IsDBdate( const string& line, time_t& date );
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
 static int do_clean = 1, do_verify = 1, do_dump = 0, purge_all_default_keys = 1;
+static int format_fp = 1;
 static string srcdir;
 static string destdir;
 static const char* prgname = 0;
@@ -265,15 +266,19 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
 }
 
 //-----------------------------------------------------------------------------
-static inline size_t Order( int n )
+static inline size_t Order( Int_t n )
 {
-  if( n >= 1000000 ) return 7;
-  if( n >=  100000 ) return 6;
-  if( n >=   10000 ) return 5;
-  if( n >=    1000 ) return 4;
-  if( n >=     100 ) return 3;
-  if( n >=      10 ) return 2;
-  if( n >=       1 ) return 1;
+  // Return number of digits of 32-bit integer argument
+
+  // This is much faster than computing log10
+  UInt_t u = std::abs(n), d = 1;
+  size_t c = 0;
+  while (1) {
+    if( u < d ) return c;
+    d *= 10;
+    ++c;
+    assert( c < 11 );
+  }
   return 0;
 }
 
@@ -281,17 +286,17 @@ static inline size_t Order( int n )
 template <class T> static inline
 size_t GetSignificantDigits( T x, T round_level )
 {
-  // Get number of significant *decimal* digits of x when rounded at level
+  // Get number of significant *decimal* digits of x, rounded at given level
 
   T xx;
   if( x >= 0.0 )
     xx = x - std::floor(x);
   else
     xx = std::ceil(x) - x;
-  int ix = xx/round_level + 0.5;
+  Int_t ix = xx/round_level + 0.5;
   size_t nn = Order(ix), n = nn;
   for( size_t j = 1; j < nn; ++j ) {
-    int ix1 = ix/10;
+    Int_t ix1 = ix/10;
     if( 10*ix1 != ix )
       break;
     --n;
@@ -315,7 +320,8 @@ void PrepareStreamImpl( ostringstream& str, vector<T> arr, T round_level )
   const T zero = 0.L, one = 1.L, ten = 10.L;
   typename vector<T>::size_type i;
   for( i = 0; i < arr.size(); ++i ) {
-    if( arr[i] != zero && std::abs(arr[i]) < 1e-3L ) {
+    T x = std::abs( arr[i] );
+    if( x != zero && (x < 1e-3L || x >= 1e6L) ) {
       sci = true;
       break;
     }
@@ -349,7 +355,7 @@ void PrepareStreamImpl( ostringstream& str, vector<T> arr, T round_level )
 template <class T> static inline
 void PrepareStream( ostringstream&, const T*, int )
 {
-  // Prepare formatting of stream 'str' based on data in array.
+  // Set formatting of stream 'str' based on data in array.
   // By default, do nothing.
 }
 
@@ -358,7 +364,7 @@ template <> inline
 void PrepareStream( ostringstream& str, const double* array, int size )
 {
   vector<double> arr( array, array+size );
-  PrepareStreamImpl( str, arr, 1e-7 );
+  PrepareStreamImpl<double>( str, arr, 1e-6 );
 }
 
 //-----------------------------------------------------------------------------
@@ -366,10 +372,13 @@ template <> inline
 void PrepareStream( ostringstream& str, const float* array, int size )
 {
   vector<float> arr( array, array+size );
-  PrepareStreamImpl( str, arr, 1e-5F );
+  PrepareStreamImpl<float>( str, arr, 1e-4 );
 }
 
 //-----------------------------------------------------------------------------
+// Structure returned by MakeValue functions, containing a database value
+// (possibly an array) as a string and metadata: number of array elements,
+// printing width needed to accommodate all values.
 struct Value_t {
   Value_t( const string& v, int n, ssiz_t w ) : value(v), nelem(n), width(w) {}
   string value;
@@ -384,7 +393,8 @@ Value_t MakeValue( const T* array, int size = 0 )
   ostringstream ostr;
   ssiz_t w = 0;
   if( size <= 0 ) size = 1;
-  PrepareStream( ostr, array, size );
+  if( format_fp )
+    PrepareStream( ostr, array, size );
   for( int i = 0; i < size; ++i ) {
     ssiz_t len = ostr.str().size();
     ostr << array[i];
@@ -457,21 +467,25 @@ struct DBvalue {
   DBvalue( const string& valstr, time_t start, const string& ver = string(),
 	   int maxv = 0 )
     : value(valstr), validity_start(start), version(ver), nelem(0),
-      max_per_line(maxv)
+      width(0), max_per_line(maxv)
   {
     istringstream istr; string item;
-    while( istr >> item )  ++nelem;
+    while( istr >> item ) {
+      width = max( width, item.length() );
+      ++nelem;
+    }
   }
   DBvalue( const Value_t& valobj, time_t start, const string& ver = string(),
 	   int max = 0 )
     : value(valobj.value), validity_start(start), version(ver),
-      nelem(valobj.nelem), max_per_line(max) {}
+      nelem(valobj.nelem), width(valobj.width), max_per_line(max) {}
   DBvalue( time_t start, const string& ver = string() )
-    : validity_start(start), version(ver), nelem(0), max_per_line(0) {}
+    : validity_start(start), version(ver), nelem(0), width(0), max_per_line(0) {}
   string value;
   time_t validity_start;
   string version;
   int    nelem;
+  ssiz_t width;
   int    max_per_line;    // Number of values per line (for formatting text db)
   // Order values by validity start time, then version
   bool operator<( const DBvalue& rhs ) const {
@@ -487,9 +501,8 @@ struct DBvalue {
 typedef set<DBvalue> ValSet_t;
 
 struct KeyAttr_t {
-  KeyAttr_t() : isCopy(false), width(0) {}
+  KeyAttr_t() : isCopy(false) {}
   bool isCopy;
-  ssiz_t width;
   string comment;
   ValSet_t values;
 };
@@ -504,7 +517,7 @@ static StrMap_t gKeyToDet;
 static MStrMap_t gDetToKey;
 
 //-----------------------------------------------------------------------------
-void DumpMap( ostream& os = std::cout )
+static void DumpMap( ostream& os = std::cout )
 {
   // Dump contents of the in-memory database to given output
 
@@ -529,7 +542,7 @@ void DumpMap( ostream& os = std::cout )
 }
 
 //-----------------------------------------------------------------------------
-int PruneMap()
+static int PruneMap()
 {
   // Remove duplicate entries for the same key and consecutive timestamps
 
@@ -544,7 +557,6 @@ int PruneMap()
       jt = kt;
     }
   }
-
   return 0;
 }
 
@@ -605,15 +617,18 @@ static int WriteAllKeysForTime( ofstream& ofs,
       ofs << endl;
       while( istr >> val ) {
 	if( num_to_do == ncol )
-	  ofs << "  "; // New line indentation
-	ofs << setw(attr.width + 1) << val;
+	  ofs << " "; // New line indentation
+	assert( vt->width > 0 );
+	ofs << setw(vt->width + 2);
+	ofs << val;
 	++nelem;
 	if( --num_to_do == 0 ) {
 	  ofs << endl;
 	  num_to_do = ncol;
-	} else {
-	  ofs << " ";
 	}
+	// else {
+	//   ofs << " ";
+	// }
       }
       if( num_to_do != ncol ) {
 	cerr << "Warning: number of elements of key " << key
@@ -2083,7 +2098,6 @@ int CopyFile::ReadDB( FILE* fi, time_t date, time_t date_until )
       KeyAttr_t attr = fDB[key];
       ValSet_t& vals = attr.values;
       ValSet_t::iterator pos = vals.find(val);
-      attr.width = max(attr.width,value.size());
       // If key already exists for this time & version, overwrite its value
       // (this is the behavior in THaAnalysisObject::LoadDBvalue)
       if( pos != vals.end() ) {
@@ -2131,7 +2145,7 @@ int CopyFile::Save( time_t start, const string& /*version*/ ) const
 	forwarded = true;
 #endif
       }
-      AddToMap( keyval.first, Value_t(vt->value,vt->nelem,attr.width),
+      AddToMap( keyval.first, Value_t(vt->value,vt->nelem,vt->width),
 		date, vt->version, vt->max_per_line );
     }
   }
@@ -3191,11 +3205,12 @@ int Detector::AddToMap( const string& key, const Value_t& v, time_t start,
 {
   // Add given key and value with given validity start time and optional
   // "version" (secondary index) to the in-memory database.
-  // If value is empty, do nothing.
+  // If value is empty, do nothing (i.e. bail if MakeValue fails).
 
   if( v.value.empty() )
     return 0;
   assert( v.nelem > 0 );
+  assert( v.width > 0 );
 
   // Ensure that each key can only be associated with one detector name
   StrMap_t::iterator itn = gKeyToDet.find( key );
@@ -3235,9 +3250,6 @@ int Detector::AddToMap( const string& key, const Value_t& v, time_t start,
 #else
   assert( vals.insert(val).second );
 #endif
-
-  attr.width = max(attr.width,v.width);
-
   return 0;
 }
 
