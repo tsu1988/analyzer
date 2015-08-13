@@ -5,6 +5,8 @@
 // Utility to convert Podd 1.5 and earlier database files to Podd 1.6
 // and later format
 
+#define _BSD_SOURCE
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -58,7 +60,8 @@ static int format_fp = 1;
 static string srcdir;
 static string destdir;
 static const char* prgname = 0;
-static char* mapfile = 0;
+static const char* mapfile = 0;
+static const char* input_timezone = 0, *output_timezone = 0;
 static string current_filename;
 
 static struct poptOption options[] = {
@@ -68,10 +71,12 @@ static struct poptOption options[] = {
   { "debug",    'd', POPT_ARG_VAL,    &do_debug, 1, 0, 0  },
   { "mapfile",  'm', POPT_ARG_STRING, &mapfile,  0, 0, 0  },
   // "detlist", 'l', ... // list of wildcards of detector names
-  { "preserve-subdirs",    's', POPT_ARG_VAL,    &do_subdirs, 1, 0, 0  },
+  { "preserve-subdirs",    's', POPT_ARG_VAL,  &do_subdirs, 1, 0, 0  },
   { "no-preserve-subdirs", 0, POPT_ARG_VAL,    &do_subdirs, 0, 0, 0  },
   { "no-clean",  0, POPT_ARG_VAL,    &do_clean, 0, 0, 0  },
   { "no-verify", 0, POPT_ARG_VAL,    &do_verify, 0, 0, 0  },
+  { "input-timezone", 'z', POPT_ARG_STRING, &input_timezone,  0, 0, 0  },
+  { "output-timezone",  0, POPT_ARG_STRING, &output_timezone, 0, 0, 0  },
   POPT_TABLEEND
 };
 
@@ -123,6 +128,51 @@ void usage( poptContext& pc )
 }
 
 //-----------------------------------------------------------------------------
+int MkTimezone( const char*& zone )
+{
+  // Check commmand-line timezone spec 'zone' and convert it to something that
+  // will work with tzset
+  // Allowed syntax:
+  // [+|-]nnnn:  Explicit timezone offset east of UTC (no DST) as HHMM. Must be
+  //             parseable as an integer with 0 <= HH <= 24 and 0 <= MM < 60.
+  //             Trailing characters are ignored.
+  // characters: Timezone file name. File must be readable. If characters do not
+  //             start with a '/', look in /usr/share/zoneinfo
+  int off;
+  if( !zone )
+    return -1;
+  if( sscanf(zone, "%d", &off) == 1 ) {
+    div_t d = div( std::abs(off), 100 );
+    if( d.quot > 24 || d.rem > 59 )
+      return 1;
+    char buf[16];
+    int sign = (off >= 0) ? -1 : 1; // NB: sign change intentional
+    sprintf(buf, "OFFS%+03d:%02d", sign*d.quot, d.rem );
+    zone = strdup(buf);
+  } else {
+    char* path, *tzstr;
+    if( zone[0] == '/' )
+      path = strdup(zone);
+    else {
+      path = (char*)malloc(20+strlen(zone)+1);
+      strcpy(path, "/usr/share/zoneinfo/");
+      strcat(path, zone);
+    }
+    if( access(path, R_OK) == -1 ) {
+      perror(path);
+      free(path);
+      return 1;
+    }
+    tzstr = (char*)malloc(strlen(path)+2);
+    strcpy(tzstr, ":");
+    strcat(tzstr, path);
+    free(path);
+    zone = tzstr;
+  }
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
 void getargs( int argc, const char** argv )
 {
   // Get command line parameters
@@ -148,6 +198,7 @@ void getargs( int argc, const char** argv )
     usage(pc);
   }
 
+  // TODO: add option have several files as input
   const char* arg = poptGetArg(pc);
   if( !arg ) {
     cerr << "Error: Must specify SRC_DIR and DEST_DIR" << endl;
@@ -164,6 +215,16 @@ void getargs( int argc, const char** argv )
     cerr << "Error: too many arguments" << endl;
     usage(pc);
   }
+  // Parse timezone specs
+  if( input_timezone && MkTimezone(input_timezone) ) {
+    cerr << "Invalid input timezone: \"" << input_timezone << "\"" << endl;
+    usage(pc);
+  }
+  if( output_timezone && MkTimezone(output_timezone) ) {
+    cerr << "Invalid output timezone: \"" << output_timezone << "\"" << endl;
+    usage(pc);
+  }
+
   //DEBUG
   if( mapfile )
     cout << "Mapfile name is \"" << mapfile << "\"" << endl;
@@ -175,6 +236,9 @@ void getargs( int argc, const char** argv )
 //-----------------------------------------------------------------------------
 static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
 {
+  // Return Unix time representation (seconds since epoc in UTC) of given
+  // broken-down time
+
   struct tm td;
   td.tm_sec   = ss;
   td.tm_min   = mi;
@@ -183,7 +247,26 @@ static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
   td.tm_mon   = mm-1;
   td.tm_mday  = dd;
   td.tm_isdst = -1;
-  return mktime( &td );
+
+  // Interpret the time info according to the user-specified timezone for
+  // input files. If no timezone was given, use local time.
+  const char* tz = 0;
+  if( input_timezone ) {
+    tz = getenv("TZ");
+    setenv("TZ", input_timezone, 1);
+    tzset();
+  }
+
+  time_t ret = mktime( &td );
+
+  if( input_timezone ) {
+    if( tz )
+      setenv("TZ", tz, 1);
+    else
+      unsetenv("TZ");
+    tzset();
+  }
+  return ret;
 }
 
 //-----------------------------------------------------------------------------
@@ -204,8 +287,21 @@ static inline string format_time( time_t t )
 //-----------------------------------------------------------------------------
 static inline string format_tstamp( time_t t )
 {
+  // Generate timestamp string for database files. Timestamps are in UTC
+  // unless the user requests otherwise. The applicable timezone offset is
+  // written along with the timestamp.
+
   struct tm tms;
-  gmtime_r( &t, &tms );
+  const char* tz = 0;
+  if( output_timezone ) {
+    tz = getenv("TZ");
+    setenv("TZ", output_timezone, 1);
+    tzset();
+    localtime_r( &t, &tms );
+  }
+  else
+    gmtime_r( &t, &tms );
+
   stringstream ss;
   ss << "--------[ ";
   ss << tms.tm_year+1900 << "-";
@@ -214,7 +310,21 @@ static inline string format_tstamp( time_t t )
   ss << setw(2) << setfill('0') << tms.tm_hour  << ":";
   ss << setw(2) << setfill('0') << tms.tm_min   << ":";
   ss << setw(2) << setfill('0') << tms.tm_sec;
+  // Timezone offset
+  ldiv_t offs = ldiv( std::abs(tms.tm_gmtoff), 3600 );
+  ss << (( tms.tm_gmtoff >= 0 ) ? "+" : "-");
+  ss << setw(2) << setfill('0') << offs.quot;
+  ss << setw(2) << setfill('0') << offs.rem/60;
   ss << " ]";
+
+  if( output_timezone ) {
+    if( tz )
+      setenv("TZ", tz, 1);
+    else
+      unsetenv("TZ");
+    tzset();
+  }
+
   return ss.str();
 }
 
