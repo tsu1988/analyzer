@@ -61,7 +61,8 @@ static string srcdir;
 static string destdir;
 static const char* prgname = 0;
 static const char* mapfile = 0;
-static const char* input_timezone = 0, *output_timezone = 0;
+static const char* inp_tz_arg = 0, *outp_tz_arg = 0;
+static string inp_tz, outp_tz, cur_tz;
 static string current_filename;
 
 static struct poptOption options[] = {
@@ -75,8 +76,8 @@ static struct poptOption options[] = {
   { "no-preserve-subdirs", 0, POPT_ARG_VAL,    &do_subdirs, 0, 0, 0  },
   { "no-clean",  0, POPT_ARG_VAL,    &do_clean, 0, 0, 0  },
   { "no-verify", 0, POPT_ARG_VAL,    &do_verify, 0, 0, 0  },
-  { "input-timezone", 'z', POPT_ARG_STRING, &input_timezone,  0, 0, 0  },
-  { "output-timezone",  0, POPT_ARG_STRING, &output_timezone, 0, 0, 0  },
+  { "input-timezone", 'z', POPT_ARG_STRING, &inp_tz_arg,  0, 0, 0  },
+  { "output-timezone",  0, POPT_ARG_STRING, &outp_tz_arg, 0, 0, 0  },
   POPT_TABLEEND
 };
 
@@ -128,7 +129,7 @@ void usage( poptContext& pc )
 }
 
 //-----------------------------------------------------------------------------
-int MkTimezone( const char*& zone )
+int MkTimezone( string& zone )
 {
   // Check commmand-line timezone spec 'zone' and convert it to something that
   // will work with tzset
@@ -138,38 +139,60 @@ int MkTimezone( const char*& zone )
   //             Trailing characters are ignored.
   // characters: Timezone file name. File must be readable. If characters do not
   //             start with a '/', look in /usr/share/zoneinfo
-  int off;
-  if( !zone )
+  if( zone.empty() )
     return -1;
-  if( sscanf(zone, "%d", &off) == 1 ) {
+  int off;
+  istringstream istr(zone.c_str());
+  if( istr >> off ) {
     div_t d = div( std::abs(off), 100 );
     if( d.quot > 24 || d.rem > 59 )
       return 1;
-    char buf[16];
-    int sign = (off >= 0) ? -1 : 1; // NB: sign change intentional
-    sprintf(buf, "OFFS%+03d:%02d", sign*d.quot, d.rem );
-    zone = strdup(buf);
+    ostringstream ostr;
+    ostr << "OFFS" << ((off >= 0) ? "-" : "+"); // NB: sign change intentional
+    ostr << d.quot;
+    if( d.rem != 0 )
+      ostr << ":" << d.rem;
+    zone = ostr.str();
   } else {
-    char* path, *tzstr;
+    string path;
+    path.reserve( zone.size() + 20 );
     if( zone[0] == '/' )
-      path = strdup(zone);
+      path = zone;
     else {
-      path = (char*)malloc(20+strlen(zone)+1);
-      strcpy(path, "/usr/share/zoneinfo/");
-      strcat(path, zone);
+      path = "/usr/share/zoneinfo/" + zone;
     }
-    if( access(path, R_OK) == -1 ) {
-      perror(path);
-      free(path);
+    const char* cpath = path.c_str();
+    if( access(cpath, R_OK) == -1 ) {
+      perror(cpath);
       return 1;
     }
-    tzstr = (char*)malloc(strlen(path)+2);
-    strcpy(tzstr, ":");
-    strcat(tzstr, path);
-    free(path);
-    zone = tzstr;
+    zone.insert(zone.begin(),':');
   }
   return 0;
+}
+
+//-----------------------------------------------------------------------------
+void set_tz( const string& tz )
+{
+  if( !tz.empty() ) {
+    const char* z = getenv("TZ");
+    if( z )
+      cur_tz = z;
+    else
+      cur_tz.clear();
+    setenv("TZ", tz.c_str(), 1);
+    tzset();
+  }
+}
+
+//-----------------------------------------------------------------------------
+void reset_tz()
+{
+  if( !cur_tz.empty() )
+    setenv("TZ", cur_tz.c_str(), 1);
+  else
+    unsetenv("TZ");
+  tzset();
 }
 
 //-----------------------------------------------------------------------------
@@ -216,13 +239,19 @@ void getargs( int argc, const char** argv )
     usage(pc);
   }
   // Parse timezone specs
-  if( input_timezone && MkTimezone(input_timezone) ) {
-    cerr << "Invalid input timezone: \"" << input_timezone << "\"" << endl;
-    usage(pc);
+  if( inp_tz_arg ) {
+    inp_tz = inp_tz_arg;
+    if( MkTimezone(inp_tz) ) {
+      cerr << "Invalid input timezone: \"" << inp_tz << "\"" << endl;
+      usage(pc);
+    }
   }
-  if( output_timezone && MkTimezone(output_timezone) ) {
-    cerr << "Invalid output timezone: \"" << output_timezone << "\"" << endl;
-    usage(pc);
+  if( outp_tz_arg ) {
+    outp_tz = outp_tz_arg;
+    if( MkTimezone(outp_tz) ) {
+      cerr << "Invalid output timezone: \"" << outp_tz << "\"" << endl;
+      usage(pc);
+    }
   }
 
   //DEBUG
@@ -248,24 +277,8 @@ static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
   td.tm_mday  = dd;
   td.tm_isdst = -1;
 
-  // Interpret the time info according to the user-specified timezone for
-  // input files. If no timezone was given, use local time.
-  const char* tz = 0;
-  if( input_timezone ) {
-    tz = getenv("TZ");
-    setenv("TZ", input_timezone, 1);
-    tzset();
-  }
-
   time_t ret = mktime( &td );
 
-  if( input_timezone ) {
-    if( tz )
-      setenv("TZ", tz, 1);
-    else
-      unsetenv("TZ");
-    tzset();
-  }
   return ret;
 }
 
@@ -292,13 +305,8 @@ static inline string format_tstamp( time_t t )
   // written along with the timestamp.
 
   struct tm tms;
-  const char* tz = 0;
-  if( output_timezone ) {
-    tz = getenv("TZ");
-    setenv("TZ", output_timezone, 1);
-    tzset();
+  if( !outp_tz.empty() )
     localtime_r( &t, &tms );
-  }
   else
     gmtime_r( &t, &tms );
 
@@ -316,14 +324,6 @@ static inline string format_tstamp( time_t t )
   ss << setw(2) << setfill('0') << offs.quot;
   ss << setw(2) << setfill('0') << offs.rem/60;
   ss << " ]";
-
-  if( output_timezone ) {
-    if( tz )
-      setenv("TZ", tz, 1);
-    else
-      unsetenv("TZ");
-    tzset();
-  }
 
   return ss.str();
 }
@@ -1780,6 +1780,10 @@ int main( int argc, const char** argv )
     DefaultMap();
   }
 
+  // Interpret timestamps according to the user-specified timezone for
+  // input files. If no timezone was given, local time will be used.
+  set_tz( inp_tz );
+
   // Get list of all database files to convert
   FilenameMap_t filemap;
   vector<string> subdirs;
@@ -1878,6 +1882,8 @@ int main( int argc, const char** argv )
     delete det;
   } // end for ft = filemap
 
+  reset_tz();
+
   // Prune the key/value map to remove entries that have the exact
   // same keys/values and only differ by /consecutive/ timestamps.
   // Keep only the earliest timestamp.
@@ -1892,16 +1898,21 @@ int main( int argc, const char** argv )
   // Special treatment for keys found in current directory: if requested
   // write the converted versions into a special subdirectory of target.
 
+  set_tz( outp_tz );
+
   if( do_dump )
     DumpMap();
 
+  int err = 0;
   if( PrepareOutputDir(destdir, subdirs) )
-    exit(6);
+    err = 6;
 
-  if( WriteFileDB(destdir,subdirs) )
-    exit(7);
+  if( !err && WriteFileDB(destdir,subdirs) )
+    err = 7;
 
-  return 0;
+  reset_tz();
+
+  return err;
 }
 
 //#if 0
