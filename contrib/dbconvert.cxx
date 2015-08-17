@@ -185,6 +185,7 @@ static inline void set_tz( const string& tz )
     else
       cur_tz.clear();
     setenv("TZ", tz.c_str(), 1);
+    errno = 0;
     tzset();
   }
 }
@@ -194,12 +195,13 @@ static int set_tz_errcheck( const string& tz, const string& which )
 {
   errno = 0;
   set_tz( tz );
-  if( errno ) {
+  if( errno && !tz.empty() && tz[0] == ':' ) {
     ostringstream ss;
     ss << "Error setting " << which << " time zone TZ = \"" << tz << "\"";
     perror(ss.str().c_str());
+    return errno;
   }
-  return errno;
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -338,10 +340,7 @@ static inline string format_tstamp( time_t t )
   // written along with the timestamp.
 
   struct tm tms;
-  if( !outp_tz.empty() )
-    localtime_r( &t, &tms );
-  else
-    gmtime_r( &t, &tms );
+  localtime_r( &t, &tms );
 
   stringstream ss;
   ss << "--------[ ";
