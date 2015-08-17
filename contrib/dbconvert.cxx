@@ -6,6 +6,7 @@
 // and later format
 
 #define _BSD_SOURCE
+#define _XOPEN_SOURCE
 
 #include <iostream>
 #include <fstream>
@@ -100,7 +101,7 @@ typedef string::size_type ssiz_t;
 typedef set<time_t>::iterator siter_t;
 
 //-----------------------------------------------------------------------------
-void help()
+static void help()
 {
   // Print help message and exit
 
@@ -120,7 +121,7 @@ void help()
 }
 
 //-----------------------------------------------------------------------------
-void usage( poptContext& pc )
+static void usage( poptContext& pc )
 {
   // Print usage message and exit with error code
 
@@ -129,7 +130,24 @@ void usage( poptContext& pc )
 }
 
 //-----------------------------------------------------------------------------
-int MkTimezone( string& zone )
+static inline string TZfromOffset( int off )
+{
+  // Convert integer timezone offset to string for TZ environment variable
+
+  div_t d = div( std::abs(off), 3600 );
+  if( d.quot > 24 )
+    return string();
+  ostringstream ostr;
+  // Flip the sign. Input is east of UTC, $TZ uses west of UTC.
+  ostr << "OFFS" << ((off >= 0) ? "-" : "+");
+  ostr << d.quot;
+  if( d.rem != 0 )
+    ostr << ":" << d.rem;
+  return ostr.str();
+}
+
+//-----------------------------------------------------------------------------
+static int MkTimezone( string& zone )
 {
   // Check commmand-line timezone spec 'zone' and convert it to something that
   // will work with tzset
@@ -137,42 +155,28 @@ int MkTimezone( string& zone )
   // [+|-]nnnn:  Explicit timezone offset east of UTC (no DST) as HHMM. Must be
   //             parseable as an integer with 0 <= HH <= 24 and 0 <= MM < 60.
   //             Trailing characters are ignored.
-  // characters: Timezone file name. File must be readable. If characters do not
-  //             start with a '/', look in /usr/share/zoneinfo
+  // characters: Timezone file name.
   if( zone.empty() )
     return -1;
   int off;
   istringstream istr(zone.c_str());
   if( istr >> off ) {
+    // Convert HHMM to seconds
     div_t d = div( std::abs(off), 100 );
     if( d.quot > 24 || d.rem > 59 )
       return 1;
-    ostringstream ostr;
-    ostr << "OFFS" << ((off >= 0) ? "-" : "+"); // NB: sign change intentional
-    ostr << d.quot;
-    if( d.rem != 0 )
-      ostr << ":" << d.rem;
-    zone = ostr.str();
-  } else {
-    string path;
-    path.reserve( zone.size() + 20 );
-    if( zone[0] == '/' )
-      path = zone;
-    else {
-      path = "/usr/share/zoneinfo/" + zone;
-    }
-    const char* cpath = path.c_str();
-    if( access(cpath, R_OK) == -1 ) {
-      perror(cpath);
+    off = ((off < 0 ) ? -1 : 1) * 60 * (60*d.quot + d.rem);
+    zone = TZfromOffset( off );
+    if( zone.empty() )
       return 1;
-    }
-    zone.insert(zone.begin(),':');
+  } else {
+    zone.insert( zone.begin(), ':' );
   }
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-void set_tz( const string& tz )
+static inline void set_tz( const string& tz )
 {
   if( !tz.empty() ) {
     const char* z = getenv("TZ");
@@ -186,7 +190,20 @@ void set_tz( const string& tz )
 }
 
 //-----------------------------------------------------------------------------
-void reset_tz()
+static int set_tz_errcheck( const string& tz, const string& which )
+{
+  errno = 0;
+  set_tz( tz );
+  if( errno ) {
+    ostringstream ss;
+    ss << "Error setting " << which << " time zone TZ = \"" << tz << "\"";
+    perror(ss.str().c_str());
+  }
+  return errno;
+}
+
+//-----------------------------------------------------------------------------
+static inline void reset_tz()
 {
   if( !cur_tz.empty() )
     setenv("TZ", cur_tz.c_str(), 1);
@@ -196,7 +213,7 @@ void reset_tz()
 }
 
 //-----------------------------------------------------------------------------
-void getargs( int argc, const char** argv )
+static void getargs( int argc, const char** argv )
 {
   // Get command line parameters
 
@@ -263,6 +280,24 @@ void getargs( int argc, const char** argv )
 }
 
 //-----------------------------------------------------------------------------
+static inline time_t MkTime( struct tm& td, bool have_tz = false )
+{
+  string save_tz;
+  if( have_tz ) {
+    save_tz = cur_tz;
+    set_tz( TZfromOffset(td.tm_gmtoff) );
+  }
+
+  time_t ret = mktime( &td );
+
+  if( have_tz ) {
+    reset_tz();
+    cur_tz = save_tz;
+  }
+  return ret;
+}
+
+//-----------------------------------------------------------------------------
 static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
 {
   // Return Unix time representation (seconds since epoc in UTC) of given
@@ -277,9 +312,7 @@ static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
   td.tm_mday  = dd;
   td.tm_isdst = -1;
 
-  time_t ret = mktime( &td );
-
-  return ret;
+  return MkTime( td );
 }
 
 //-----------------------------------------------------------------------------
@@ -317,7 +350,7 @@ static inline string format_tstamp( time_t t )
   ss << setw(2) << setfill('0') << tms.tm_mday  << " ";
   ss << setw(2) << setfill('0') << tms.tm_hour  << ":";
   ss << setw(2) << setfill('0') << tms.tm_min   << ":";
-  ss << setw(2) << setfill('0') << tms.tm_sec;
+  ss << setw(2) << setfill('0') << tms.tm_sec   << " ";
   // Timezone offset
   ldiv_t offs = ldiv( std::abs(tms.tm_gmtoff), 3600 );
   ss << (( tms.tm_gmtoff >= 0 ) ? "+" : "-");
@@ -756,7 +789,7 @@ static int WriteAllKeysForTime( ofstream& ofs,
 }
 
 //-----------------------------------------------------------------------------
-int WriteFileDB( const string& target_dir, const vector<string>& subdirs )
+static int WriteFileDB( const string& target_dir, const vector<string>& subdirs )
 {
   // Write all accumulated database keys in gDB to files in 'target_dir'.
   // If --preserve-subdirs was specified, split the information over
@@ -1772,6 +1805,13 @@ int main( int argc, const char** argv )
   // Parse command line
   getargs(argc,argv);
 
+  if( set_tz_errcheck( inp_tz, "input" ) )
+    exit(1);
+  reset_tz();
+  if( set_tz_errcheck( outp_tz, "output" ) )
+    exit(1);;
+  reset_tz();
+
   // Read the detector name mapping file. If unavailable, set up defaults.
   if( mapfile ) {
     if( ReadMapfile(mapfile) )
@@ -1967,14 +2007,19 @@ static bool IsDBdate( const string& line, time_t& date )
   if( lbrk == string::npos || lbrk >= line.size()-12 ) return false;
   ssiz_t rbrk = line.find(']',lbrk);
   if( rbrk == string::npos || rbrk <= lbrk+11 ) return false;
-  Int_t yy, mm, dd, hh, mi, ss;
-  if( sscanf( line.substr(lbrk+1,rbrk-lbrk-1).c_str(), "%4d-%2d-%2d %2d:%2d:%2d",
-	      &yy, &mm, &dd, &hh, &mi, &ss) != 6
-      || yy < 1995 || mm < 1 || mm > 12 || dd < 1 || dd > 31
-      || hh < 0 || hh > 23 || mi < 0 || mi > 59 || ss < 0 || ss > 59 ) {
-    return false;
+  string ts = line.substr(lbrk+1,rbrk-lbrk-1);
+
+  struct tm tm;
+  bool have_tz = true;
+  memset(&tm, 0, sizeof(tm));
+  const char* c = strptime(ts.c_str(), "%Y-%m-%d %H:%M:%S %z", &tm );
+  if( !c ) {
+    have_tz = false;
+    c = strptime(ts.c_str(), "%Y-%m-%d %H:%M:%S", &tm );
+    if( !c )
+      return false;
   }
-  date = MkTime( yy, mm, dd, hh, mi, ss );
+  date = MkTime( tm, have_tz );
   return (date != static_cast<time_t>(-1));
 }
 
