@@ -272,6 +272,12 @@ static void getargs( int argc, const char** argv )
       usage(pc);
     }
   }
+  // If an input timezone is given and no explicit output timezone, set
+  // output timezone to input timezone. Hopefully, this makes the most common
+  // usage case, converting a JLab DB on a machine in a different timezone than
+  // JLab, the most convenient
+  if( !inp_tz.empty() && outp_tz.empty() )
+    outp_tz = inp_tz;
 
   //DEBUG
   if( mapfile )
@@ -1287,7 +1293,6 @@ static void DefaultMap()
 
   StringToType_t defaults[] = {
     //TODO
-    { "run",        kCopyFile },
     { "R.cer",      kCherenkov },
     { "R.aero",     kCherenkov },
     { "R.aero1",    kCherenkov },
@@ -1310,6 +1315,7 @@ static void DefaultMap()
     { "L.ps",       kShower },
     { "L.prl1",     kShower },
     { "L.prl2",     kShower },
+    { "L.CSR",      kShower },  // NaI detector CSR experiment 2007
     { "BB.ts.ps",   kShower },
     { "BB.ts.sh",   kShower },
     { "R.ts",       kTotalShower },
@@ -1322,6 +1328,8 @@ static void DefaultMap()
     // Ignore top-level Beam apparatus db files - these are actually never read.
     // Instead, the apparatus's detector read db_urb.BPMA.dat etc.
     { "beam",       kNone },
+    { "R_beam",     kNone },
+    { "L_beam",     kNone },
     { "rb",         kNone },
     { "Rrb",        kNone },
     { "Lrb",        kNone },
@@ -1354,7 +1362,17 @@ static void DefaultMap()
     { "Rrb.Raster", kRaster },
     { "Lrb.Raster", kRaster },
     { "BBrb.Raster",kRaster },
+    // Databases already in new format
+    { "run",        kCopyFile },
+    { "hel",        kCopyFile },
+    { "he3",        kCopyFile },
+    { "he3_R",      kCopyFile },
+    { "vdceff",     kCopyFile },
+    { "L.fpp",      kCopyFile },
+    { "R.fpp",      kCopyFile },
     { "BB.mwdc",    kCopyFile },
+    { "L.gem",      kCopyFile },
+    { "L.rich",     kCopyFile },
     { 0,            kNone }
   };
   for( StringToType_t* item = defaults; item->name; ++item ) {
