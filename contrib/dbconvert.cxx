@@ -904,7 +904,27 @@ public:
       ++pos;
     fRealName = fName.substr(pos);
   }
-  virtual ~Detector() { delete fDetMap; }
+  Detector( const Detector& rhs )
+    : fName(rhs.fName), fRealName(rhs.fRealName), fConfig(rhs.fConfig),
+      fDetMapHasModel(rhs.fDetMapHasModel), fNelem(rhs.fNelem),
+      fAngle(rhs.fAngle), fOrigin(rhs.fOrigin), fDefaults(rhs.fDefaults)
+  {
+    memcpy( fSize, rhs.fSize, 3*sizeof(fSize[0]) );
+    fDetMap = new THaDetMap;
+  }
+  Detector& operator=( const Detector& rhs ) {
+    if( this != &rhs ) {
+      fName = rhs.fName; fRealName = rhs.fRealName; fConfig = rhs.fConfig;
+      fDetMapHasModel = rhs.fDetMapHasModel; fNelem = rhs.fNelem;
+      fAngle = rhs.fAngle; fOrigin = rhs.fOrigin; fDefaults = rhs.fDefaults;
+      memcpy( fSize, rhs.fSize, 3*sizeof(fSize[0]) );
+      delete fDetMap;
+      fDetMap = new THaDetMap(*rhs.fDetMap);
+      fErrmsg.Clear();
+    }
+    return *this;
+  }
+  virtual ~Detector() { delete fDetMap; fDetMap = 0; }
 
   virtual void Clear() {
     fConfig = ""; fDetMap->Clear(); fDetMapHasModel = false;
