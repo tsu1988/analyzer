@@ -34,6 +34,7 @@
 #include <cctype>     // for isdigit, tolower
 #include <cerrno>
 #include <cmath>
+#include <stdexcept>
 
 #include "TString.h"
 #include "TDatime.h"
@@ -538,7 +539,7 @@ struct Value_t {
 
 //-----------------------------------------------------------------------------
 template <class T> static inline
-Value_t MakeValue( const T* array, int size = 0 )
+Value_t MakeValue( const T* array, int size = 1 )
 {
   ostringstream ostr;
   ssiz_t w = 0;
@@ -966,7 +967,7 @@ protected:
   }
 
   // Bits for flags parameter of ReadBlock()
-  enum kReadBlockFlags {
+  enum EReadBlockFlags {
     kQuietOnErrors      = BIT(0),
     kQuietOnTooMany     = BIT(1),
     kQuietOnTooFew      = BIT(2),
@@ -978,7 +979,7 @@ protected:
     kStopAtNval         = BIT(8),
     kStopAtSection      = BIT(9)
   };
-  enum kReadBlockRetvals {
+  enum EReadBlockRetvals {
     kSuccess = 0, kNoValues = -1, kTooFewValues = -2, kTooManyValues = -3,
     kFileError = -4, kNegativeFound = -5, kLessEqualZeroFound = -6 };
   template <class T>
@@ -996,9 +997,11 @@ protected:
 
   StrMap_t    fDefaults;
 
-private:
-  bool TestBit(int flags, int bit) { return (flags & bit) != 0; }
+  mutable string fNelemName;
 
+  static bool TestBit(UInt_t flags, UInt_t bit) { return (flags & bit) != 0; }
+
+private:
   TString     fErrmsg;
 };
 
@@ -1196,11 +1199,13 @@ private:
 // VDC
 class VDC : public Detector {
 public:
-  VDC( const string& name ) : Detector(name) {}
+  VDC( const string& name ) : Detector(name), fCommon(0) {}
 
   virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
   virtual int Save( time_t start, const string& version = string() ) const;
   virtual const char* GetClassName() const { return "VDC"; }
+
+  UInt_t GetCommon() const { return fCommon; }
 
 private:
   typedef THaVDC::THaMatrixElement THaMatrixElement;
@@ -1219,9 +1224,17 @@ private:
 					    // focal plane transformations { T, Y, P }
   vector<THaMatrixElement> fLMatrixElems;   // Path-length corrections (meters)
 
+  Double_t fErrorCutoff;
+  Int_t    fNumIter;
+  string   fCoordType;
+
+  UInt_t fCommon;
+
   class Plane : public Detector {
   public:
-    Plane( const string& name ) : Detector(name) {}
+    friend class VDC;
+    Plane( const string& name, VDC* vdc ) : Detector(name), fVDC(vdc)
+    { fTTDPar.resize(9); }
 
     virtual int ReadDB( FILE* infile, time_t date_from, time_t date_until );
     virtual int Save( time_t start, const string& version = string() ) const;
@@ -1232,11 +1245,47 @@ private:
     vector<Double_t> fTDCOffsets;
     vector<Int_t> fBadWires;
     Double_t fTDCRes, fT0Resolution, fMinTdiff, fMaxTdiff;
-    Double_t fA1[4], fA2[4], fDtime;
+    vector<Double_t> fTTDPar;
     Int_t fMinClustSize, fMaxClustSpan, fNMaxGap, fMinTime, fMaxTime;
+    string fTTDConv, fDescription;
+
+    VDC* fVDC;
   };
   vector<Plane> fPlanes;
 };
+
+//-----------------------------------------------------------------------------
+// Flags for common VDC::Plane parameters, set in bitmask VDC::fCommon
+
+enum ECommonFlag { kNelem        = BIT(0),  kWSpac        = BIT(1),
+		   kDriftVel     = BIT(2),  kMinTime      = BIT(3),
+		   kMaxTime      = BIT(4),  kTDCRes       = BIT(5),
+		   kTTDConv      = BIT(6),  kTTDPar       = BIT(7),
+		   kT0Resolution = BIT(8),  kMinClustSize = BIT(9),
+		   kMaxClustSpan = BIT(10), kNMaxGap      = BIT(11),
+		   kMinTdiff     = BIT(12), kMaxTdiff     = BIT(13),
+		   kFlagsEnd     = 0 };
+inline ECommonFlag& operator++( ECommonFlag& e )
+{
+  switch (e) {
+  case kNelem:        return e=kWSpac;
+  case kWSpac:        return e=kDriftVel;
+  case kDriftVel:     return e=kMinTime;
+  case kMinTime:      return e=kMaxTime;
+  case kMaxTime:      return e=kTDCRes;
+  case kTDCRes:       return e=kTTDConv;
+  case kTTDConv:      return e=kTTDPar;
+  case kTTDPar:       return e=kT0Resolution;
+  case kT0Resolution: return e=kMinClustSize;
+  case kMinClustSize: return e=kMaxClustSpan;
+  case kMaxClustSpan: return e=kNMaxGap;
+  case kNMaxGap:      return e=kMinTdiff;
+  case kMinTdiff:     return e=kMaxTdiff;
+  case kMaxTdiff:     return e=kFlagsEnd;
+  case kFlagsEnd: default:
+    throw std::range_error("Increment past end of range");
+  }
+}
 
 //-----------------------------------------------------------------------------
 // Global maps for detector types and names
@@ -3344,17 +3393,25 @@ int VDC::ReadDB( FILE* file, time_t date, time_t date_until )
     vsiz_t npow = power[w];
     if( npow == 0 )
       break;
-
+    if( line_spl.size() < npow+2 ) {
+      ostringstream ostr;
+      ostr << "Line = \"" << line << "\"" << endl
+	   << " Too few values for matrix element"
+	   << " (found " << line_spl.size() << ", need >= " << npow+2 << ")";
+      Error( Here(here), "%s", ostr.str().c_str() );
+      return kInitError;
+    }
     // Looks like a good line, go parse it.
     THaMatrixElement ME;
     ME.pw.resize(npow);
     ME.poly.resize(kPORDER);
     vsiz_t pos;
-    for (pos=1; pos<=npow && pos<line_spl.size(); pos++) {
+    for (pos=1; pos<npow+1; pos++) {
+      assert(pos < line_spl.size());
       ME.pw[pos-1] = atoi(line_spl[pos].c_str());
     }
     vsiz_t p_cnt;
-    for ( p_cnt=0; pos<line_spl.size() && p_cnt<kPORDER && pos<=npow+kPORDER;
+    for ( p_cnt=0; pos<line_spl.size() && p_cnt<kPORDER && pos<npow+kPORDER+1;
 	  pos++,p_cnt++ ) {
       ME.poly[p_cnt] = atof(line_spl[pos].c_str());
       if (ME.poly[p_cnt] != 0.0) {
@@ -3362,12 +3419,13 @@ int VDC::ReadDB( FILE* file, time_t date, time_t date_until )
 	ME.order = p_cnt+1;
       }
     }
-    if (p_cnt < 1) {
-	Error(Here(here), "Could not read in Matrix Element %s%d%d%d!",
-	      w, ME.pw[0], ME.pw[1], ME.pw[2]);
-	Error(Here(here), "Line looks like: %s",line.c_str());
-	return kInitError;
-    }
+    assert( p_cnt >= 1 );
+    // if (p_cnt < 1) {
+    //   Error(Here(here), "Could not read in Matrix Element %s%d%d%d!",
+    // 	    w, ME.pw[0], ME.pw[1], ME.pw[2]);
+    //   Error(Here(here), "Line = \"%s\"",line.c_str());
+    //   return kInitError;
+    // }
     // Don't bother with all-zero matrix elements
     if( ME.iszero )
       continue;
@@ -3404,15 +3462,73 @@ int VDC::ReadDB( FILE* file, time_t date, time_t date_until )
   } //while(fgets)
 
   //----- VDCPlane -----
-
   fPlanes.clear();
   const char* plane_name[] = { "u1", "v1", "u2", "v2" };
   for( int i = 0; i < 4; ++i ) {
-    fPlanes.push_back( Plane(fName+"."+plane_name[i]) );
+    fPlanes.push_back( Plane(fName+"."+plane_name[i],this) );
     rewind(file);
     Int_t err = fPlanes.back().ReadDB( file, date, date_until );
     if( err )
       return err;
+  }
+
+  // Determine parameters common to all planes
+  fCommon = 0;
+  for( ECommonFlag e = kNelem; e != kFlagsEnd; ++e ) {
+    bool is_common = true;
+    for( int i = 0; i < 3; ++i ) {
+      switch (e) {
+      case kNelem:
+	is_common = ( fPlanes[i].fNelem == fPlanes[i+1].fNelem );
+	break;
+      case kWSpac:
+	is_common = ( fPlanes[i].fWSpac == fPlanes[i+1].fWSpac );
+	break;
+      case kDriftVel:
+	is_common = ( fPlanes[i].fDriftVel == fPlanes[i+1].fDriftVel );
+	break;
+      case kMinTime:
+	is_common = ( fPlanes[i].fMinTime == fPlanes[i+1].fMinTime );
+	break;
+      case kMaxTime:
+	is_common = ( fPlanes[i].fMaxTime == fPlanes[i+1].fMaxTime );
+	break;
+      case kTDCRes:
+	is_common = ( fPlanes[i].fTDCRes == fPlanes[i+1].fTDCRes );
+	break;
+      case kTTDConv:
+	is_common = ( fPlanes[i].fTTDConv == fPlanes[i+1].fTTDConv );
+	break;
+      case kTTDPar:
+	is_common = ( fPlanes[i].fTTDPar == fPlanes[i+1].fTTDPar );
+	break;
+      case kT0Resolution:
+	is_common = ( fPlanes[i].fT0Resolution == fPlanes[i+1].fT0Resolution );
+	break;
+      case kMinClustSize:
+	is_common = ( fPlanes[i].fMinClustSize == fPlanes[i+1].fMinClustSize );
+	break;
+      case kMaxClustSpan:
+	is_common = ( fPlanes[i].fMaxClustSpan == fPlanes[i+1].fMaxClustSpan );
+	break;
+      case kNMaxGap:
+	is_common = ( fPlanes[i].fNMaxGap == fPlanes[i+1].fNMaxGap );
+	break;
+      case kMinTdiff:
+	is_common = ( fPlanes[i].fMinTdiff == fPlanes[i+1].fMinTdiff );
+	break;
+      case kMaxTdiff:
+	is_common = ( fPlanes[i].fMaxTdiff == fPlanes[i+1].fMaxTdiff );
+	break;
+      case kFlagsEnd:
+	assert(false); // not reached
+	break;
+      }
+      if( !is_common )
+	break;
+    }
+    if( is_common )
+      fCommon |= e;
   }
 
   return kOK;
@@ -3473,6 +3589,8 @@ int VDC::Plane::ReadDB( FILE* file, time_t date, time_t )
     prev_nwires = (hi - lo + 1);
     nWires += prev_nwires;
   } while( *buff );  // sanity escape
+
+  fNelem = nWires;
 
   // Load z, wire beginning postion, wire spacing, and wire angle
   sscanf( buff, "%15lf %15lf %15lf %15lf", &fZ, &fWBeg, &fWSpac, &fWAngle );
@@ -3579,14 +3697,16 @@ int VDC::Plane::ReadDB( FILE* file, time_t date, time_t )
     // Time-to-distance converter parameters
     // THaVDCAnalyticTTDConv
     // Format: 4*A1 4*A2 dtime(s)  (9 floats)
+    Double_t par[9];
     if( fscanf(file, "%lf %lf %lf %lf %lf %lf %lf %lf %lf",
-	       &fA1[0], &fA1[1], &fA1[2], &fA1[3],
-	       &fA2[0], &fA2[1], &fA2[2], &fA2[3], &fDtime ) != 9) {
+	       par,   par+1, par+2, par+3,
+	       par+4, par+5, par+6, par+7, par+8 ) != 9) {
       Error( Here(here), "Error reading THaVDCAnalyticTTDConv parameters\n"
 	     "Line = %s\nExpect 9 floating point numbers. Fix database.",
 	     buff );
       return kInitError;
     }
+    fTTDPar.assign( par, par+9 );
     fgets(buff, LEN, file); // Read to end of line
 
     Double_t h, w;
@@ -3615,13 +3735,13 @@ int VDC::Plane::ReadDB( FILE* file, time_t date, time_t )
     fMinTdiff = 3e-8;   // 30ns  -> ~20 deg track angle
     fMaxTdiff = 1.5e-7; // 150ns -> ~60 deg track angle
 
-    fA1[0] = 2.12e-3;
-    fA1[1] = fA1[2] = fA1[3] = 0.0;
-    fA2[0] = -4.2e-4;
-    fA2[1] = 1.3e-3;
-    fA2[2] = 1.06e-4;
-    fA2[3] = 0.0;
-    fDtime = 4e-9;
+    fTTDPar[0] = 2.12e-3;
+    fTTDPar[1] = fTTDPar[2] = fTTDPar[3] = 0.0;
+    fTTDPar[4] = -4.2e-4;
+    fTTDPar[5] = 1.3e-3;
+    fTTDPar[6] = 1.06e-4;
+    fTTDPar[7] = 0.0;
+    fTTDPar[8] = 4e-9;
   }
 
   return kOK;
@@ -3634,7 +3754,8 @@ int Detector::Save( time_t start, const string& version ) const
   int flags = 1;
   if( fDetMapHasModel )  flags++;
   AddToMap( prefix+"detmap",   MakeValue(fDetMap,flags), start, version, 4+flags );
-  AddToMap( prefix+"nelem",    MakeValue(&fNelem),       start, version );
+  if( !fNelemName.empty() )
+    AddToMap( prefix+fNelemName, MakeValue(&fNelem),     start, version );
   AddToMap( prefix+"angle",    MakeValue(&fAngle),       start, version );
   AddToMap( prefix+"position", MakeValue(&fOrigin),      start, version );
   AddToMap( prefix+"size",     MakeValue(fSize,3),       start, version );
@@ -3649,6 +3770,7 @@ int Cherenkov::Save( time_t start, const string& version ) const
 
   string prefix = fName + ".";
 
+  fNelemName = "npmt";
   Detector::Save( start, version );
 
   AddToMap( prefix+"tdc.offsets",   MakeValue(fOff,fNelem),  start, version );
@@ -3665,6 +3787,7 @@ int Scintillator::Save( time_t start, const string& version ) const
 
   string prefix = fName + ".";
 
+  fNelemName = "npaddles";
   Detector::Save( start, version );
 
   AddToMap( prefix+"L.off",    MakeValue(fLOff,fNelem),  start, version );
@@ -3696,12 +3819,8 @@ int Shower::Save( time_t start, const string& version ) const
 
   string prefix = fName + ".";
 
-  Int_t nelem = fNelem;
-  Int_t& nelem_c = const_cast<Int_t&>(fNelem);
-  nelem_c = 0; // nelem is redundant here because it equals fNcols*fNrows
-
+  fNelemName = ""; // nelem is redundant here because it equals fNcols*fNrows
   Detector::Save( start, version );
-  nelem_c = nelem;
 
   AddToMap( prefix+"ncols",     MakeValue(&fNcols), start, version );
   AddToMap( prefix+"nrows",     MakeValue(&fNrows), start, version );
@@ -3803,11 +3922,97 @@ int TriggerTime::Save( time_t start, const string& version ) const
 }
 
 //-----------------------------------------------------------------------------
+static void WriteME( ostream& s, const THaVDC::THaMatrixElement& ME,
+		     const string& MEname, ssiz_t w )
+{
+  if( ME.iszero )
+    return;
+  s << endl << "  " << MEname;
+  for( vector<int>::size_type k = 0; k < ME.pw.size(); ++k ) {
+    s << " " << ME.pw[k];
+  }
+  assert( ME.order <= (int)ME.poly.size() );
+  for( int k = 0; k < ME.order; ++k ) {
+    s << scientific << setw(w) << setprecision(6) << ME.poly[k];
+  }
+}
+
+//-----------------------------------------------------------------------------
 int VDC::Save( time_t start, const string& version ) const
 {
   string prefix = fName + ".";
 
-  //TODO
+  // Build the matrix element string
+  ostringstream s;
+  int nME = 0;
+  ssiz_t w = 14;
+  const vector<THaMatrixElement>* allME[] = { &fFPMatrixElems, &fDMatrixElems,
+					      &fTMatrixElems,  &fPMatrixElems,
+					      &fYMatrixElems,  &fLMatrixElems,
+					      &fYTAMatrixElems, &fPTAMatrixElems,
+					      0 };
+  const char* all_names[] = { "FP", "D", "T", "P", "Y", "L", "YTA", "PTA" };
+  const vector<THaMatrixElement>** mat = allME;
+  int i = 0;
+  while( *mat ) {
+    if( *mat == &fFPMatrixElems ) {
+      const char* fp_names[] = { "t", "y", "p" };
+      for( int i = 0; i < 3; ++i ) {
+	WriteME( s, fFPMatrixElems[i], fp_names[i], w );
+	++nME;
+      }
+    } else {
+      for( vector<THaMatrixElement>::const_iterator mt = (*mat)->begin();
+	   mt != (*mat)->end(); ++mt ) {
+	WriteME( s, *mt, all_names[i], w );
+	++nME;
+      }
+    }
+    ++mat;
+    ++i;
+  }
+  s << endl;
+
+  AddToMap( prefix+"max_matcherr", MakeValue(&fErrorCutoff), start, version );
+  AddToMap( prefix+"num_iter",     MakeValue(&fNumIter),     start, version );
+
+  const VDC::Plane& pl = fPlanes[0];
+  if( TestBit(fCommon,kNelem) )
+    AddToMap( prefix+"nwires",        MakeValue(&pl.fNelem),         start, version );
+  if( TestBit(fCommon,kWSpac) )
+    AddToMap( prefix+"wire.spacing",  MakeValue(&pl.fWSpac),         start, version );
+  if( TestBit(fCommon,kDriftVel) )
+    AddToMap( prefix+"driftvel",      MakeValue(&pl.fDriftVel),      start, version );
+  if( TestBit(fCommon,kMinTime) )
+    AddToMap( prefix+"tdc.min",       MakeValue(&pl.fMinTime),       start, version );
+  if( TestBit(fCommon,kMaxTime) )
+    AddToMap( prefix+"tdc.max",       MakeValue(&pl.fMaxTime),       start, version );
+  if( TestBit(fCommon,kTDCRes) )
+    AddToMap( prefix+"tdc.res",       MakeValue(&pl.fTDCRes),        start, version );
+  if( TestBit(fCommon,kTTDConv) )
+    AddToMap( prefix+"ttd.converter", MakeValue(&pl.fTTDConv),       start, version );
+  if( TestBit(fCommon,kTTDPar) )
+    AddToMap( prefix+"ttd.param",     MakeValue(&pl.fTTDPar[0],9),   start, version, 4 );
+  if( TestBit(fCommon,kT0Resolution) )
+    AddToMap( prefix+"t0.res",        MakeValue(&pl.fT0Resolution),  start, version );
+  if( TestBit(fCommon,kMinClustSize) )
+    AddToMap( prefix+"clust.minsize", MakeValue(&pl.fMinClustSize),  start, version );
+  if( TestBit(fCommon,kMaxClustSpan) )
+    AddToMap( prefix+"clust.maxspan", MakeValue(&pl.fMaxClustSpan),  start, version );
+  if( TestBit(fCommon,kNMaxGap) )
+    AddToMap( prefix+"maxgap",        MakeValue(&pl.fNMaxGap),       start, version );
+  if( TestBit(fCommon,kMinTdiff) )
+    AddToMap( prefix+"tdiff.min",     MakeValue(&pl.fMinTdiff),      start, version );
+  if( TestBit(fCommon,kMaxTdiff) )
+    AddToMap( prefix+"tdiff.max",     MakeValue(&pl.fMaxTdiff),      start, version );
+
+  // Per-plane data
+  for( int i = 0; i < 4; ++i )
+    fPlanes[i].Save( start, version );
+
+  AddToMap( prefix+"coord_type",   MakeValue(&fCoordType),   start, version );
+  if( nME > 0 )
+    AddToMap( prefix+"matrixelem", Value_t(s.str(),nME,w), start, version );
 
   return 0;
 }
@@ -3817,7 +4022,44 @@ int VDC::Plane::Save( time_t start, const string& version ) const
 {
   string prefix = fName + ".";
 
-  //TODO
+  // TODO: write detmap
+
+  if( !TestBit(fVDC->GetCommon(),kNelem) )
+    AddToMap( prefix+"nwires",        MakeValue(&fNelem),         start, version );
+  AddToMap( prefix+"wire.start",      MakeValue(&fWBeg),          start, version );
+  if( !TestBit(fVDC->GetCommon(),kWSpac) )
+    AddToMap( prefix+"wire.spacing",  MakeValue(&fWSpac),         start, version );
+  AddToMap( prefix+"wire.angle",      MakeValue(&fWAngle),        start, version );
+  if( !fBadWires.empty() )
+    AddToMap( prefix+"wire.badlist",    MakeValue(&fBadWires[0],fBadWires.size()),
+	      start, version );
+  if( !TestBit(fVDC->GetCommon(),kDriftVel) )
+    AddToMap( prefix+"driftvel",      MakeValue(&fDriftVel),      start, version );
+  if( !TestBit(fVDC->GetCommon(),kMinTime) )
+    AddToMap( prefix+"tdc.min",       MakeValue(&fMinTime),       start, version );
+  if( !TestBit(fVDC->GetCommon(),kMaxTime) )
+    AddToMap( prefix+"tdc.max",       MakeValue(&fMaxTime),       start, version );
+  if( !TestBit(fVDC->GetCommon(),kTDCRes) )
+    AddToMap( prefix+"tdc.res",       MakeValue(&fTDCRes),        start, version );
+  AddToMap( prefix+"tdc.offsets",     MakeValue(&fTDCOffsets[0],fNelem),
+	    start, version, 8 );
+  if( !TestBit(fVDC->GetCommon(),kTTDConv) )
+    AddToMap( prefix+"ttd.converter", MakeValue(&fTTDConv),       start, version );
+  if( !TestBit(fVDC->GetCommon(),kTTDPar) )
+    AddToMap( prefix+"ttd.param",     MakeValue(&fTTDPar[0],9),   start, version, 4 );
+  if( !TestBit(fVDC->GetCommon(),kT0Resolution) )
+    AddToMap( prefix+"t0.res",        MakeValue(&fT0Resolution),  start, version );
+  if( !TestBit(fVDC->GetCommon(),kMinClustSize) )
+    AddToMap( prefix+"clust.minsize", MakeValue(&fMinClustSize),  start, version );
+  if( !TestBit(fVDC->GetCommon(),kMaxClustSpan) )
+    AddToMap( prefix+"clust.maxspan", MakeValue(&fMaxClustSpan),  start, version );
+  if( !TestBit(fVDC->GetCommon(),kNMaxGap) )
+    AddToMap( prefix+"maxgap",        MakeValue(&fNMaxGap),       start, version );
+  if( !TestBit(fVDC->GetCommon(),kMinTdiff) )
+    AddToMap( prefix+"tdiff.min",     MakeValue(&fMinTdiff),      start, version );
+  if( !TestBit(fVDC->GetCommon(),kMaxTdiff) )
+    AddToMap( prefix+"tdiff.max",     MakeValue(&fMaxTdiff),      start, version );
+  AddToMap( prefix+"description",     MakeValue(&fDescription),   start, version );
 
   return 0;
 }
