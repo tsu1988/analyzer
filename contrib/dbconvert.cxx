@@ -758,10 +758,12 @@ static int WriteAllKeysForTime( ofstream& ofs,
     // Write the key, pretty-printing if requested
     ofs << key << " =";
     int ncol = vt->max_per_line;
-    if( ncol <= 0 )
+    if( ncol == 0 )
       ofs << " " << vt->value << endl;
     else {
       // Tokenize on whitespace
+      bool warn = (ncol > 0);
+      ncol = std::abs(ncol);
       stringstream istr( vt->value.c_str() );
       string val;
       int num_to_do = ncol, nelem = 0;
@@ -782,9 +784,11 @@ static int WriteAllKeysForTime( ofstream& ofs,
 	// }
       }
       if( num_to_do != ncol ) {
-	cerr << "Warning: number of elements of key " << key
-	     << " does not divide evenly by requested number of columns,"
-	     << " nelem/ncol = " << nelem << "/" << ncol << endl;
+	if( warn ) {
+	  cerr << "Warning: number of elements of key " << key
+	       << " does not divide evenly by requested number of columns,"
+	       << " nelem/ncol = " << nelem << "/" << ncol << endl;
+	}
 	ofs << endl;
       }
     }
@@ -3992,7 +3996,7 @@ int VDC::Save( time_t start, const string& version ) const
   if( TestBit(fCommon,kTTDConv) )
     AddToMap( prefix+"ttd.converter", MakeValue(&pl.fTTDConv),       start, version );
   if( TestBit(fCommon,kTTDPar) )
-    AddToMap( prefix+"ttd.param",     MakeValue(&pl.fTTDPar[0],9),   start, version, 4 );
+    AddToMap( prefix+"ttd.param",     MakeValue(&pl.fTTDPar[0],9),   start, version, -4 );
   if( TestBit(fCommon,kT0Resolution) )
     AddToMap( prefix+"t0.res",        MakeValue(&pl.fT0Resolution),  start, version );
   if( TestBit(fCommon,kMinClustSize) )
@@ -4046,7 +4050,7 @@ int VDC::Plane::Save( time_t start, const string& version ) const
   if( !TestBit(fVDC->GetCommon(),kTTDConv) )
     AddToMap( prefix+"ttd.converter", MakeValue(&fTTDConv),       start, version );
   if( !TestBit(fVDC->GetCommon(),kTTDPar) )
-    AddToMap( prefix+"ttd.param",     MakeValue(&fTTDPar[0],9),   start, version, 4 );
+    AddToMap( prefix+"ttd.param",     MakeValue(&fTTDPar[0],9),   start, version, -4 );
   if( !TestBit(fVDC->GetCommon(),kT0Resolution) )
     AddToMap( prefix+"t0.res",        MakeValue(&fT0Resolution),  start, version );
   if( !TestBit(fVDC->GetCommon(),kMinClustSize) )
