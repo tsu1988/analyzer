@@ -329,6 +329,8 @@ static inline time_t MkTime( int yy, int mm, int dd, int hh, int mi, int ss )
 //-----------------------------------------------------------------------------
 static inline string format_time( time_t t )
 {
+  if( t < 0 || t == numeric_limits<time_t>::max() )
+    return "(inf)";
   char buf[32];
   ctime_r( &t, buf );
   // Translate date of the form "Wed Jun 30 21:49:08 1993\n" to
@@ -815,13 +817,10 @@ static int WriteFileDB( const string& target_dir, const vector<string>& subdirs 
   } else {
     for( vector<string>::size_type i = 0; i < subdirs.size(); ++i ) {
       time_t date;
-#ifdef NDEBUG
-      IsDBSubDir(subdirs[i],date);
-#else
-      assert( IsDBSubDir(subdirs[i],date) );
-#endif
-      dir_times.insert(date);
-      dir_names.insert( make_pair(date, MakePath(target_dir,subdirs[i])) );
+      if( IsDBSubDir(subdirs[i],date) ) {
+	dir_times.insert(date);
+	dir_names.insert( make_pair(date, MakePath(target_dir,subdirs[i])) );
+      }
     }
   }
   siter_t lastdt = dir_times.insert( numeric_limits<time_t>::max() ).first;
@@ -1936,6 +1935,131 @@ static int InsertDefaultFiles( const vector<string>& subdirs,
 }
 
 //-----------------------------------------------------------------------------
+static int ExtractKeys( Detector* det, const multiset<Filenames_t>& filenames )
+{
+  // Extract keys for given detector from the database files in 'filenames'
+
+  fiter_t lastf = filenames.end();
+  if( lastf != filenames.begin() )
+    --lastf;
+  for( fiter_t st = filenames.begin(); st != lastf; ) {
+    const string& path = st->path;
+    time_t val_from = st->val_start, val_until = (++st)->val_start;
+
+    FILE* fi = fopen( path.c_str(), "r" );
+    if( !fi ) {
+      stringstream ss("Error opening database file ",ios::out|ios::app);
+      ss << path;
+      perror(ss.str().c_str());
+      continue;
+    }
+    current_filename = path;
+
+    // Parse the file for any timestamps and "configurations" (=variations)
+    set<time_t> timestamps;
+    vector<string> variations;
+    timestamps.insert(val_from);
+    if( det->SupportsTimestamps() ) {
+      if( ParseTimestamps(fi, timestamps) )
+	goto next;
+    }
+    if( det->SupportsVariations() ) {
+      if( ParseVariations(fi, variations) )
+	goto next;
+    }
+
+    timestamps.insert( numeric_limits<time_t>::max() );
+    {
+      siter_t it = timestamps.lower_bound( val_from );
+      siter_t lastt  = timestamps.lower_bound( val_until );
+      for( ; it != lastt; ) {
+	time_t date_from = *it, date_until = *(++it);
+	if( date_from  < val_from  )  date_from  = val_from;
+	if( date_until > val_until )  date_until = val_until;
+	rewind(fi);
+	det->Clear();
+	if( det->ReadDB(fi,date_from,date_until) == 0 ) {
+	  // } else {
+	  //   cout << "Read " << path << endl;
+	  //TODO: support variations
+	  det->Save( date_from );
+	}
+	else {
+	  cerr << "Failed to read " << path << " as " << det->GetClassName()
+	       << endl;
+	}
+      }
+    }
+
+  next:
+    fclose(fi);
+  } // end for st = filenames
+
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
+		      const multiset<Filenames_t>& filenames )
+{
+  // Copy source files given in 'filenames' to 'target_dir' and given set
+  // of subdirs. If 'subdirs' is empty or no output subdirs are requested,
+  // write all output to 'target_dir'. If files already exist, intelligently
+  // merge new keys. Remove any non-reachable time ranges.
+
+  fiter_t lastf = filenames.end();
+  if( lastf == filenames.begin() )
+    return 0;  // nothing to do
+  --lastf;
+
+  set<time_t> dir_times;
+  map<time_t,string> dir_names;
+  if( !do_subdirs || subdirs.empty() ) {
+    dir_times.insert(0);
+    dir_names.insert(make_pair(0,target_dir));
+  } else {
+    for( vector<string>::size_type i = 0; i < subdirs.size(); ++i ) {
+      time_t date;
+      if( IsDBSubDir(subdirs[i],date) ) {
+	dir_times.insert(date);
+	dir_names.insert( make_pair(date, MakePath(target_dir,subdirs[i])) );
+      }
+    }
+  }
+  siter_t lastdt = dir_times.insert( numeric_limits<time_t>::max() ).first;
+
+  for( fiter_t st = filenames.begin(); st != lastf; ) {
+    const string& path = st->path;
+    time_t val_from = st->val_start, val_until = (++st)->val_start;
+
+    //DEBUG
+    cout << "Copy " << path << " val_from = " << format_time(val_from)
+	 << " val_until = " << format_time(val_until) << endl;
+
+    FILE* fi = fopen( path.c_str(), "r" );
+    assert(fi);   // already succeeded previously
+    if( !fi )
+      continue;
+    current_filename = path;
+
+    // Parse in-file timestamps
+    set<time_t> timestamps;
+    timestamps.insert(val_from);
+    if( ParseTimestamps(fi, timestamps) )
+      goto next;
+    timestamps.insert( numeric_limits<time_t>::max() );
+
+    for( siter_t dt = dir_times.begin(); dt != lastdt; ) {
+      time_t dir_from = *dt, dir_until = *(++dt);
+      // TODO: continue here
+    }
+  next:
+    fclose(fi);
+  }
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
 int main( int argc, const char** argv )
 {
   // Parse command line
@@ -1963,6 +2087,7 @@ int main( int argc, const char** argv )
   // Get list of all database files to convert
   FilenameMap_t filemap;
   vector<string> subdirs;
+  set<string> copy_dets;
   if( GetFilenames(srcdir, 0, filemap, subdirs) < 0 )
     exit(4);  // Error message already printed
 
@@ -1993,67 +2118,18 @@ int main( int argc, const char** argv )
     if( InsertDefaultFiles(subdirs, filenames) )
       exit(8);
 
-    fiter_t lastf = filenames.insert( Filenames_t(numeric_limits<time_t>::max()) );
-    for( fiter_t st = filenames.begin(); st != lastf; ) {
-      const string& path = st->path;
-      time_t val_from = st->val_start, val_until = (++st)->val_start;
+    filenames.insert( Filenames_t(numeric_limits<time_t>::max()) );
 
-      FILE* fi = fopen( path.c_str(), "r" );
-      if( !fi ) {
-	stringstream ss("Error opening database file ",ios::out|ios::app);
-	ss << path;
-	perror(ss.str().c_str());
-	continue;
-      }
-      current_filename = path;
-
-      // Parse the file for any timestamps and "configurations" (=variations)
-      set<time_t> timestamps;
-      vector<string> variations;
-      timestamps.insert(val_from);
-      if( det->SupportsTimestamps() ) {
-	if( ParseTimestamps(fi, timestamps) )
-	  goto next;
-      }
-      if( det->SupportsVariations() ) {
-	if( ParseVariations(fi, variations) )
-	  goto next;
-      }
-
-      timestamps.insert( numeric_limits<time_t>::max() );
-      {
-	siter_t it = timestamps.lower_bound( val_from );
-	siter_t lastt  = timestamps.lower_bound( val_until );
-	for( ; it != lastt; ) {
-	  time_t date_from = *it, date_until = *(++it);
-	  if( date_from  < val_from  )  date_from  = val_from;
-	  if( date_until > val_until )  date_until = val_until;
-	  rewind(fi);
-	  det->Clear();
-	  if( det->ReadDB(fi,date_from,date_until) == 0 ) {
-	  // } else {
-	  //   cout << "Read " << path << endl;
-	    //TODO: support variations
-	    det->Save( date_from );
-	  }
-	  else {
-	    cerr << "Failed to read " << path << " as " << det->GetClassName()
-		 << endl;
-	  }
-	}
-      }
-
-      // Save names of new-format database files to be copied
-      if( do_file_copy && type == kCopyFile ) {
-
-      }
-    next:
-      fclose(fi);
-    } // end for st = filenames
+    ExtractKeys( det, filenames );
 
     // If requested, remove keys for this detector that only have default values
     if( purge_all_default_keys )
       det->PurgeAllDefaultKeys();
+
+    // Save detector names whose database files are to be copied
+    if( do_file_copy && type == kCopyFile )
+      copy_dets.insert( detname );
+
     // Done with this detector
     delete det;
   } // end for ft = filemap
@@ -2071,8 +2147,6 @@ int main( int argc, const char** argv )
   // in the source will also appear at least once in the target.
   // User may request that original directory structure be preserved,
   // otherwise just write one file per detector name.
-  // Special treatment for keys found in current directory: if requested
-  // write the converted versions into a special subdirectory of target.
 
   set_tz( outp_tz );
 
@@ -2080,11 +2154,23 @@ int main( int argc, const char** argv )
     DumpMap();
 
   int err = 0;
-  if( PrepareOutputDir(destdir, subdirs) )
+  if( PrepareOutputDir(destdir,subdirs) )
     err = 6;
 
   if( !err && WriteFileDB(destdir,subdirs) )
     err = 7;
+
+  if( do_file_copy ) {
+    for( set<string>::const_iterator it = copy_dets.begin();
+	 !err && it != copy_dets.end(); ++it ) {
+      const string& detname = *it;
+      FilenameMap_t::const_iterator ft = filemap.find( detname );
+      assert( ft != filemap.end() );
+      const multiset<Filenames_t>& filenames = ft->second;
+      if( CopyFiles(destdir,subdirs,filenames) )
+	err = 8;
+    }
+  }
 
   reset_tz();
 
@@ -3539,7 +3625,7 @@ int VDC::ReadDB( FILE* file, time_t date, time_t date_until )
 }
 
 //-----------------------------------------------------------------------------
-int VDC::Plane::ReadDB( FILE* file, time_t date, time_t )
+int VDC::Plane::ReadDB( FILE* file, time_t /* date */, time_t )
 {
   // Legacy VDCPlane database reader
 
