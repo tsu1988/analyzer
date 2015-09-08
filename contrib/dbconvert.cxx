@@ -884,6 +884,7 @@ static int WriteFileDB( const string& target_dir, const vector<string>& subdirs 
 	     *tt < dir_until; ++tt ) {
 	nw += WriteAllKeysForTime( ofs, range.first, range.second, *tt );
       }
+      ofs.close();
       // Don't create empty files (may never happen?)
       assert( nw > 0 );
       // if( nw == 0 ) {
