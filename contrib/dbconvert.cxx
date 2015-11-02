@@ -56,6 +56,7 @@ using namespace std;
 #define ALL(c) (c).begin(), (c).end()
 
 static bool IsDBdate( const string& line, time_t& date );
+static bool IsDBcomment( const string& line );
 
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
@@ -2001,13 +2002,16 @@ static int ExtractKeys( Detector* det, const multiset<Filenames_t>& filenames )
 
 //-----------------------------------------------------------------------------
 static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
-		      const multiset<Filenames_t>& filenames )
+		      FilenameMap_t::const_iterator ft )
 {
   // Copy source files given in 'filenames' to 'target_dir' and given set
   // of subdirs. If 'subdirs' is empty or no output subdirs are requested,
   // write all output to 'target_dir'. If files already exist, intelligently
   // merge new keys. Remove any non-reachable time ranges.
+  // Should be called with current system timezone set.
 
+  const string& detname = ft->first;
+  const multiset<Filenames_t>& filenames = ft->second;
   fiter_t lastf = filenames.end();
   if( lastf == filenames.begin() )
     return 0;  // nothing to do
@@ -2029,33 +2033,106 @@ static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
   }
   siter_t lastdt = dir_times.insert( numeric_limits<time_t>::max() ).first;
 
-  for( fiter_t st = filenames.begin(); st != lastf; ) {
-    const string& path = st->path;
-    time_t val_from = st->val_start, val_until = (++st)->val_start;
+  // For each output subdirectory, find the files that map into it
+  for( siter_t dt = dir_times.begin(); dt != lastdt; ) {
+    time_t dir_from = *dt, dir_until = *(++dt);
 
-    //DEBUG
-    cout << "Copy " << path << " val_from = " << format_time(val_from)
-	 << " val_until = " << format_time(val_until) << endl;
-
-    FILE* fi = fopen( path.c_str(), "r" );
-    assert(fi);   // already succeeded previously
-    if( !fi )
-      continue;
-    current_filename = path;
-
-    // Parse in-file timestamps
-    set<time_t> timestamps;
-    timestamps.insert(val_from);
-    if( ParseTimestamps(fi, timestamps) )
-      goto next;
-    timestamps.insert( numeric_limits<time_t>::max() );
-
-    for( siter_t dt = dir_times.begin(); dt != lastdt; ) {
-      time_t dir_from = *dt, dir_until = *(++dt);
-      // TODO: continue here
+    multiset<Filenames_t> these_files;
+    for( fiter_t st = filenames.begin(); st != lastf; ) {
+      fiter_t this_file = st;
+      time_t val_from = st->val_start, val_until = (++st)->val_start;
+      if( val_from < dir_until && dir_from < val_until )
+	these_files.insert(*this_file);
     }
-  next:
-    fclose(fi);
+    if( these_files.empty() )
+      continue;
+
+    fiter_t lasttf = these_files.end();
+    lasttf = these_files.insert( Filenames_t(numeric_limits<time_t>::max()) );
+
+    // Build the output file name and open the file
+    map<time_t,string>::iterator nt = dir_names.find(dir_from);
+    assert( nt != dir_names.end() );
+    const string& subdir = nt->second;
+    string fname = subdir + "/db_" + detname + ".dat";
+    ofstream ofs( fname.c_str() );
+    if( !ofs ) {
+      stringstream ss("Error opening ",ios::out|ios::app);
+      ss << fname;
+      perror(ss.str().c_str());
+      return 1;
+    }
+    bool got_initial_timestamp = false;
+
+    for( fiter_t st = these_files.begin(); st != lasttf; ) {
+      const size_t LEN = 256;
+      char buf[256];
+      string line;
+      const string& path = st->path;
+      fiter_t this_st = st;
+      time_t val_from = st->val_start, val_until = (++st)->val_start;
+
+      //DEBUG
+      cout << "Copy " << path << " val_from = " << format_time(val_from)
+	   << " val_until = " << format_time(val_until) << endl;
+
+      FILE* fi = fopen( path.c_str(), "r" );
+      assert(fi);   // already succeeded previously
+      if( !fi )
+	continue;
+      current_filename = path;
+
+      set<time_t> timestamps;
+      set_tz( inp_tz );
+      ParseTimestamps(fi, timestamps);
+      rewind(fi);
+      reset_tz();
+      timestamps.insert( numeric_limits<time_t>::max() );
+      // Find the largest timestamp that is not greater than dir_from
+      siter_t tt = timestamps.upper_bound(dir_from);
+      if( tt != timestamps.begin() )
+	--tt;
+
+      if( this_st == these_files.begin() ) {
+	// Simply copy the first file as it is, translating only timestamps.
+	while( GetLine(fi,buf,LEN,line) == 0 ) {
+	  time_t date;
+	  if( IsDBdate(line, date) ) {
+	    set_tz( inp_tz );
+	    IsDBdate(line, date);
+ 	    reset_tz();
+	    // Skip sections whose time range is not applicable to this directory
+
+	    set_tz( outp_tz );
+	    ofs << format_tstamp(date) << endl;
+	    reset_tz();
+	    got_initial_timestamp = true;
+	  } else {
+	    if( !got_initial_timestamp ) {
+	      if( !IsDBcomment(line) ) {
+		// We've reached the first non-comment line. If there hasn't
+		// been a timestamp yet, make one with the output directory's
+		// start time.
+		set_tz( outp_tz );
+		ofs << format_tstamp(dir_from) << endl;
+		reset_tz();
+		got_initial_timestamp = true;
+	      }
+	    }
+	    ofs << line << endl;
+	  }
+	}
+      } else {
+	// Any subsequent files: 
+
+	// TODO: continue here
+
+      }
+
+      fclose(fi);
+    }
+    // TODO: check if file is empty (may happen because of in-file timestamps)
+    ofs.close();
   }
   return 0;
 }
@@ -2161,19 +2238,18 @@ int main( int argc, const char** argv )
   if( !err && WriteFileDB(destdir,subdirs) )
     err = 7;
 
+  reset_tz();
+
   if( do_file_copy ) {
     for( set<string>::const_iterator it = copy_dets.begin();
 	 !err && it != copy_dets.end(); ++it ) {
       const string& detname = *it;
       FilenameMap_t::const_iterator ft = filemap.find( detname );
       assert( ft != filemap.end() );
-      const multiset<Filenames_t>& filenames = ft->second;
-      if( CopyFiles(destdir,subdirs,filenames) )
+      if( CopyFiles(destdir,subdirs,ft) )
 	err = 8;
     }
   }
-
-  reset_tz();
 
   return err;
 }
@@ -2279,6 +2355,16 @@ static Int_t IsDBkey( const string& line, string& key, string& text )
   return 1;
 }
 
+//_____________________________________________________________________________
+static bool IsDBcomment( const string& line )
+{
+  // Return true if 'line' is entirely a comment line in a new-format database
+  // file. Comments start with '#', possibly preceded by whitespace, or are
+  // completely empty lines.
+
+  ssiz_t pos = line.find_first_not_of(" \t");
+  return ( pos == string::npos || line[pos] == '#' );
+}
 
 //-----------------------------------------------------------------------------
 template <class T>
