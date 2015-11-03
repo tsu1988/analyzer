@@ -35,6 +35,7 @@
 #include <cerrno>
 #include <cmath>
 #include <stdexcept>
+#include <cstddef>    // for offsetof
 
 #include "TString.h"
 #include "TDatime.h"
