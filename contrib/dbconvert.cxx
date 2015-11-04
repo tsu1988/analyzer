@@ -397,18 +397,19 @@ static inline bool IsDBSubDir( const string& fname, time_t& date )
   // Subdirectories have filenames of the form "YYYYMMDD" and "DEFAULT".
   // If so, extract its encoded time stamp to 'date'
 
+  const ssiz_t LEN = 8;
+
   if( fname == "DEFAULT" ) {
     date = 0;
     return true;
   }
-  if( fname.size() != 8 )
+  if( fname.size() != LEN )
     return false;
 
   ssiz_t pos = 0;
-  for( ; pos<8; ++pos )
-    if( !isdigit(fname[pos])) break;
-  if( pos != 8 )
-    return false;
+  while( pos != LEN )
+    if( !isdigit(fname[pos++]) )
+      return false;
 
   // Convert date encoded in directory name to time_t
   int year  = atoi( fname.substr(0,4).c_str() );
