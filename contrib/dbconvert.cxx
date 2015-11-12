@@ -299,7 +299,8 @@ static inline time_t MkTime( struct tm& td, bool have_tz = false )
   if( have_tz ) {
     save_tz = cur_tz;
     set_tz( TZfromOffset(td.tm_gmtoff) );
-  }
+  } else
+    td.tm_isdst = -1;
 
   time_t ret = mktime( &td );
 
@@ -625,7 +626,7 @@ struct DBvalue {
     : value(valstr), validity_start(start), version(ver), nelem(0),
       width(0), max_per_line(maxv)
   {
-    istringstream istr; string item;
+    istringstream istr(value); string item;
     while( istr >> item ) {
       width = max( width, item.length() );
       ++nelem;
@@ -2006,7 +2007,7 @@ static int ExtractKeys( Detector* det, const multiset<Filenames_t>& filenames )
 static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
 		      FilenameMap_t::const_iterator ft )
 {
-  // Copy source files given in 'filenames' to 'target_dir' and given set
+  // Copy source files given in the map 'ft' to 'target_dir' and given set
   // of subdirs. If 'subdirs' is empty or no output subdirs are requested,
   // write all output to 'target_dir'. If files already exist, intelligently
   // merge new keys. Remove any non-reachable time ranges.
@@ -2572,7 +2573,7 @@ int CopyFile::ReadDB( FILE* fi, time_t date, time_t date_until )
 
       // Add this key/value pair to our local database
       DBvalue val( value, curdate, version );
-      KeyAttr_t attr = fDB[key];
+      KeyAttr_t& attr = fDB[key];
       ValSet_t& vals = attr.values;
       ValSet_t::iterator pos = vals.find(val);
       // If key already exists for this time & version, overwrite its value
