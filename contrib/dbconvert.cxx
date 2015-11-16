@@ -1818,21 +1818,29 @@ static Int_t GetLine( FILE* file, char* buf, size_t bufsiz, string& line )
 }
 
 //-----------------------------------------------------------------------------
-static int ParseTimestamps( FILE* fi, set<time_t>& timestamps )
+static bool ParseTimestamps( FILE* fi, set<time_t>& timestamps )
 {
-  // Put all timestamps from file 'fi' in given vector 'timestamps'
+  // Put all timestamps from file 'fi' in given vector 'timestamps'.
+  // If any data lines are present before the first timestamp,
+  // return 1, else return 0;
 
-  size_t LEN = 256;
+  const size_t LEN = 256;
   char buf[LEN];
   string line;
+  bool got_tstamp = false, have_unstamped = false;
 
   rewind(fi);
   while( GetLine(fi,buf,LEN,line) == 0 ) {
     time_t date;
-    if( IsDBdate(line, date) )
+    if( IsDBdate(line, date) ) {
       timestamps.insert(date);
+      got_tstamp = true;
+    } else if( !got_tstamp && !IsDBcomment(line) ) {
+      have_unstamped = true;
+    }
   }
-  return 0;
+
+  return have_unstamped;
 }
 
 //-----------------------------------------------------------------------------
@@ -1966,12 +1974,17 @@ static int ExtractKeys( Detector* det, const multiset<Filenames_t>& filenames )
     vector<string> variations;
     timestamps.insert(val_from);
     if( det->SupportsTimestamps() ) {
-      if( ParseTimestamps(fi, timestamps) )
+      errno = 0;
+      ParseTimestamps(fi, timestamps);
+      if( errno ) {
+	stringstream ss("Error reading database file ",ios::out|ios::app);
+	ss << path;
+	perror(ss.str().c_str());
 	goto next;
+      }
     }
     if( det->SupportsVariations() ) {
-      if( ParseVariations(fi, variations) )
-	goto next;
+      ParseVariations(fi, variations);
     }
 
     timestamps.insert( numeric_limits<time_t>::max() );
