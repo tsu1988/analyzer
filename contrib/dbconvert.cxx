@@ -58,6 +58,7 @@ using namespace std;
 
 static bool IsDBdate( const string& line, time_t& date );
 static bool IsDBcomment( const string& line );
+static Int_t IsDBkey( const string& line, string& key, string& text );
 
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
@@ -2332,29 +2333,27 @@ static Int_t IsDBkey( const string& line, string& key, string& text )
   // - If there is no '=', then return 0.
   // - If key found, parse the line, set 'text' to the whitespace-trimmed
   //   text after the "=" and return +1.
-  //
-  // Note: By construction in ReadDBline, 'line' is not empty, any comments
-  // starting with '#' have been removed, and trailing whitespace has been
-  // trimmed. Also, all tabs have been converted to spaces.
 
   // Search for "="
   register const char* ln = line.c_str();
   const char* eq = strchr(ln, '=');
   if( !eq ) return 0;
   // Extract the key
-  while( *ln == ' ' ) ++ln; // find_first_not_of(" ")
+  while( *ln == ' ' || *ln == '\t' ) ++ln; // find_first_not_of(" \t")
   assert( ln <= eq );
   if( ln == eq ) return -1;
   register const char* p = eq-1;
   assert( p >= ln );
-  while( *p == ' ' ) --p; // find_last_not_of(" ")
+  while( *p == ' ' || *p == '\t' ) --p; // find_last_not_of(" \t")
   key = string(ln,p-ln+1);
-  // Extract the value, trimming leading whitespace.
+  // Extract the value, trimming leading and trailing whitespace
   ln = eq+1;
-  assert( !*ln || *(ln+strlen(ln)-1) != ' ' ); // Trailing space already trimmed
-  while( *ln == ' ' ) ++ln;
+  while( *ln == ' ' || *ln == '\t' ) ++ln;
   text = ln;
-
+  if( !text.empty() ) {
+    string::size_type pos = text.find_last_not_of(" \t");
+    text.erase(pos+1);
+  }
   return 1;
 }
 
