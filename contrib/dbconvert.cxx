@@ -890,10 +890,10 @@ static int WriteFileDB( const string& target_dir, const vector<string>& subdirs 
 	nw += WriteAllKeysForTime( ofs, range.first, range.second, *tt );
       }
       ofs.close();
-      // Don't create empty files (may never happen?)
+      // Don't create empty files (should never happen)
       assert( nw > 0 );
       // if( nw == 0 ) {
-      // 	unlink( fname.c_str() );
+      //	unlink( fname.c_str() );
       // }
     }
     it = range.second;
@@ -1639,7 +1639,7 @@ public:
     if( !S_ISDIR(sb.st_mode) &&
 	(fDoAll || IsDBFileName(fname) || IsDBSubDir(fname,date)) ) {
       if( unlink(cpath) ) {
-      	perror(cpath);
+	perror(cpath);
 	return -2;
       }
       fMustRewind = true;
@@ -1654,7 +1654,7 @@ public:
 	// requested file is in that directory. This logic may fail if a closer-matching
 	// directory exists in the target than in the source for a certain timestamp.
 	bool delete_all = (fname != "DEFAULT");
- 	if( ForAllFilesInDir(fpath, DeleteDBFile(delete_all), depth+1) )
+	if( ForAllFilesInDir(fpath, DeleteDBFile(delete_all), depth+1) )
 	  return -2;
 	int err;
 	if( (err = rmdir(cpath)) && errno != ENOTEMPTY ) {
@@ -2579,7 +2579,7 @@ int CopyFile::ReadDB( FILE* fi, time_t date, time_t date_until )
     string key, value;
     if( !ignore && IsDBkey(line, key, value) ) {
       // cout << "CopyFile date/key/value:"
-      // 	   << format_time(curdate) << ", " << key << " = " << value << endl;
+      //	   << format_time(curdate) << ", " << key << " = " << value << endl;
 
       // TODO: add support for "text variables"?
 
@@ -3614,7 +3614,7 @@ int VDC::ReadDB( FILE* file, time_t date, time_t date_until )
     assert( p_cnt >= 1 );
     // if (p_cnt < 1) {
     //   Error(Here(here), "Could not read in Matrix Element %s%d%d%d!",
-    // 	    w, ME.pw[0], ME.pw[1], ME.pw[2]);
+    //	    w, ME.pw[0], ME.pw[1], ME.pw[2]);
     //   Error(Here(here), "Line = \"%s\"",line.c_str());
     //   return kInitError;
     // }
@@ -3916,7 +3916,7 @@ int VDC::Plane::ReadDB( FILE* file, time_t /* date */, time_t )
     fgets(buff, LEN, file); // Read to end of line
   } else {
     // Warning( Here(here), "No database section \"%s\" or \"%s\" found. "
-    // 	     "Using defaults.", tag.Data(), tag2.Data() );
+    //	     "Using defaults.", tag.Data(), tag2.Data() );
     fTDCRes = 5.0e-10;  // 0.5 ns/chan = 5e-10 s /chan
     fT0Resolution = 6e-8; // 60 ns --- crude guess
     fMinClustSize = 4;
