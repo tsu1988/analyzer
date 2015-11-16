@@ -90,11 +90,11 @@ static struct poptOption options[] = {
 
 // Information for a single source database file
 struct Filenames_t {
-  Filenames_t( const string& _path, time_t _start )
-    : path(_path), val_start(_start) {}
-  Filenames_t( time_t _start ) : val_start(_start) {}
-  string    path;
+  Filenames_t( time_t _start, const string& _path = "" )
+    : val_start(_start), path(_path) {}
+  //  Filenames_t( time_t _start ) : val_start(_start) {}
   time_t    val_start;
+  string    path;
   // Order by validity time
   bool operator<( const Filenames_t& rhs ) const {
     return val_start < rhs.val_start;
@@ -1594,7 +1594,7 @@ public:
 
     // Record regular files whose names match db_*.dat
     if( S_ISREG(sb.st_mode) && IsDBFileName(fname) ) {
-      fFilenames[GetDetName(fpath)].insert( Filenames_t(fpath,fStart) );
+      fFilenames[GetDetName(fpath)].insert( Filenames_t(fStart,fpath) );
       n_add = 1;
     }
 
@@ -1924,10 +1924,10 @@ static int InsertDefaultFiles( const vector<string>& subdirs,
 	time_t date;
 #ifdef NDEBUG
 	IsDBSubdir(subdir,date);
-	filenames.insert( Filenames_t(deffile,date) );
+	filenames.insert( Filenames_t(date,deffile) );
 #else
 	assert( IsDBSubDir(subdir,date) );
-	Filenames_t ins(deffile,date);
+	Filenames_t ins(date,deffile);
 	assert( filenames.find(ins) == filenames.end() );
 	filenames.insert(ins);
 #endif
