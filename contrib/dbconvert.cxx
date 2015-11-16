@@ -2017,6 +2017,25 @@ static int ExtractKeys( Detector* det, const multiset<Filenames_t>& filenames )
   return 0;
 }
 
+typedef map<time_t,pair<size_t,string> > SectionMap_t;
+typedef SectionMap_t::iterator SMiter_t;
+
+//-----------------------------------------------------------------------------
+static void AddSection( SectionMap_t& sections, time_t cur_date, size_t ndata,
+			string& chunk )
+{
+  pair<size_t,string>& secdata = sections[cur_date];
+  secdata.first = ndata;
+  if( secdata.second.empty() )
+    secdata.second.swap( chunk );
+  else {
+    if( *secdata.second.rbegin() != '\n' )
+      secdata.second.append( "\n" );
+    secdata.second.append( chunk );
+    chunk.clear();
+  }
+}
+
 //-----------------------------------------------------------------------------
 static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
 		      FilenameMap_t::const_iterator ft )
@@ -2029,9 +2048,11 @@ static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
 
   const string& detname = ft->first;
   const multiset<Filenames_t>& filenames = ft->second;
-  fiter_t lastf = filenames.end();
-  if( lastf == filenames.begin() )
+  if( filenames.empty() )
     return 0;  // nothing to do
+
+  fiter_t lastf = filenames.end();
+  assert( lastf != filenames.begin() );
   --lastf;
 
   set<time_t> dir_times;
@@ -2079,15 +2100,19 @@ static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
       perror(ss.str().c_str());
       return 1;
     }
-    bool got_initial_timestamp = false;
+    //    size_t nlines = 0; // Number of non-comment lines written to output
 
     for( fiter_t st = these_files.begin(); st != lasttf; ) {
       const size_t LEN = 256;
-      char buf[256];
+      char buf[LEN];
       string line;
       const string& path = st->path;
-      fiter_t this_st = st;
+      //      fiter_t this_st = st;
+      //      bool first_file = (st == these_files.begin());
       time_t val_from = st->val_start, val_until = (++st)->val_start;
+      if( val_from  < dir_from  ) val_from = dir_from;
+      if( val_until > dir_until ) val_until = dir_until;
+      current_filename = path;
 
       //DEBUG
       cout << "Copy " << path << " val_from = " << format_time(val_from)
@@ -2097,59 +2122,186 @@ static int CopyFiles( const string& target_dir, const vector<string>& subdirs,
       assert(fi);   // already succeeded previously
       if( !fi )
 	continue;
-      current_filename = path;
 
-      set<time_t> timestamps;
+      // Now copy this file. Processing depends on a number of factors:
+      //
+      // (1) If there is exactly one time range in the file (i.e. either
+      //     no timestamps at all or exactly one timestamp and no preceding
+      //     unstamped data), copy it exactly as it is, except:
+      //     - if there is no timestamp, insert a val_from timestamp
+      //       (converted to the output timezone) before the first data
+      //     - if there is a timestamp, and it is < val_from, change it to
+      //       val_from.
+      //
+      // (2) If there is more than one time range, and there is exactly one
+      //     time range starting before or at val_from, copy the file time
+      //     range by time range in order of ascending time. The first
+      //     timestamp is advanced
+      //     to val_from if necessary. (For the first file of several to be
+      //     merged, this is just cosmetic, but it's required for subsequent
+      //     files.) Any "unstamped" data at the beginning of the file are
+      //     considered to be in a separate time range (starting at 0).
+      //
+      //     Any time ranges starting on or after val_until of the current file
+      //     are not copied at all since they would never be reached when
+      //     reading the original database.
+      //
+      // (3) If there is more than one time range starting before or at
+      //     val_from, these "introductory" time ranges need to be collapsed
+      //     into a single one (starting at val_from). If identical keys are
+      //     present in several time ranges, only the latest one needs to be
+      //     kept. Although it is technically acceptable to have multiple
+      //     instances of a key in a single time range as long as they are
+      //     written in the correct order (ascending with time), users could
+      //     be confused by this, so multiple keys are eliminated.
+
       set_tz( inp_tz );
-      ParseTimestamps(fi, timestamps);
-      rewind(fi);
-      reset_tz();
-      timestamps.insert( numeric_limits<time_t>::max() );
-      // Find the largest timestamp that is not greater than dir_from
-      siter_t tt = timestamps.upper_bound(dir_from);
-      if( tt != timestamps.begin() )
-	--tt;
-
-      if( this_st == these_files.begin() ) {
-	// Simply copy the first file as it is, translating only timestamps.
-	while( GetLine(fi,buf,LEN,line) == 0 ) {
-	  time_t date;
-	  if( IsDBdate(line, date) ) {
-	    set_tz( inp_tz );
-	    IsDBdate(line, date);
- 	    reset_tz();
-	    // Skip sections whose time range is not applicable to this directory
-
-	    set_tz( outp_tz );
-	    ofs << format_tstamp(date) << endl;
-	    reset_tz();
-	    got_initial_timestamp = true;
-	  } else {
-	    if( !got_initial_timestamp ) {
-	      if( !IsDBcomment(line) ) {
-		// We've reached the first non-comment line. If there hasn't
-		// been a timestamp yet, make one with the output directory's
-		// start time.
-		set_tz( outp_tz );
-		ofs << format_tstamp(dir_from) << endl;
-		reset_tz();
-		got_initial_timestamp = true;
-	      }
-	    }
-	    ofs << line << endl;
+      bool got_initial_timestamp = false;
+      time_t cur_date = 0; // Timestamp of currect section
+      size_t ndata = 0;    // Non-comment lines in currect section
+      SectionMap_t sections;
+      string chunk;
+      bool skip = false;
+      while( GetLine(fi,buf,LEN,line) == 0 ) {
+	time_t date;
+	if( IsDBdate(line,date) ) {
+	  // Save the previous section's data
+	  if( !skip && !chunk.empty() && (cur_date == 0 || ndata > 0) ) {
+	    AddSection( sections, cur_date, ndata, chunk );
+	    //	    nlines += ndata;
 	  }
+	  cur_date = date;
+	  ndata = 0;
+	  // Skip sections whose time range is not applicable to this directory
+	  skip = ( date >= val_until );
 	}
-      } else {
-	// Any subsequent files: 
-
-	// TODO: continue here
-
+	else if( !skip ) {
+	  bool is_data = !IsDBcomment(line);
+	  chunk.append(line).append("\n");
+	  if( is_data )
+	    ++ndata;
+	}
+      }
+      if( !skip && !chunk.empty() && (cur_date == 0 || ndata > 0) ) {
+	AddSection( sections, cur_date, ndata, chunk );
+	//	nlines += ndata;
       }
 
+      if( !sections.empty() ) {
+	// Process sections with time <= val_from
+	SMiter_t tt = sections.upper_bound(val_from), tf = sections.begin();
+	assert( tf != sections.end() );
+	iterator_traits<SMiter_t>::difference_type d = distance(tf,tt);
+	if( tf->first /*date*/ == 0 && tf->second.first /*ndata*/ == 0 ) --d;
+	// Now d holds the number of sections <= val_from that have data
+	if( d > 1 ) {
+	  // If more than one introductory section, keep only the most recent
+	  // key definitions
+	  assert( tt != sections.begin() );
+	  --tt;
+	  const size_t  tt_ndata = tt->second.first;
+	  const string& tt_chunk = tt->second.second;
+	  set<string> keys;
+	  if( tt_ndata > 0 ) {
+	    istringstream istr(tt_chunk);
+	    string line;
+	    while( getline(istr,line) ) {
+	      string key, value;
+	      if( IsDBkey(line,key,value) )
+		keys.insert(key);
+	    }
+	  }
+	  for( SectionMap_t::reverse_iterator rt(tt); rt != sections.rend(); ++rt ) {
+	    size_t& ndata = rt->second.first, ncomments = 0;
+	    if( ndata == 0 )
+	      continue;
+	    string& chunk = rt->second.second;
+	    istringstream istr(chunk);
+	    string new_chunk, line;
+	    bool copying = true;
+	    new_chunk.reserve(chunk.size());
+	    ndata = 0;
+	    while( getline(istr,line) ) {
+	      string key, value;
+	      if( IsDBkey(line,key,value) ) {
+		copying = (keys.find(key) == keys.end());
+		if( copying ) {
+		  new_chunk.append(line).append("\n");
+		  ++ndata;
+		  keys.insert(key);
+		}
+	      } else if( IsDBcomment(line) ) {
+		new_chunk.append(line).append("\n");
+		if( line.find_first_not_of(" \t") == string::npos )
+		  copying = true;
+		else
+		  ++ncomments;
+	      } else if( copying ) {
+		new_chunk.append(line).append("\n");
+		++ndata;
+	      }
+	    }
+	    if( ndata > 0 || ncomments > 0 ) {
+	      // Collapse 3 or more consecutive newlines to 2
+	      string::size_type pos;
+	      while( (pos = new_chunk.find("\n\n\n")) != string::npos )
+		new_chunk.replace(pos,3,2,'\n');
+	      // Save the pruned new text block
+	      chunk.swap( new_chunk );
+	    } else
+	      // Clear any blocks that are only whitespace
+	      chunk.clear();
+	  }
+	}
+
+	// Write processed sections to file
+	reset_tz();
+	set_tz( outp_tz );
+	for( SMiter_t it = sections.begin(); it != sections.end(); ++it ) {
+	  time_t date = it->first;
+	  size_t ndata = it->second.first;
+	  string& chunk = it->second.second;
+	  if( chunk.empty() )
+	    continue;
+	  if( date == 0 ) {
+	    if( ndata == 0 )
+	      ofs << chunk;
+	    else {
+	      istringstream istr(chunk);
+	      string line;
+	      while( getline(istr,line) ) {
+		if( !got_initial_timestamp && !IsDBcomment(line) ) {
+		  ofs << format_tstamp(val_from) << endl << endl;
+		  got_initial_timestamp = true;
+		}
+		ofs << line << endl;
+	      }
+	    }
+	  } else {
+	    //TODO: temporary
+	    if( date < val_from || (date == val_from && got_initial_timestamp) ) {
+	      ofs << "#";
+	      ofs << format_tstamp(date) << endl;
+	    }
+	    if( !got_initial_timestamp ) {
+	      if( date < val_from )
+		date = val_from;
+	      ofs << format_tstamp(date) << endl;
+	      got_initial_timestamp = true;
+	    } else if( date > val_from )
+	      ofs << format_tstamp(date) << endl;
+
+	    ofs << chunk;
+	  }
+	}
+	if( these_files.size() > 2 && st != lasttf )
+	  ofs << endl;
+      }
+      reset_tz();
       fclose(fi);
     }
-    // TODO: check if file is empty (may happen because of in-file timestamps)
     ofs.close();
+    // TODO: check if file is empty (may happen because of in-file timestamps)
   }
   return 0;
 }
