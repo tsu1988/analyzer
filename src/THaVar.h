@@ -125,6 +125,7 @@ public:
 
   Double_t        GetValue( Int_t i = 0 )  const { return GetValueAsDouble(i); }
   const void*     GetValuePointer()        const { return fValueP; }
+  const void*     GetBasicDataPointer()    const;
 
   virtual ULong_t Hash() const { return fParsedName.Hash(); }
   virtual Bool_t  HasSameSize( const THaVar& rhs ) const;

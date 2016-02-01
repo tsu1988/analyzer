@@ -541,6 +541,31 @@ Double_t THaVar::GetValueAsDouble( Int_t i ) const
 }
 
 //_____________________________________________________________________________
+const void* THaVar::GetBasicDataPointer() const
+{
+  // For basic data only (i.e. not an object or a function call), return pointer
+  // to actual data. In case of a PointerArray, this is not possible because the
+  // data are not contiguous. In that case, one needs to use GetValuePointer and
+  // dereference it on an element-by-element basis.
+
+  if( !IsBasic() || IsPointerArray() )
+    return 0;
+
+  if( fType >= kDouble && fType <= kByte )
+    return fValueP;
+
+  if( fType >= kDoubleP && fType <= kByteP )
+    return *fValueDD;
+
+  if( IsVector() ) {
+    const vector<int>& vec = *static_cast< const vector<int>* >(fObject);
+    return &vec[0];
+  }
+
+  return 0;
+}
+
+//_____________________________________________________________________________
 Int_t THaVar::Index( const THaArrayString& elem ) const
 {
   // Return linear index into this array variable corresponding 
