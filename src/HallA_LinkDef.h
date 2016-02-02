@@ -58,6 +58,7 @@
 #pragma link C++ class THaScintillator::DataDest+;
 #pragma link C++ class THaEvent+;
 #pragma link C++ class THaEventHeader+;
+#pragma link C++ class Podd::DataBuffer+;
 #pragma link C++ class THaOutput+;
 //#pragma link C++ class THaOdata+;
 //#pragma link C++ class THaScalerKey+;
