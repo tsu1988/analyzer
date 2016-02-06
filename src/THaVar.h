@@ -5,6 +5,9 @@
 //
 // THaVar
 //
+// Pre-template era version of an interface to access arbitrary data in
+// memory via name
+//
 //////////////////////////////////////////////////////////////////////////
 
 #include "TNamed.h"
@@ -126,6 +129,8 @@ public:
   Double_t        GetValue( Int_t i = 0 )  const { return GetValueAsDouble(i); }
   const void*     GetValuePointer()        const { return fValueP; }
   const void*     GetBasicDataPointer()    const;
+  const void*     GetDataPointer( Int_t i = 0 ) const;
+  Int_t           GetDataFromMethod( void* buf, Int_t i = 0 ) const;
 
   virtual ULong_t Hash() const { return fParsedName.Hash(); }
   virtual Bool_t  HasSameSize( const THaVar& rhs ) const;
@@ -137,7 +142,9 @@ public:
   Bool_t          IsArray() const
     { return ( IsVarArray() || fParsedName.IsArray() ); }
   Bool_t          IsBasic() const
-    { return ( fOffset == -1 && fMethod == 0 ); }
+    { return ( fOffset == -1 && !IsMethod() ); }
+  Bool_t          IsMethod() const
+    { return ( fMethod != 0 ); }
   Bool_t          IsPointerArray() const
     { return ( IsArray() && fType>=kDouble2P && fType <= kObject2P ); }
   Bool_t          IsVector() const
@@ -189,7 +196,6 @@ public:
 
 protected:
   Double_t            GetValueAsDouble( Int_t i=0 ) const;
-  Double_t            GetValueFromObject( Int_t i=0 ) const;
   Int_t               GetObjArrayLen() const;
 
   THaArrayString      fParsedName; //Variable name and array dimension(s), if any
@@ -239,4 +245,3 @@ protected:
 };
 
 #endif
-

@@ -5,21 +5,21 @@
 //
 // THaVar
 //
-// A "global variable".  This is essentially a read-only pointer to the 
+// A "global variable".  This is essentially a read-only pointer to the
 // actual data, along with support for data types and arrays.  It can
-// be used to retrieve data from anywhere in memory, e.g. analysis results 
+// be used to retrieve data from anywhere in memory, e.g. analysis results
 // of some detector object.
 //
 // THaVar objects are managed by the THaVarList.
-// 
+//
 // The standard way to define a variable is via the constructor, e.g.
 //
 //    Double_t x = 1.5;
 //    THaVar v("x","variable x",x);
 //
 // Constructors and Set() determine the data type automatically.
-// Supported types are 
-//    Double_t, Float_t, Long64_t, ULong64_t, Int_t, UInt_t, 
+// Supported types are
+//    Double_t, Float_t, Long64_t, ULong64_t, Int_t, UInt_t,
 //    Short_t, UShort_t, Char_t, Byte_t
 //
 // Arrays can be defined as follows:
@@ -28,7 +28,7 @@
 //    THaVar* va = new THaVar("a[10]","array of doubles",a);
 //
 // One-dimensional variable-size arrays are also supported. The actual
-// size must be contained in a variable of type Int_t. 
+// size must be contained in a variable of type Int_t.
 // Example:
 //
 //    Double_t* a = new Double_t[20];
@@ -40,7 +40,7 @@
 // would have the same effect as "a"). The data are always interpreted
 // as a one-dimensional array.
 //
-// Data are retrieved using GetValue(), which always returns Double_t.  
+// Data are retrieved using GetValue(), which always returns Double_t.
 // If access to the raw data is needed, one can use GetValuePointer()
 // (with the appropriate caution).
 //
@@ -147,7 +147,7 @@ size_t THaVar::GetTypeSize( VarType itype )
 
 //_____________________________________________________________________________
 THaVar::THaVar( const char* name, const char* desc, const void* obj,
-		VarType type, Int_t offset, TMethodCall* method, 
+		VarType type, Int_t offset, TMethodCall* method,
 		const Int_t* count )
   : TNamed(name,desc), fParsedName(name), fObject(obj), fType(type),
     fCount(count), fOffset(offset), fMethod(method), fDim(0)
@@ -156,7 +156,7 @@ THaVar::THaVar( const char* name, const char* desc, const void* obj,
   // The given type MUST match the type of the object pointed to!
   // Used by THaVarList::DefineByType.
   // User scripts should call the overloaded typed constructors.
-  
+
   if( IsVector() ) {
     if( fCount != 0 ) {
       Warning( "THaVar", "Inconsistent constructor parameters for variable "
@@ -226,7 +226,7 @@ THaVar::~THaVar()
 Bool_t THaVar::HasSameSize( const THaVar& rhs ) const
 {
   // Compare the size of this variable to that of 'rhs'.
-  // Scalars always agree. Arrays agree if either they are of the same fixed 
+  // Scalars always agree. Arrays agree if either they are of the same fixed
   // size, or their count variables are identical, or they belong to the
   // same object array. std::vectors never match since their sizes are, in
   // principle, independent of each other.
@@ -277,108 +277,10 @@ Int_t THaVar::GetObjArrayLen() const
 
   return c->GetSize();
 }
-  
-//_____________________________________________________________________________
-Double_t THaVar::GetValueFromObject( Int_t i ) const
-{
-  // Retrieve variable from a ROOT object, either via a function call
-  // or from a TSeqCollection
-
-  if( fObject == 0 )
-    return kInvalid;
-
-  void* obj;
-  if( fOffset != -1 ) {
-    // Array: Get data from the TSeqCollection
-
-    // Index already checked by caller
-    assert( i>=0 && i < GetObjArrayLen() );
-
-    // Get the object from the collection
-    obj = static_cast<const TSeqCollection*>( fObject )->At(i);
-    if( !obj )
-      return kInvalid;
-
-    if( !fMethod ) {
-      // No method ... get the data directly.
-      // Compute location using the offset.
-      ULong_t loc = (ULong_t)obj + fOffset;
-      if( !loc || (fType >= kDoubleP && (*(void**)loc == 0 )) )
-	return kInvalid;
-      switch( fType ) {
-      case kDouble: 
-	return *((Double_t*)loc);
-      case kFloat:
-	return static_cast<Double_t>( *(((Float_t*)loc))  );
-      case kLong:
-	return static_cast<Double_t>( *(((Long64_t*)loc))   );
-      case kULong:
-	return static_cast<Double_t>( *(((ULong64_t*)loc))  );
-      case kInt:
-	return static_cast<Double_t>( *(((Int_t*)loc))    );
-      case kUInt:
-	return static_cast<Double_t>( *(((UInt_t*)loc))   );
-      case kShort:
-	return static_cast<Double_t>( *(((Short_t*)loc))  );
-      case kUShort:
-	return static_cast<Double_t>( *(((UShort_t*)loc)) );
-      case kChar:
-	return static_cast<Double_t>( *(((Char_t*)loc))   );
-      case kByte:
-	return static_cast<Double_t>( *(((Byte_t*)loc))   );
-      case kDoubleP: 
-	return **((Double_t**)loc);
-      case kFloatP:
-	return static_cast<Double_t>( **(((Float_t**)loc))  );
-      case kLongP:
-	return static_cast<Double_t>( **(((Long64_t**)loc))   );
-      case kULongP:
-	return static_cast<Double_t>( **(((ULong64_t**)loc))  );
-      case kIntP:
-	return static_cast<Double_t>( **(((Int_t**)loc))    );
-      case kUIntP:
-	return static_cast<Double_t>( **(((UInt_t**)loc))   );
-      case kShortP:
-	return static_cast<Double_t>( **(((Short_t**)loc))  );
-      case kUShortP:
-	return static_cast<Double_t>( **(((UShort_t**)loc)) );
-      case kCharP:
-	return static_cast<Double_t>( **(((Char_t**)loc))   );
-      case kByteP:
-	return static_cast<Double_t>( **(((Byte_t**)loc))   );
-      default:
-	break;
-      }
-      return kInvalid;
-    }
-
-  } else {
-
-    // No array, so it must be a function call. Everything else
-    // is handled the standard way
-
-    if( !fMethod )
-      // Oops
-      return kInvalid;
-    obj = const_cast<void*>(fObject);
-  }
-
-  if( fType != kDouble && fType != kFloat ) {
-    // Integer data
-    Long_t result;
-    fMethod->Execute( obj, result );
-    return static_cast<Double_t>( result );
-  } else {
-    // Floating-point data
-    Double_t result;
-    fMethod->Execute( obj, result );
-    return result;
-  }
-}  
 
 //_____________________________________________________________________________
 Int_t THaVar::GetLen() const
-{ 
+{
   // Get number of elements of the variable
 
   if( fCount )
@@ -389,7 +291,7 @@ Int_t THaVar::GetLen() const
 
   if( IsVector() ) {
     // We cannot be sure that size() isn't specialized or type-dependent,
-    // so we need to cast the pointer to the exact type of vector
+    // so to be safe, we cast the pointer to the exact type of vector
     switch( fType ) {
     case kIntV: {
       const vector<int>& vec = *static_cast< const vector<int>* >(fObject);
@@ -406,9 +308,9 @@ Int_t THaVar::GetLen() const
     case kDoubleV: {
       const vector<double>& vec = *static_cast< const vector<double>* >(fObject);
       return vec.size();
-    } 
+    }
     default:
-      assert(0); // should never happen, bug in IsVector()
+      assert(false); // should never happen, bug in IsVector()
       return kInvalidInt;
     }
   }
@@ -437,11 +339,6 @@ Double_t THaVar::GetValueAsDouble( Int_t i ) const
   // Retrieve current value of this global variable.
   // If the variable is an array/vector, return its i-th element.
 
-  //  if( ( fValueP == 0 ) || 
-  //    ( fType>=kDoubleP  && *fDoubleDD == 0 ) ||
-  //    ( fType>=kDouble2P && (*fDouble3D)[i] == 0 ))
-  //  return 0.0;
-
 #ifdef WITH_DEBUG
   if( i<0 || i>=GetLen() ) {
     Warning("GetValue()", "Whoa! Index out of range, variable %s, index %d",
@@ -450,93 +347,86 @@ Double_t THaVar::GetValueAsDouble( Int_t i ) const
   }
 #endif
 
-  if( !IsBasic() )
-    return GetValueFromObject( i );
+  if( fMethod == 0 ) {
 
-  switch( fType ) {
-  case kDouble: 
-    return fValueD[i];
-  case kFloat:
-    return static_cast<Double_t>( fValueF[i] );
-  case kLong:
-    return static_cast<Double_t>( fValueL[i] );
-  case kULong:
-    return static_cast<Double_t>( fValueX[i] );
-  case kInt:
-    return static_cast<Double_t>( fValueI[i] );
-  case kUInt:
-    return static_cast<Double_t>( fValueU[i] );
-  case kShort:
-    return static_cast<Double_t>( fValueS[i] );
-  case kUShort:
-    return static_cast<Double_t>( fValueW[i] );
-  case kChar:
-    return static_cast<Double_t>( fValueC[i] );
-  case kByte:
-    return static_cast<Double_t>( fValueB[i] );
+    const void* loc = GetDataPointer(i);
+    if( !loc )
+      return kInvalid;
 
-  case kDoubleP: 
-    return (*fValueDD)[i];
-  case kFloatP:
-    return static_cast<Double_t>( (*fValueFF)[i] );
-  case kLongP:
-    return static_cast<Double_t>( (*fValueLL)[i] );
-  case kULongP:
-    return static_cast<Double_t>( (*fValueXX)[i] );
-  case kIntP:
-    return static_cast<Double_t>( (*fValueII)[i] );
-  case kUIntP:
-    return static_cast<Double_t>( (*fValueUU)[i] );
-  case kShortP:
-    return static_cast<Double_t>( (*fValueSS)[i] );
-  case kUShortP:
-    return static_cast<Double_t>( (*fValueWW)[i] );
-  case kCharP:
-    return static_cast<Double_t>( (*fValueCC)[i] );
-  case kByteP:
-    return static_cast<Double_t>( (*fValueBB)[i] );
+    switch( fType ) {
+    case kDouble:
+    case kDoubleP:
+    case kDouble2P:
+    case kDoubleV:
+	return *((Double_t*)loc);
+    case kFloat:
+    case kFloatP:
+    case kFloat2P:
+    case kFloatV:
+      return *((Float_t*)loc);
+    case kLong:
+    case kLongP:
+    case kLong2P:
+      return *((Long64_t*)loc);
+    case kULong:
+    case kULongP:
+    case kULong2P:
+      return *((ULong64_t*)loc);
+    case kInt:
+    case kIntP:
+    case kInt2P:
+    case kIntV:
+      return *((Int_t*)loc);
+    case kUInt:
+    case kUIntP:
+    case kUInt2P:
+    case kUIntV:
+      return *((UInt_t*)loc);
+    case kShort:
+    case kShortP:
+    case kShort2P:
+      return *((Short_t*)loc);
+    case kUShort:
+    case kUShortP:
+    case kUShort2P:
+      return *((UShort_t*)loc);
+    case kChar:
+    case kCharP:
+    case kChar2P:
+      return *((Char_t*)loc);
+    case kByte:
+    case kByteP:
+    case kByte2P:
+      return *((Byte_t*)loc);
+    case kObject:
+    case kObjectP:
+    case kObject2P:
+      Error( "GetValue()", "Cannot get value from composite object, variable %s",
+	     GetName() );
+      return kInvalid;
+    default:
+      Error( "GetValue()", "Unsupported data type %s, variable %s",
+	     GetEnumName(fType), GetName() );
+      return kInvalid;
+    }
 
-  case kDouble2P: 
-    return *((*fValue3D)[i]);
-  case kFloat2P:
-    return static_cast<Double_t>( *((*fValue3F)[i]) );
-  case kLong2P:
-    return static_cast<Double_t>( *((*fValue3L)[i]) );
-  case kULong2P:
-    return static_cast<Double_t>( *((*fValue3X)[i]) );
-  case kInt2P:
-    return static_cast<Double_t>( *((*fValue3I)[i]) );
-  case kUInt2P:
-    return static_cast<Double_t>( *((*fValue3U)[i]) );
-  case kShort2P:
-    return static_cast<Double_t>( *((*fValue3S)[i]) );
-  case kUShort2P:
-    return static_cast<Double_t>( *((*fValue3W)[i]) );
-  case kChar2P:
-    return static_cast<Double_t>( *((*fValue3C)[i]) );
-  case kByte2P:
-    return static_cast<Double_t>( *((*fValue3B)[i]) );
+  } else {
+    // Method call
+    union {
+      Double_t dval;
+      Int_t    ival;
+    };
 
-  case kIntV: {
-    const vector<int>& vec = *static_cast< const vector<int>* >(fObject);
-    return vec[i];
-  }
-  case kUIntV: {
-    const vector<unsigned int>& vec = *static_cast< const vector<unsigned int>* >(fObject);
-    return vec[i];
-  }
-  case kFloatV: {
-    const vector<float>& vec = *static_cast< const vector<float>* >(fObject);
-    return vec[i];
-  }
-  case kDoubleV: {
-    const vector<double>& vec = *static_cast< const vector<double>* >(fObject);
-    return vec[i];
-  }
+    Int_t nbytes = GetDataFromMethod(&dval,i);
+    if( nbytes == 0 )
+      return kInvalid;
 
-  default:
-    break;
+    if( fType == kFloat || fType == kDouble )
+      return dval;
+    else
+      return ival;
   }
+  // Not reached
   return kInvalid;
 }
 
@@ -548,7 +438,7 @@ const void* THaVar::GetBasicDataPointer() const
   // data are not contiguous. In that case, one needs to use GetValuePointer and
   // dereference it on an element-by-element basis.
 
-  if( !IsBasic() || IsPointerArray() )
+  if( !IsBasic() )
     return 0;
 
   if( fType >= kDouble && fType <= kByte )
@@ -557,19 +447,128 @@ const void* THaVar::GetBasicDataPointer() const
   if( fType >= kDoubleP && fType <= kByteP )
     return *fValueDD;
 
+  if( !IsArray() && fType >= kDouble2P && fType <= kByte2P )
+    return **fValue3D;
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+const void* THaVar::GetDataPointer( Int_t i ) const
+{
+  // Get pointer to data in memory, including to data in a non-contiguous
+  // pointer array and data in objects stored in a TSeqCollection (TClonesArray)
+
+  if( fObject == 0 || fMethod != 0 )
+    return 0;
+
+  assert( sizeof(ULong_t) == sizeof(void*) );
+  assert( i>=0 && i < GetLen() );
+
+  if( IsBasic() ) {
+    const void* ptr = GetBasicDataPointer();
+    if( !ptr )
+      return 0;
+    ULong_t loc = reinterpret_cast<ULong_t>(ptr) + i*GetTypeSize();
+    return reinterpret_cast<const void*>(loc);
+  }
+
+  if( IsPointerArray() ) {
+    const void** const *ptr = reinterpret_cast<const void** const *>(fValue3D);
+    return (*ptr)[i];
+  }
+
   if( IsVector() ) {
-    const vector<int>& vec = *static_cast< const vector<int>* >(fObject);
-    return &vec[0];
+    if( GetLen() == 0 )
+      return 0;
+    switch( fType ) {
+      case kIntV: {
+	const vector<int>& vec = *static_cast< const vector<int>* >(fObject);
+	return &vec[i];
+      }
+      case kUIntV: {
+	const vector<unsigned int>& vec = *static_cast< const vector<unsigned int>* >(fObject);
+	return &vec[i];
+      }
+      case kFloatV: {
+	const vector<float>& vec = *static_cast< const vector<float>* >(fObject);
+	return &vec[i];
+      }
+      case kDoubleV: {
+	const vector<double>& vec = *static_cast< const vector<double>* >(fObject);
+	return &vec[i];
+      }
+      default:
+	return 0;
+    }
+  }
+
+  if( fOffset != -1 ) {
+    // Array: Get data from object in TSeqCollection
+
+    void* obj = static_cast<const TSeqCollection*>( fObject )->At(i);
+    assert(obj);
+    if( !obj )
+      return 0;
+
+    // Compute location using the offset.
+    ULong_t loc = reinterpret_cast<ULong_t>(obj) + fOffset;
+    if( !loc || (fType >= kDoubleP && (*(void**)loc == 0 )) )
+      return 0;
+
+    return reinterpret_cast<const void*>(loc);
   }
 
   return 0;
 }
 
 //_____________________________________________________________________________
+Int_t THaVar::GetDataFromMethod( void* buf, Int_t i ) const
+{
+  // Make a function call and return the result in buf (either Double_t or Int_t)
+  // The return value is the number of bytes copied into the buffer (8 or 4)
+
+  if( fObject == 0 || fMethod == 0 )
+    return 0;
+
+  void* obj;
+  if( fOffset != -1 ) {
+    // The method is part of an object in an array
+    assert( i >= 0 && i<GetObjArrayLen() );
+
+    obj = static_cast<const TSeqCollection*>(fObject)->At(i);
+    assert(obj);
+    if( !obj )
+      return 0;
+
+  } else {
+    // No array. Make a function call on the object directly.
+    // In this case, the index must be 0.
+    assert( i == 0 );
+    obj = const_cast<void*>(fObject);
+  }
+
+  if( fType != kDouble && fType != kFloat ) {
+    // Integer data
+    Long_t result;
+    fMethod->Execute( obj, result );
+    Int_t iresult = static_cast<Int_t>(result);
+    memcpy( buf, &iresult, sizeof(iresult) );
+    return sizeof(iresult);
+  } else {
+    // Floating-point data
+    Double_t result;
+    fMethod->Execute( obj, result );
+    memcpy( buf, &result, sizeof(result) );
+    return sizeof(result);
+  }
+}
+
+//_____________________________________________________________________________
 Int_t THaVar::Index( const THaArrayString& elem ) const
 {
-  // Return linear index into this array variable corresponding 
-  // to the array element described by 'elem'.  
+  // Return linear index into this array variable corresponding
+  // to the array element described by 'elem'.
   // Return -1 if subscript(s) out of bound(s) or -2 if incompatible arrays.
 
   if( elem.IsError() ) return -1;
@@ -598,13 +597,13 @@ Int_t THaVar::Index( const THaArrayString& elem ) const
 //_____________________________________________________________________________
 Int_t THaVar::Index( const char* s ) const
 {
-  // Return linear index into this array variable corresponding 
+  // Return linear index into this array variable corresponding
   // to the array element described by the string 's'.
-  // 's' must be either a single integer subscript (for a 1-d array) 
+  // 's' must be either a single integer subscript (for a 1-d array)
   // or a comma-separated list of subscripts (for multi-dimensional arrays).
   //
-  // NOTE: This method is less efficient than 
-  // THaVar::Index( THaArraySring& ) above because the string has 
+  // NOTE: This method is less efficient than
+  // THaVar::Index( THaArraySring& ) above because the string has
   // to be parsed first.
   //
   // Return -1 if subscript(s) out of bound(s) or -2 if incompatible arrays.
@@ -677,4 +676,3 @@ void THaVar::SetNameTitle( const char* name, const char* descript )
 
 //_____________________________________________________________________________
 ClassImp(THaVar)
-
