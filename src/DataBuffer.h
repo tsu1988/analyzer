@@ -13,7 +13,7 @@ namespace Podd {
 
   class DataBuffer {
   public:
-    DataBuffer();
+    explicit DataBuffer( size_t n = 0 );
     DataBuffer( const DataBuffer& rhs );
     DataBuffer& operator=( const DataBuffer& rhs);
 #ifndef __CINT__
@@ -22,7 +22,7 @@ namespace Podd {
     DataBuffer& operator=( DataBuffer&& rhs);
 #endif
 #endif
-    ~DataBuffer();
+    virtual ~DataBuffer();
 
     char*  Get() const { return fData; }
     size_t GetSize() const { return fNdata; }
@@ -33,9 +33,9 @@ namespace Podd {
     Int_t  Resize( size_t n );
 
   private:
+    char*   fData;    // Data buffer
     size_t  fNalloc;  // Bytes allocated
     size_t  fNdata;   // Bytes used
-    char*   fData;    // Data buffer
 
     static const size_t MAX = 100*1024*1024;  // sanity limit of 100 MB per buffer
 

@@ -21,15 +21,18 @@ using namespace std;
 namespace Podd {
 
   //_____________________________________________________________________________
-  DataBuffer::DataBuffer()
-    : fNalloc(0), fNdata(0), fData(0)
+  DataBuffer::DataBuffer( size_t n /* = 0 */ )
+    : fData(0), fNalloc(0), fNdata(0)
   {
-    // Constructor. Creates an empty object (buffer size zero).
+    // Constructor. Creates an empty object (buffer size zero) by default.
+    // If n > 0, allocate n bytes
+    if( n > 0 )
+      Resize(n);
   }
 
   //_____________________________________________________________________________
   DataBuffer::DataBuffer( const DataBuffer& rhs )
-    : fNalloc(rhs.fNalloc), fNdata(rhs.fNdata), fData(0)
+    : fData(0), fNalloc(rhs.fNalloc), fNdata(rhs.fNdata)
   {
     // Copy constructor
     assert( fNalloc <= MAX );
@@ -66,7 +69,7 @@ namespace Podd {
 #if __cplusplus >= 201103L
   //_____________________________________________________________________________
   DataBuffer::DataBuffer( DataBuffer&& rhs )
-    : fNalloc(rhs.fNalloc), fNdata(rhs.fNdata), fData(rhs.fData)
+    : fData(rhs.fData), fNalloc(rhs.fNalloc), fNdata(rhs.fNdata)
   {
     // Move constructor
     rhs.fNalloc = rhs.fNdata = 0;
@@ -79,9 +82,9 @@ namespace Podd {
     // Move assignment
     if( this != &rhs ) {
       delete [] fData;
+      fData   = rhs.fData;
       fNalloc = rhs.fNalloc;
       fNdata  = rhs.fNdata;
-      fData   = rhs.fData;
       rhs.fNalloc = rhs.fNdata = 0;
       rhs.fData = nullptr;
     }
