@@ -11,11 +11,12 @@
 #include <vector>
 #include <map>
 #include <string> 
-#include <cstring>
+#include <utility>
 
 class THaVar;
 class TH1F;
 class TH2F;
+class TBranch;
 class THaVform;
 class THaVhist;
 class THaEvData;
@@ -24,7 +25,6 @@ class THaEvtTypeHandler;
 
 class THaOdata {
 // Utility class used by THaOutput to store arrays 
-// up to size 'nsize' for tree output.
 public:
   THaOdata(int n=1) : tree(NULL), ndata(0), nsize(n)
   { data = new Double_t[n]; }
@@ -67,8 +67,12 @@ private:
 class THaEpicsKey;
 class THaEpicsEvtHandler;
 
+namespace Podd {
+  class DataBuffer;
+}
+
 class THaOutput {
-  
+
 public:
 
   THaOutput();
@@ -85,11 +89,32 @@ public:
   
 protected:
 
+  struct HistogramParameters {
+    std::string stitle, sfvarx, sfvary, scut;
+    Int_t nx,ny,iscut;
+    Double_t xlo,xhi,ylo,yhi;
+  };
+
+  struct VariableInfo {
+    VariableInfo() : fVar(0), fBranch(0), fBuffer(0) {}
+    ~VariableInfo();
+    Int_t AddBranch( const std::string& branchname, TTree* fTree );
+    Int_t UpdateBranch();
+    Int_t Fill();
+    const THaVar*     fVar;
+    //    TBranch*          fCount;  //TODO: needed?
+    TBranch*          fBranch;
+    Podd::DataBuffer* fBuffer;
+  };
+
+  typedef std::map<std::string,VariableInfo> VarMap_t;
+
   virtual Int_t LoadFile( const char* filename );
   virtual Int_t Attach();
   virtual Int_t FindKey(const std::string& key) const;
   virtual void  ErrFile(Int_t iden, const std::string& sline) const;
-  virtual Int_t ChkHistTitle(Int_t key, const std::string& sline);
+  virtual Int_t ParseHistogramDef(Int_t key, const std::string& sline,
+				  HistogramParameters& param );
   virtual Int_t BuildBlock(const std::string& blockn);
   virtual std::string StripBracket(const std::string& var) const; 
   std::vector<std::string> reQuote(const std::vector<std::string>& input) const;
@@ -103,9 +128,10 @@ protected:
                            fFormnames, fFormdef,
                            fCutnames, fCutdef,
                            fArrayNames, fVNames; 
-  std::vector<THaVar* >  fVariables, fArrays;
+  //  std::vector<THaVar* >  fVariables, fArrays;
   std::vector<THaVform* > fFormulas, fCuts;
   std::vector<THaVhist* > fHistos;
+  VarMap_t fVariables;
   std::vector<THaOdata* > fOdata;
   std::vector<THaEpicsKey*>  fEpicsKey;
   TTree *fTree, *fEpicsTree; 
@@ -123,12 +149,8 @@ private:
   THaOutput(const THaOutput&);
   THaOutput& operator=(const THaOutput& );
 
-  std::string stitle, sfvarx, sfvary, scut;
-
   THaEvtTypeHandler *fEpicsHandler;
 
-  Int_t nx,ny,iscut;
-  Float_t xlo,xhi,ylo,yhi;
   Bool_t fOpenEpics,fFirstEpics;
 
   ClassDef(THaOutput,0)  

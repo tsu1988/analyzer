@@ -15,33 +15,35 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "THaOutput.h"
-#include "TROOT.h"
 #include "THaVform.h"
 #include "THaVhist.h"
 #include "THaVarList.h"
 #include "THaVar.h"
 #include "THaTextvars.h"
 #include "THaGlobals.h"
+#include "THaEvData.h"
+#include "THaEvtTypeHandler.h"
+#include "THaEpicsEvtHandler.h"
+#include "THaScalerEvtHandler.h"
+#include "THaString.h"
+#include "THaBenchmark.h"
+#include "DataBuffer.h"
+#include "TROOT.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "TTree.h"
 #include "TFile.h"
 #include "TRegexp.h"
 #include "TError.h"
-#include "THaEvData.h"
-#include "THaEvtTypeHandler.h"
-#include "THaEpicsEvtHandler.h"
-#include "THaScalerEvtHandler.h"
-#include "THaString.h"
 #include <algorithm>
 #include <fstream>
 #include <cstring>
 #include <iostream>
 //#include <iterator>
-
-#include "THaBenchmark.h"
+#include <sstream>
 
 using namespace std;
+using namespace Podd;
 using namespace THaString;
 
 typedef vector<THaOdata*>::iterator Iter_o_t;
@@ -121,8 +123,6 @@ private:
   string fName;
   map<string,Double_t> fAssign;
 };
-
-//_____________________________________________________________________________
 
 //_____________________________________________________________________________
 THaOdata::THaOdata( const THaOdata& other )
@@ -211,6 +211,253 @@ THaOutput::~THaOutput()
 }
 
 //_____________________________________________________________________________
+static inline const char* GetVarTypeStr( const THaVar* pvar )
+{
+  // Return a string suitable for a TTree::Branch definition corresponding
+  // to the type of the global variable pvar
+
+  // TODO: support Bool_t ("O")
+
+  switch( pvar->GetType() ) {
+  case kDouble:
+  case kDoubleV:
+  case kDoubleM:
+  case kDoubleP:
+  case kDouble2P:
+    return "D";
+  case kFloat:
+  case kFloatV:
+  case kFloatM:
+  case kFloatP:
+  case kFloat2P:
+    return "F";
+  case kLong:
+  case kLongP:
+  case kLong2P:
+    // Long/ULong are defined as (U)Long64_t in the global variable system
+    return "L";
+  case kULong:
+  case kULongP:
+  case kULong2P:
+    return "l";
+  case kInt:
+  case kIntV:
+  case kIntM:
+  case kIntP:
+  case kInt2P:
+    return "I";
+  case kUInt:
+  case kUIntV:
+  case kUIntP:
+  case kUInt2P: 
+    return "i";
+  case kShort:
+  case kShortP:
+  case kShort2P:
+    return "S";
+  case kUShort: 
+  case kUShortP:
+  case kUShort2P:
+    return "s";
+  case kChar:
+  case kCharP: // TODO: maybe "C"?
+  case kChar2P:
+    return "B";
+  case kByte:
+  case kByteP:
+  case kByte2P:
+    return "b";
+
+  //TODO
+  case kObject:
+    break;
+  case kTString:
+    break;
+  case kString:
+    break;
+  case kObjectP:
+    break;
+  case kObject2P:
+    break;
+  case kVarTypeEnd:
+    assert(false); // Should never happen, undefined type
+    break;
+  }
+  return "";
+}
+
+//_____________________________________________________________________________
+THaOutput::VariableInfo::~VariableInfo()
+{
+  delete fBuffer;
+}
+
+//_____________________________________________________________________________
+Int_t THaOutput::VariableInfo::AddBranch( const string& branchname, TTree* tree )
+{
+  assert( !fBranch );   // should never be called twice
+  if( fBranch )
+    return -1;
+
+  // std::vector can be streamed directly, but to set up the branch correctly,
+  // we need to cast them explicitly to their type
+  if( fVar->IsVector() ) {
+    void* ptr = const_cast<void*>(fVar->GetValuePointer());
+    switch( fVar->GetType() ) {
+    case kIntV:
+      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<int>*>(ptr) );
+      break;
+    case kUIntV:
+      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<unsigned int>*>(ptr) );
+      break;
+    case kFloatV:
+      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<float>*>(ptr) );
+      break;
+    case kDoubleV:
+      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<double>*>(ptr) );
+      break;
+    default:
+      assert(false);  // unsupported vector type
+      break;
+    }
+    return 0;
+  }
+
+  // Stream objects deriving from TObject directly using the class name interface
+  if( fVar->GetType() == kObject2P ) {
+    void* ptr = const_cast<void*>(fVar->GetValuePointer());
+    if( !ptr ) {
+      cerr << "Zero pointer for global variable object " << fVar->GetName()
+	 << ", ignoring definition" << endl;
+      return 1;
+    }
+    string branchname_dot = branchname + '.';
+    fBranch = tree->Branch( branchname_dot.c_str(),
+			    (*static_cast<TObject**>(ptr))->ClassName(), ptr );
+    return 0;
+  }
+
+  // Basic data
+  string type = GetVarTypeStr( fVar );
+  if( type.empty() ) {
+    cerr << "Unsupported variable type " << fVar->GetTypeName()
+	 << "for global variable " << fVar->GetName()
+	 << ", ignoring definition" << endl;
+    return 1;
+  }
+
+  //FIXME: leafdef must be of type /D in case the variable is not basic (=object/method)
+  //TODO: support data types other than double for non-basic variables
+  string leafdef;
+  if ( fVar->IsVarArray()) {
+    string countbranch("Ndata." + branchname);
+    tree->Branch( countbranch.c_str(), (void*)fVar->GetDim(), (countbranch+"/I").c_str() );
+    leafdef = "data[" + countbranch + ']';
+    // 	fArrayNames.push_back(fVarnames[ivar]);
+    //   fOdata.push_back(new THaOdata());
+  } else if( fVar->IsArray() ) {
+    stringstream ostr;
+    assert( fVar->GetNdim() > 0 );
+    if( fVar->GetNdim() != 2 ) {  // flatten multidimensional arrays ( d>2 )
+      ostr << '[' << fVar->GetLen() << ']';
+    } else {
+      ostr << '[' << fVar->GetDim()[0] << "][" << fVar->GetDim()[1] << ']';
+    }
+    leafdef = branchname + ostr.str();
+  } else {
+    leafdef = branchname;
+    // 	fVNames.push_back(fVarnames[ivar]);
+  }
+  // Function calls only support Int_t and Double_t
+  if( fVar->IsMethod() ) {
+    if( type == 'F' )
+      type = "D";
+    else
+      type = "I";
+  }
+  leafdef += "/" + type;
+
+  // Now for the data pointer. This is quite tricky
+  //
+  // Variable type    Example             Array  VarSz  Address behavior
+  // ------------------------------------------------------------------------------
+  // Member variable  int fData           no     no     avail, fixed
+  // Member array     int fData[10]       yes    no     avail, fixed
+  // Member pointer   int *fData          yes    yes    avail, may realloc on re-init
+  // Non-array handle int **fData         no     no     avail, may realloc per event
+  // std::vector      vector<int> fData   yes    yes    stream directly
+  // ROOT object      TLorentzVector      no     no     stream directly
+  // TSeqCollection   TClonesArray elem   yes    yes    must copy -> use buffer addr
+  // Pointer array    **fData             yes    yes    must copy -> use buffer addr
+  // Method call      GetX()              no     no     must copy -> use buffer addr
+
+  void* leafp = const_cast<void*>( fVar->GetBasicDataPointer() );
+  if( !leafp ) {
+    // We're dealing with non-contiguous data (array of pointers to data
+    // or members of a TSeqCollection/TClonesArray), or with transient
+    // data (method call). In these cases, we need to store a copy of 
+    // the data locally since tree branches expect contiguous data.
+    size_t len = fVar->GetTypeSize();
+    if( fVar->IsVarArray() )
+      len *= 8;
+    fBuffer = new DataBuffer(len);
+
+    leafp = fBuffer->Get();  // the branch address will be reset later if necessary
+  }
+  fBranch = tree->Branch( branchname.c_str(), leafp, leafdef.c_str() );
+    
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t THaOutput::VariableInfo::UpdateBranch()
+{
+  // For certain data types, update branch address
+
+  if( !fBranch )
+    return 0;
+  if( fVar->IsBasic() && !fVar->IsPointerArray() )
+    return 0;
+  
+  void* ptr;
+  if( fBuffer )
+    ptr = fBuffer->Get();
+  else if( fVar->GetType() == kObject2P )
+    ptr = const_cast<void*>( fVar->GetValuePointer() );
+  else
+    ptr = const_cast<void*>( fVar->GetBasicDataPointer() );
+  assert(ptr);
+
+  if( fBranch->GetAddress() != ptr )
+    fBranch->SetAddress(ptr);
+
+  return 0;
+}
+
+//_____________________________________________________________________________
+Int_t THaOutput::VariableInfo::Fill()
+{
+  // For non-contiguous data or object/method calls, fill the local buffer
+
+  if( !fBuffer || fVar->GetLen() == 0 )
+    return 0;
+
+  fBuffer->Clear();
+  fBuffer->Resize( fVar->GetLen() );
+  if( fVar->IsMethod() ) {
+    Double_t result;
+    for( Int_t i = 0, imax = fVar->GetLen(); i < imax; ++i ) {
+      Int_t size = fVar->GetDataFromMethod( &result, i );
+      fBuffer->Fill( &result, size );
+    }
+  } else {
+    for( Int_t i = 0, imax = fVar->GetLen(); i < imax; ++i )
+      fBuffer->Fill( fVar->GetDataPointer(i), fVar->GetTypeSize(), i );
+  }
+  return 0;
+}
+
+//_____________________________________________________________________________
 Int_t THaOutput::Init( const char* filename ) 
 {
   // Initialize output system. Required before anything can happen.
@@ -236,41 +483,40 @@ Int_t THaOutput::Init( const char* filename )
 
   if( fgDoBench ) fgBench.Begin("Init");
 
+  Int_t err = LoadFile( filename );
+  if( err != -1 && err != 0 ) {
+    if( fgDoBench ) fgBench.Stop("Init");
+    return -3;
+  }
+
   fTree = new TTree("T","Hall A Analyzer Output DST");
   fTree->SetAutoSave(200000000);
   fOpenEpics  = kFALSE;
   fFirstEpics = kTRUE; 
 
-  Int_t err = LoadFile( filename );
-  if( fgDoBench && err != 0 ) fgBench.Stop("Init");
-    
   if( err == -1 ) {
+    if( fgDoBench ) fgBench.Stop("Init");
     return 0;       // No error if file not found, but please
   }                    // read the instructions.
-  else if( err != 0 ) {
-    delete fTree; fTree = NULL;
-    return -3;
-  }
 
   fNvar = fVarnames.size();  // this gets reassigned below
   fArrayNames.clear();
   fVNames.clear();
 
-  THaVar *pvar;
-  for (Int_t ivar = 0; ivar < fNvar; ivar++) {
-    pvar = gHaVars->Find(fVarnames[ivar].c_str());
-    if (pvar) {
-      if (pvar->IsArray()) {
-	fArrayNames.push_back(fVarnames[ivar]);
-        fOdata.push_back(new THaOdata());
-      } else {
-	fVNames.push_back(fVarnames[ivar]);
-      }
-    } else {
-      cout << "\nTHaOutput::Init: WARNING: Global variable ";
-      cout << fVarnames[ivar] << " does not exist. "<< endl;
+  for( VarMap_t::iterator it = fVariables.begin(); it != fVariables.end(); ++it ) {
+    const string& branchname = (*it).first;
+    const THaVar* pvar = gHaVars->Find(branchname.c_str());
+    if (!pvar) {
+      cout << endl << "THaOutput::Init: WARNING: Global variable ";
+      cout << branchname << " does not exist. "<< endl;
       cout << "There is probably a typo error... "<<endl;
+      continue;
     }
+    VariableInfo& vinfo = (*it).second;
+    vinfo.fVar = pvar;
+    vinfo.AddBranch( branchname, fTree );
+
+    
   }
   Int_t k = 0;
   for (Iter_s_t inam = fFormnames.begin(); inam != fFormnames.end(); ++inam, ++k) {
@@ -296,7 +542,7 @@ Int_t THaOutput::Init( const char* filename )
     vector<string> avar = pform->GetVars();
     for (Iter_s_t it = avar.begin(); it != avar.end(); ++it) {
       string svar = StripBracket(*it);
-      pvar = gHaVars->Find(svar.c_str());
+      THaVar* pvar = gHaVars->Find(svar.c_str());
       if (pvar) {
 	if (pvar->IsArray()) {
 	  Iter_s_t it = find(fArrayNames.begin(),fArrayNames.end(),svar);
@@ -345,8 +591,8 @@ Int_t THaOutput::Init( const char* filename )
 // histograms and potentially reassign variables.  
 // A histogram variable or cut is either a string (which can 
 // encode a formula) or an externally defined THaVform. 
-    sfvarx = (*ihist)->GetVarX();
-    sfvary = (*ihist)->GetVarY();
+    string sfvarx = (*ihist)->GetVarX();
+    string sfvary = (*ihist)->GetVarY();
     for (Iter_f_t iform = fFormulas.begin(); iform != fFormulas.end(); ++iform) {
       string stemp((*iform)->GetName());
       if (CmpNoCase(sfvarx,stemp) == 0) { 
@@ -357,7 +603,7 @@ Int_t THaOutput::Init( const char* filename )
       }
     }
     if ((*ihist)->HasCut()) {
-      scut   = (*ihist)->GetCutStr();
+      string scut = (*ihist)->GetCutStr();
       for (Iter_f_t icut = fCuts.begin(); icut != fCuts.end(); ++icut) {
         string stemp((*icut)->GetName());
         if (CmpNoCase(scut,stemp) == 0) { 
@@ -401,6 +647,7 @@ Int_t THaOutput::Init( const char* filename )
   return 0;
 }
 
+//_____________________________________________________________________________
 void THaOutput::BuildList( const vector<string>& vdata) 
 {
   // Build list of EPICS variables and
@@ -452,50 +699,50 @@ Int_t THaOutput::Attach()
   
   if( !gHaVars ) return -2;
 
-  THaVar *pvar;
-  Int_t NAry = fArrayNames.size();
-  Int_t NVar = fVNames.size();
+  // THaVar *pvar;
+  // Int_t NAry = fArrayNames.size();
+  // Int_t NVar = fVNames.size();
 
-  fVariables.resize(NVar);
-  fArrays.resize(NAry);
+  // fVariables.resize(NVar);
+  // fArrays.resize(NAry);
   
-  // simple variable-type names
-  for (Int_t ivar = 0; ivar < NVar; ivar++) {
-    pvar = gHaVars->Find(fVNames[ivar].c_str());
-    if (pvar) {
-      if ( !pvar->IsArray() ) {
-	fVariables[ivar] = pvar;
-      } else {
-	cout << "\tTHaOutput::Attach: ERROR: Global variable " << fVNames[ivar]
-	     << " changed from simple to array!! Leaving empty space for variable"
-	     << endl;
-	fVariables[ivar] = 0;
-      }
-    } else {
-      cout << "\nTHaOutput::Attach: WARNING: Global variable ";
-      cout << fVarnames[ivar] << " NO LONGER exists (it did before). "<< endl;
-      cout << "This is not supposed to happen... "<<endl;
-    }
-  }
+  // // simple variable-type names
+  // for (Int_t ivar = 0; ivar < NVar; ivar++) {
+  //   pvar = gHaVars->Find(fVNames[ivar].c_str());
+  //   if (pvar) {
+  //     if ( !pvar->IsArray() ) {
+  // 	fVariables[ivar] = pvar;
+  //     } else {
+  // 	cout << "\tTHaOutput::Attach: ERROR: Global variable " << fVNames[ivar]
+  // 	     << " changed from simple to array!! Leaving empty space for variable"
+  // 	     << endl;
+  // 	fVariables[ivar] = 0;
+  //     }
+  //   } else {
+  //     cout << "\nTHaOutput::Attach: WARNING: Global variable ";
+  //     cout << fVarnames[ivar] << " NO LONGER exists (it did before). "<< endl;
+  //     cout << "This is not supposed to happen... "<<endl;
+  //   }
+  // }
 
-  // arrays
-  for (Int_t ivar = 0; ivar < NAry; ivar++) {
-    pvar = gHaVars->Find(fArrayNames[ivar].c_str());
-    if (pvar) {
-      if ( pvar->IsArray() ) {
-	fArrays[ivar] = pvar;
-      } else {
-	cout << "\tTHaOutput::Attach: ERROR: Global variable " << fVNames[ivar]
-	     << " changed from ARRAY to Simple!! Leaving empty space for variable"
-	     << endl;
-	fArrays[ivar] = 0;
-      }
-    } else {
-      cout << "\nTHaOutput::Attach: WARNING: Global variable ";
-      cout << fVarnames[ivar] << " NO LONGER exists (it did before). "<< endl;
-      cout << "This is not supposed to happen... "<<endl;
-    }
-  }
+  // // arrays
+  // for (Int_t ivar = 0; ivar < NAry; ivar++) {
+  //   pvar = gHaVars->Find(fArrayNames[ivar].c_str());
+  //   if (pvar) {
+  //     if ( pvar->IsArray() ) {
+  // 	fArrays[ivar] = pvar;
+  //     } else {
+  // 	cout << "\tTHaOutput::Attach: ERROR: Global variable " << fVNames[ivar]
+  // 	     << " changed from ARRAY to Simple!! Leaving empty space for variable"
+  // 	     << endl;
+  // 	fArrays[ivar] = 0;
+  //     }
+  //   } else {
+  //     cout << "\nTHaOutput::Attach: WARNING: Global variable ";
+  //     cout << fVarnames[ivar] << " NO LONGER exists (it did before). "<< endl;
+  //     cout << "This is not supposed to happen... "<<endl;
+  //   }
+  // }
 
   // Reattach formulas, cuts, histos
 
@@ -567,32 +814,32 @@ Int_t THaOutput::Process()
   if( fgDoBench ) fgBench.Stop("Cuts");
 
   if( fgDoBench ) fgBench.Begin("Variables");
-  THaVar *pvar;
-  for (Int_t ivar = 0; ivar < fNvar; ivar++) {
-    pvar = fVariables[ivar];
-    if (pvar) fVar[ivar] = pvar->GetValue();
-  }
-  Int_t k = 0;
-  for (Iter_o_t it = fOdata.begin(); it != fOdata.end(); ++it, ++k) { 
-    THaOdata* pdat(*it);
-    pdat->Clear();
-    pvar = fArrays[k];
-    if ( pvar == NULL ) continue;
-    // Fill array in reverse order so that fOdata[k] gets resized just once
-    Int_t i = pvar->GetLen();
-    bool first = true;
-    while( i-- > 0 ) {
-      // FIXME: for better efficiency, should use pointer to data and 
-      // Fill(int n,double* data) method in case of a contiguous array
-      if (pdat->Fill(i,pvar->GetValue(i)) != 1) {
-	if( fgVerbose>0 && first ) {
-	  cerr << "THaOutput::ERROR: storing too much variable sized data: " 
-	       << pvar->GetName() <<"  "<<pvar->GetLen()<<endl;
-	  first = false;
-	}
-      }
-    }
-  }
+  // THaVar *pvar;
+  // for (Int_t ivar = 0; ivar < fNvar; ivar++) {
+  //   pvar = fVariables[ivar];
+  //   if (pvar) fVar[ivar] = pvar->GetValue();
+  // }
+  // Int_t k = 0;
+  // for (Iter_o_t it = fOdata.begin(); it != fOdata.end(); ++it, ++k) { 
+  //   THaOdata* pdat(*it);
+  //   pdat->Clear();
+  //   pvar = fArrays[k];
+  //   if ( pvar == NULL ) continue;
+  //   // Fill array in reverse order so that fOdata[k] gets resized just once
+  //   Int_t i = pvar->GetLen();
+  //   bool first = true;
+  //   while( i-- > 0 ) {
+  //     // FIXME: for better efficiency, should use pointer to data and 
+  //     // Fill(int n,double* data) method in case of a contiguous array
+  //     if (pdat->Fill(i,pvar->GetValue(i)) != 1) {
+  // 	if( fgVerbose>0 && first ) {
+  // 	  cerr << "THaOutput::ERROR: storing too much variable sized data: " 
+  // 	       << pvar->GetName() <<"  "<<pvar->GetLen()<<endl;
+  // 	  first = false;
+  // 	}
+  //     }
+  //   }
+  // }
   if( fgDoBench ) fgBench.Stop("Variables");
 
   if( fgDoBench ) fgBench.Begin("Histos");
@@ -654,6 +901,7 @@ Int_t THaOutput::LoadFile( const char* filename )
   string::size_type pos;
   vector<string> strvect;
   string sline;
+  fVariables.clear();
   while (getline(odef,sline)) {
     // Blank line or comment line?
     if( sline.empty()
@@ -671,9 +919,9 @@ Int_t THaOutput::LoadFile( const char* filename )
       // Split the line into tokens separated by whitespace
       const string& str = *it;
       strvect = Split(str);
-      bool special_before = (fOpenEpics);
+      bool special_before = fOpenEpics;
       BuildList(strvect);
-      bool special_now = (fOpenEpics);
+      bool special_now = fOpenEpics;
       if( special_before || special_now )
 	continue; // strvect already processed
       if (strvect.size() < 2) {
@@ -684,7 +932,8 @@ Int_t THaOutput::LoadFile( const char* filename )
       string sname = StripBracket(strvect[1]);
       switch (ikey) {
       case kVar:
-	fVarnames.push_back(sname);
+	fVariables.insert( make_pair(sname,VariableInfo()) );
+	//	fVarnames.push_back(sname);
 	break;
       case kForm:
 	if (strvect.size() < 3) {
@@ -706,19 +955,22 @@ Int_t THaOutput::LoadFile( const char* filename )
       case kH1d:
       case kH2f:
       case kH2d:
-	if( ChkHistTitle(ikey, str) != 1) {
-	  ErrFile(ikey, str);
-	  continue;
+	{
+	  // FIXME: move this into Init
+	  HistogramParameters hpar;
+	  if( ParseHistogramDef(ikey, str, hpar) != 1) {
+	    ErrFile(ikey, str);
+	    continue;
+	  }
+	  fHistos.push_back( new THaVhist(strvect[0],sname,hpar.stitle));
+	  // Tentatively assign variables and cuts as strings. 
+	  // Later will check if they are actually THaVform's.
+	  fHistos.back()->SetX(hpar.nx, hpar.xlo, hpar.xhi, hpar.sfvarx);
+	  if (ikey == kH2f || ikey == kH2d) {
+	    fHistos.back()->SetY(hpar.ny, hpar.ylo, hpar.yhi, hpar.sfvary);
+	  }
+	  if (hpar.iscut != fgNocut) fHistos.back()->SetCut(hpar.scut);
 	}
-	fHistos.push_back(
-			  new THaVhist(strvect[0],sname,stitle));
-	// Tentatively assign variables and cuts as strings. 
-	// Later will check if they are actually THaVform's.
-	fHistos.back()->SetX(nx, xlo, xhi, sfvarx);
-	if (ikey == kH2f || ikey == kH2d) {
-	  fHistos.back()->SetY(ny, ylo, yhi, sfvary);
-	}
-	if (iscut != fgNocut) fHistos.back()->SetCut(scut);
 	break;
       case kBlock:
 	// Do not strip brackets for block regexps: use strvect[1] not sname
@@ -738,17 +990,17 @@ Int_t THaOutput::LoadFile( const char* filename )
   }
 
   // sort thru fVarnames, removing identical entries
-  if( fVarnames.size() > 1 ) {
-    sort(fVarnames.begin(),fVarnames.end());
-    vector<string>::iterator Vi = fVarnames.begin();
-    while ( (Vi+1)!=fVarnames.end() ) {
-      if ( *Vi == *(Vi+1) ) {
-	fVarnames.erase(Vi+1);
-      } else {
-	++Vi;
-      }
-    }
-  }
+  // if( fVarnames.size() > 1 ) {
+  //   sort(fVarnames.begin(),fVarnames.end());
+  //   vector<string>::iterator Vi = fVarnames.begin();
+  //   while ( (Vi+1)!=fVarnames.end() ) {
+  //     if ( *Vi == *(Vi+1) ) {
+  // 	fVarnames.erase(Vi+1);
+  //     } else {
+  // 	++Vi;
+  //     }
+  //   }
+  // }
 
   return 0;
 }
@@ -1021,44 +1273,45 @@ void THaOutput::Print() const
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::ChkHistTitle(Int_t iden, const string& sline)
+Int_t THaOutput::ParseHistogramDef( Int_t iden, const string& sline,
+				    HistogramParameters& hpar )
 {
 // Parse the string that defines the histogram.  
 // The title must be enclosed in single quotes (e.g. 'my title').  
 // Ret value 'result' means:  -1 == error,  1 == everything ok.
   Int_t result = -1;
-  stitle = "";   sfvarx = "";  sfvary  = "";
-  iscut = fgNocut;  scut = "";
-  nx = 0; ny = 0; xlo = 0; xhi = 0; ylo = 0; yhi = 0;
+  hpar.stitle = "";   hpar.sfvarx = "";  hpar.sfvary  = "";
+  hpar.iscut = fgNocut;  hpar.scut = "";
+  hpar.nx = 0; hpar.ny = 0; hpar.xlo = 0; hpar.xhi = 0; hpar.ylo = 0; hpar.yhi = 0;
   string::size_type pos1 = sline.find_first_of("'");
   string::size_type pos2 = sline.find_last_of("'");
   if (pos1 != string::npos && pos2 > pos1) {
-    stitle = sline.substr(pos1+1,pos2-pos1-1);
+    hpar.stitle = sline.substr(pos1+1,pos2-pos1-1);
   }
   string ctemp = sline.substr(pos2+1,sline.size()-pos2);
   vector<string> stemp = Split(ctemp);
   if (stemp.size() > 1) {
-     sfvarx = stemp[0];
+     hpar.sfvarx = stemp[0];
      Int_t ssize = stemp.size();
      if (ssize == 4 || ssize == 5) {
-       sscanf(stemp[1].c_str(),"%8d",&nx);
-       sscanf(stemp[2].c_str(),"%16f",&xlo);
-       sscanf(stemp[3].c_str(),"%16f",&xhi);
+       sscanf(stemp[1].c_str(),"%8d",&hpar.nx);
+       sscanf(stemp[2].c_str(),"%16lf",&hpar.xlo);
+       sscanf(stemp[3].c_str(),"%16lf",&hpar.xhi);
        if (ssize == 5) {
-         iscut = 1; scut = stemp[4];
+         hpar.iscut = 1; hpar.scut = stemp[4];
        }
        result = 1;
      }
      if (ssize == 8 || ssize == 9) {
-       sfvary = stemp[1];
-       sscanf(stemp[2].c_str(),"%8d",&nx);
-       sscanf(stemp[3].c_str(),"%16f",&xlo);
-       sscanf(stemp[4].c_str(),"%16f",&xhi);
-       sscanf(stemp[5].c_str(),"%8d",&ny);
-       sscanf(stemp[6].c_str(),"%16f",&ylo);
-       sscanf(stemp[7].c_str(),"%16f",&yhi);
+       hpar.sfvary = stemp[1];
+       sscanf(stemp[2].c_str(),"%8d",&hpar.nx);
+       sscanf(stemp[3].c_str(),"%16lf",&hpar.xlo);
+       sscanf(stemp[4].c_str(),"%16lf",&hpar.xhi);
+       sscanf(stemp[5].c_str(),"%8d",&hpar.ny);
+       sscanf(stemp[6].c_str(),"%16lf",&hpar.ylo);
+       sscanf(stemp[7].c_str(),"%16lf",&hpar.yhi);
        if (ssize == 9) {
-         iscut = 1; scut = stemp[8]; 
+         hpar.iscut = 1; hpar.scut = stemp[8]; 
        }
        result = 2;
      }
