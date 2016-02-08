@@ -131,6 +131,7 @@ public:
   const void*     GetBasicDataPointer()    const;
   const void*     GetDataPointer( Int_t i = 0 ) const;
   Int_t           GetDataFromMethod( void* buf, Int_t i = 0 ) const;
+  Bool_t          HasSizeVar() const { return (fCount != 0); }
 
   virtual ULong_t Hash() const { return fParsedName.Hash(); }
   virtual Bool_t  HasSameSize( const THaVar& rhs ) const;

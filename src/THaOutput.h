@@ -89,6 +89,9 @@ public:
   
 protected:
 
+  struct VariableInfo;
+  typedef std::map<std::string,VariableInfo> VarMap_t;
+
   struct HistogramParameters {
     std::string stitle, sfvarx, sfvary, scut;
     Int_t nx,ny,iscut;
@@ -96,9 +99,17 @@ protected:
   };
 
   struct VariableInfo {
-    VariableInfo() : fVar(0), fBranch(0), fBuffer(0) {}
+    VariableInfo( const THaVar* pvar=0 ) : fVar(pvar), fBranch(0), fBuffer(0) {}
+    VariableInfo( const VariableInfo& other );
+    VariableInfo& operator=( const VariableInfo& rhs );
+#ifndef __CINT__
+#if __cplusplus >= 201103L
+    VariableInfo( VariableInfo&& other );
+    VariableInfo& operator=( VariableInfo&& rhs);
+#endif
+#endif
     ~VariableInfo();
-    Int_t AddBranch( const std::string& branchname, TTree* fTree );
+    Int_t AddBranch( const std::string& branchname, VarMap_t& varmap, TTree* fTree );
     Int_t UpdateBranch();
     Int_t Fill();
     const THaVar*     fVar;
@@ -106,8 +117,6 @@ protected:
     TBranch*          fBranch;
     Podd::DataBuffer* fBuffer;
   };
-
-  typedef std::map<std::string,VariableInfo> VarMap_t;
 
   virtual Int_t LoadFile( const char* filename );
   virtual Int_t Attach();

@@ -287,13 +287,64 @@ static inline const char* GetVarTypeStr( const THaVar* pvar )
 }
 
 //_____________________________________________________________________________
+THaOutput::VariableInfo::VariableInfo( const VariableInfo& rhs )
+  : fVar(rhs.fVar), fBranch(rhs.fBranch), fBuffer(new DataBuffer(*rhs.fBuffer))
+{
+  // Copy constructor
+}
+
+//_____________________________________________________________________________
+THaOutput::VariableInfo&
+THaOutput::VariableInfo::operator=( const VariableInfo& rhs)
+{
+  // Assignment operator
+  if( this != &rhs ) {
+    fVar = rhs.fVar;
+    fBranch = rhs.fBranch;
+    delete fBuffer;
+    fBuffer = new DataBuffer(*rhs.fBuffer);
+  }
+  return *this;
+}
+
+#if __cplusplus >= 201103L
+//_____________________________________________________________________________
+THaOutput::VariableInfo::VariableInfo( VariableInfo&& rhs )
+  : fVar(rhs.fVar), fBranch(rhs.fBranch), fBuffer(rhs.fBuffer)
+{
+  // Move constructor
+  rhs.fVar = nullptr;
+  rhs.fBranch = nullptr;
+  rhs.fBuffer = nullptr;
+}
+
+//_____________________________________________________________________________
+THaOutput::VariableInfo&
+THaOutput::VariableInfo::operator=( VariableInfo&& rhs)
+{
+  // Move assignment
+  if( this != &rhs ) {
+    delete fBuffer;
+    fVar = rhs.fVar;
+    fBranch = rhs.fBranch;
+    fBuffer = rhs.fBuffer;
+    rhs.fVar = nullptr;
+    rhs.fBranch = nullptr;
+    rhs.fBuffer = nullptr;
+  }
+  return *this;
+}
+#endif
+
+//_____________________________________________________________________________
 THaOutput::VariableInfo::~VariableInfo()
 {
   delete fBuffer;
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::VariableInfo::AddBranch( const string& branchname, TTree* tree )
+Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
+					  VarMap_t& varmap, TTree* tree )
 {
   assert( !fBranch );   // should never be called twice
   if( fBranch )
@@ -346,13 +397,40 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname, TTree* tree 
     return 1;
   }
 
-  //FIXME: leafdef must be of type /D in case the variable is not basic (=object/method)
-  //TODO: support data types other than double for non-basic variables
   string leafdef;
   if ( fVar->IsVarArray()) {
-    string countbranch("Ndata." + branchname);
-    tree->Branch( countbranch.c_str(), (void*)fVar->GetDim(), (countbranch+"/I").c_str() );
-    leafdef = "data[" + countbranch + ']';
+    // If this variable has a counter variable, check if it is available as a
+    // global variable already, and if so, use it. Otherwise, set up an
+    // individual counter branch for this variable-size array
+    string countbranch;
+    if( fVar->HasSizeVar() ) {
+      const Int_t* pcounter = fVar->GetDim();
+      assert( pcounter );
+      TIter next(gHaVars);
+      THaVar* pvar;
+      while( (pvar = static_cast<THaVar*>(next())) ) {
+	if( pvar->GetType() == kInt && pvar->GetValuePointer() == pcounter ) {
+	  countbranch = pvar->GetName();
+	  VarMap_t::iterator it = varmap.find( countbranch );
+	  if( it == varmap.end() ) {
+	    pair<VarMap_t::iterator,bool> ins =
+	      varmap.insert( make_pair(countbranch,VariableInfo(pvar)) );
+	    assert( ins.second );
+	    VariableInfo& varinfo = ins.first->second;
+	    Int_t ret = varinfo.AddBranch( countbranch, varmap, tree );
+	    if( ret ) return ret;
+	  }
+	  break;
+	}
+      }
+    }
+    if( countbranch.empty() ) {
+      countbranch = "Ndata." + branchname;
+      tree->Branch( countbranch.c_str(), (void*)fVar->GetDim(), (countbranch+"/I").c_str() );
+      leafdef = "data[" + countbranch + ']';
+    } else
+      leafdef = branchname + "[" + countbranch + ']';
+
     // 	fArrayNames.push_back(fVarnames[ivar]);
     //   fOdata.push_back(new THaOdata());
   } else if( fVar->IsArray() ) {
@@ -514,7 +592,7 @@ Int_t THaOutput::Init( const char* filename )
     }
     VariableInfo& vinfo = (*it).second;
     vinfo.fVar = pvar;
-    vinfo.AddBranch( branchname, fTree );
+    vinfo.AddBranch( branchname, fVariables, fTree );
 
     
   }
