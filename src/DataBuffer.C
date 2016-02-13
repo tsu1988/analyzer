@@ -15,6 +15,7 @@
 #include "DataBuffer.h"
 #include <cstring>   // for memcpy
 #include <cassert>
+#include <utility>
 
 using namespace std;
 
@@ -81,12 +82,9 @@ namespace Podd {
   {
     // Move assignment
     if( this != &rhs ) {
-      delete [] fData;
-      fData   = rhs.fData;
-      fNalloc = rhs.fNalloc;
-      fNdata  = rhs.fNdata;
-      rhs.fNalloc = rhs.fNdata = 0;
-      rhs.fData = nullptr;
+      swap( fData,   rhs.fData );
+      swap( fNalloc, rhs.fNalloc );
+      swap( fNdata,  rhs.fNdata );
     }
     return *this;
   }
