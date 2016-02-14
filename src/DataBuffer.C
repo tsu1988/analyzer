@@ -69,7 +69,7 @@ namespace Podd {
 
 #if __cplusplus >= 201103L
   //_____________________________________________________________________________
-  DataBuffer::DataBuffer( DataBuffer&& rhs )
+  DataBuffer::DataBuffer( DataBuffer&& rhs ) noexcept
     : fData(rhs.fData), fNalloc(rhs.fNalloc), fNdata(rhs.fNdata)
   {
     // Move constructor
@@ -78,13 +78,13 @@ namespace Podd {
   }
 
   //_____________________________________________________________________________
-  DataBuffer& DataBuffer::operator=( DataBuffer&& rhs)
+  DataBuffer& DataBuffer::operator=( DataBuffer&& rhs) noexcept
   {
     // Move assignment
     if( this != &rhs ) {
-      swap( fData,   rhs.fData );
-      swap( fNalloc, rhs.fNalloc );
-      swap( fNdata,  rhs.fNdata );
+      std::swap( fData,   rhs.fData );
+      std::swap( fNalloc, rhs.fNalloc );
+      std::swap( fNdata,  rhs.fNdata );
     }
     return *this;
   }

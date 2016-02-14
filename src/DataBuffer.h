@@ -18,8 +18,8 @@ namespace Podd {
     DataBuffer& operator=( const DataBuffer& rhs);
 #ifndef __CINT__
 #if __cplusplus >= 201103L
-    DataBuffer( DataBuffer&& rhs );
-    DataBuffer& operator=( DataBuffer&& rhs);
+    DataBuffer( DataBuffer&& rhs ) noexcept;
+    DataBuffer& operator=( DataBuffer&& rhs) noexcept;
 #endif
 #endif
     virtual ~DataBuffer();
