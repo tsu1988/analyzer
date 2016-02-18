@@ -30,7 +30,7 @@ FixedArrayVar::FixedArrayVar( THaVar* pvar, const void* addr, VarType type )
     return;
   }
 
-  fVar->SetName( fParsedName.GetName() );
+  fSelf->SetName( fParsedName.GetName() );
 }
 
 //_____________________________________________________________________________
@@ -43,10 +43,10 @@ Bool_t FixedArrayVar::CheckName( const THaArrayString& parsed_name ) const
   bool good = true;
 
   if( parsed_name.IsError() ) {
-    fVar->Error( here, "Malformed array syntax for variable %s", GetName() );
+    fSelf->Error( here, "Malformed array syntax for variable %s", GetName() );
     good = false;
   } else if( !parsed_name.IsArray() ) {
-    fVar->Error( here, "Specification \"%s\" for variable %s is not a "
+    fSelf->Error( here, "Specification \"%s\" for variable %s is not a "
 		 "fixed array", parsed_name.GetName(), GetName() );
     good = false;
   }
@@ -60,6 +60,14 @@ Int_t FixedArrayVar::GetLen() const
   // Get number of elements of the variable
 
   return fParsedName.GetLen();
+}
+
+//_____________________________________________________________________________
+Int_t FixedArrayVar::GetNdim() const
+{
+  // Get number of elements of the variable
+
+  return fParsedName.GetNdim();
 }
 
 //_____________________________________________________________________________
@@ -79,8 +87,10 @@ Bool_t FixedArrayVar::HasSameSize( const Variable& rhs ) const
   if( typeid(*this) != typeid(rhs) )
     return kFALSE;
 
-  assert( dynamic_cast<const FixedArrayVar*>(&rhs) );
-  const FixedArrayVar* other = static_cast<const FixedArrayVar*>(&rhs);
+  const FixedArrayVar* other = dynamic_cast<const FixedArrayVar*>(&rhs);
+  assert( other );
+  if( !other )
+    return kFALSE;
 
   return ( fParsedName.GetNdim() == other->fParsedName.GetNdim() &&
 	   fParsedName.GetLen()  == other->fParsedName.GetLen() );
@@ -124,7 +134,7 @@ void FixedArrayVar::Print(Option_t* option) const
   // Print a description of this variable. If option=="FULL" (default), also
   // print current data
 
-  fVar->TNamed::Print(option);
+  fSelf->TNamed::Print(option);
 
   if( strcmp(option, "FULL") ) return;
 
@@ -150,7 +160,7 @@ void FixedArrayVar::SetName( const char* name )
   if( !CheckName(new_name) )
     return;
 
-  fVar->SetName( new_name );
+  fSelf->SetName( new_name );
   fParsedName = new_name;
 }
 
@@ -163,7 +173,7 @@ void FixedArrayVar::SetNameTitle( const char* name, const char* descript )
   if( !CheckName(new_name) )
     return;
 
-  fVar->SetNameTitle( new_name, descript );
+  fSelf->SetNameTitle( new_name, descript );
   fParsedName = new_name;
 }
 

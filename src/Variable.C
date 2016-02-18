@@ -23,11 +23,11 @@ namespace Podd {
 
 //_____________________________________________________________________________
 Variable::Variable( THaVar* pvar, const void* addr, VarType type )
-  : fVar(pvar), fValueP(addr), fType(type)
+  : fSelf(pvar), fValueP(addr), fType(type)
 {
   // Base class constructor
 
-  assert(fVar);
+  assert(fSelf);
   assert(fValueP);
 }
 
@@ -40,7 +40,7 @@ Variable::~Variable()
 //_____________________________________________________________________________
 const char* Variable::GetName() const
 {
-  return fVar->GetName();
+  return fSelf->GetName();
 }
 
 //_____________________________________________________________________________
@@ -90,7 +90,7 @@ Double_t Variable::GetValue( Int_t i ) const
   const char* const here = "GetValue()";
 
   if( i<0 || i>=GetLen() ) {
-    fVar->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
+    fSelf->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
     return kInvalid;
   }
 
@@ -149,12 +149,12 @@ Double_t Variable::GetValue( Int_t i ) const
   case kObject:
   case kObjectP:
   case kObject2P:
-    fVar->Error( here, "Cannot get value from composite object, variable %s",
-	   GetName() );
+    fSelf->Error( here, "Cannot get value from composite object, variable %s",
+		  GetName() );
     break;
   default:
-    fVar->Error( here, "Unsupported data type %s, variable %s",
-	   THaVar::GetEnumName(fType), GetName() );
+    fSelf->Error( here, "Unsupported data type %s, variable %s",
+		  THaVar::GetEnumName(fType), GetName() );
     break;
   }
   return kInvalid;
@@ -169,13 +169,13 @@ Long64_t Variable::GetValueInt( Int_t i ) const
   const char* const here = "GetValueInt()";
 
   if( i<0 || i>=GetLen() ) {
-    fVar->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
+    fSelf->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
     return kInvalidInt;
   }
 
   if( IsFloat() ) {
-    fVar->Error(here, "Variable %s has floating-point type %s, "
-		"call GetValue() instead", GetName(), GetTypeName() );
+    fSelf->Error(here, "Variable %s has floating-point type %s, "
+		 "call GetValue() instead", GetName(), GetTypeName() );
     return kInvalidInt;
   }
 
@@ -222,12 +222,12 @@ Long64_t Variable::GetValueInt( Int_t i ) const
   case kObject:
   case kObjectP:
   case kObject2P:
-    fVar->Error( here, "Cannot get value from composite object, variable %s",
-	   GetName() );
+    fSelf->Error( here, "Cannot get value from composite object, variable %s",
+		  GetName() );
     break;
   default:
-    fVar->Error( here, "Unsupported data type %s, variable %s",
-	   THaVar::GetEnumName(fType), GetName() );
+    fSelf->Error( here, "Unsupported data type %s, variable %s",
+		  THaVar::GetEnumName(fType), GetName() );
     break;
   }
 
@@ -246,7 +246,7 @@ const void* Variable::GetDataPointer( Int_t i ) const
   assert( sizeof(ULong_t) == sizeof(void*) );
 
   if( i<0 || i>=GetLen() ) {
-    fVar->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
+    fSelf->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
     return 0;
   }
 
@@ -276,7 +276,7 @@ size_t Variable::GetData( void* buf ) const
 {
   // Copy the data into the provided buffer. The buffer must have been allocated
   // by the caller and must be able to hold at least GetLen()*GetTypeSize() bytes.
-  // The return value is the number of bytes actually  copied.
+  // The return value is the number of bytes actually copied.
 
   size_t nbytes = GetLen() * GetTypeSize();
   if( nbytes == 0 || !fValueP )
@@ -321,7 +321,7 @@ size_t Variable::GetData( void* buf, Int_t i ) const
     return 0;
 
   if( i<0 || i>=GetLen() ) {
-    fVar->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
+    fSelf->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
     return 0;
   }
 
@@ -345,6 +345,7 @@ Bool_t Variable::HasSameSize( const Variable& rhs ) const
     return kFALSE;
   if( !is_array )                        // Scalars always agree
     return kTRUE;
+  //FIXME: this isn't correct
   return (GetLen() == rhs.GetLen());     // Arrays must have same length
 }
 
@@ -471,11 +472,11 @@ void Variable::Print(Option_t* option) const
   // Print a description of this variable. If option=="FULL" (default), also
   // print current data
 
-  fVar->TNamed::Print(option);
+  fSelf->TNamed::Print(option);
 
   if( strcmp(option, "FULL") ) return;
 
-  cout << "(" << fVar->GetTypeName() << ")  ";
+  cout << "(" << fSelf->GetTypeName() << ")  ";
   size_t len = GetLen();
   if( IsArray() )
     cout << "[" << len << "]";

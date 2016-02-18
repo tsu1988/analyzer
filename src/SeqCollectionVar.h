@@ -1,11 +1,12 @@
-#ifndef Podd_VectorVar
-#define Podd_VectorVar
+#ifndef Podd_SeqCollectionVar
+#define Podd_SeqCollectionVar
 
 //////////////////////////////////////////////////////////////////////////
 //
-// VectorVar
+// SeqCollectionVar
 //
-// A "global variable" referencing a std::vector of basic data
+// A "global variable" referencing data in objects in a TSeqCollection.
+// In particular, this includes data in objects in TClonesArrays.
 //
 //////////////////////////////////////////////////////////////////////////
 
@@ -13,29 +14,29 @@
 
 namespace Podd {
 
-  class VectorVar : virtual public Variable {
+  class SeqCollectionVar : virtual public Variable {
 
   public:
-    VectorVar( THaVar* pvar, const void* addr, VarType type );
+    SeqCollectionVar( THaVar* pvar, const void* addr, VarType type,
+		      Int_t offset );
 
     virtual Int_t        GetLen()  const;
     virtual const Int_t* GetDim()  const;
     virtual const void*  GetDataPointer( Int_t i = 0 ) const;
-    virtual Bool_t       HasSizeVar() const;
     virtual Bool_t       HasSameSize( const Variable& rhs ) const;
     virtual Bool_t       IsArray() const;
     virtual Bool_t       IsBasic() const;
     virtual Bool_t       IsContiguous() const;
     virtual Bool_t       IsPointerArray() const;
-    virtual Bool_t       IsStreamable() const;
     virtual Bool_t       IsVarArray() const;
 
   protected:
-    mutable Int_t        fDim;    //Current array dimension
+    Int_t                fOffset;   //Offset of data w.r.t. object pointer
+    mutable Int_t        fDim;      //Current array dimension
 
-    ClassDef(VectorVar,0)   //std::vector array
+    ClassDef(SeqCollectionVar,0)    //Member variable of function in TSeqCollection
   };
 
-}//namespace Podd
+}// namespace Podd
 
 #endif

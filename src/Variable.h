@@ -55,7 +55,7 @@ namespace Podd {
     virtual void         SetNameTitle( const char* name, const char* descript );
 
   protected:
-    THaVar*              fVar;      //Pointer to parent (containing name & decsription)
+    THaVar*              fSelf;     //Back-pointer to parent (containing name & description)
     const void*          fValueP;   //Pointer to data (interpretation depends on fType)
     VarType              fType;     //Eventual POD data type (see VarType.h)
 

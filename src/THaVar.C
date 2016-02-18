@@ -51,6 +51,10 @@
 #include "FixedArrayVar.h"
 #include "VariableArrayVar.h"
 #include "VectorVar.h"
+#include "MethodVar.h"
+#include "SeqCollectionVar.h"
+#include "SeqCollectionMethodVar.h"
+#include "VectorVar.h"
 #include "TError.h"
 #include <cassert>
 #include <typeinfo>
@@ -217,6 +221,33 @@ THaVar::THaVar( const char* name, const char* descript, T& var,
     Error( "THaVar", "Unsupported data type for variable %s", name );
     MakeZombie();
   }
+}
+
+//_____________________________________________________________________________
+THaVar::THaVar( const char* name, const char* descript, const void* obj,
+		VarType type, Int_t offset, TMethodCall* method )
+  : TNamed(name,descript), fImpl(0)
+{
+  // Constructor for variables in objects stored in ROOT collections
+  // and/or method calls on ROOT objects
+
+  if( type == kObject || (type >= kIntV && type <= kDoubleM) ||
+      type >= kObjectP ) {
+    Error( "THaVar", "Wrong constructor call for variable %s. Use vector or "
+	   "object constructor instead", name );
+    MakeZombie();
+  }
+
+  if( offset >= 0 ) {
+    if( method )
+      fImpl = new Podd::SeqCollectionMethodVar( this, obj, type, method, offset );
+    else
+      fImpl = new Podd::SeqCollectionVar( this, obj, type, offset );
+  } else
+    fImpl = new Podd::MethodVar( this, obj, type, method );
+
+  if( fImpl->IsError() )
+    MakeZombie();
 }
 
 //_____________________________________________________________________________

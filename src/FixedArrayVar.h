@@ -13,7 +13,7 @@
 #include "THaArrayString.h"
 
 namespace Podd {
-  class FixedArrayVar : public Variable {
+  class FixedArrayVar : virtual public Variable {
 
   public:
     FixedArrayVar( THaVar* pvar, const void* addr, VarType type );

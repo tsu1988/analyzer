@@ -12,14 +12,13 @@
 #include "Variable.h"
 
 namespace Podd {
-  class VariableArrayVar : public Variable {
+  class VariableArrayVar : virtual public Variable {
 
   public:
     VariableArrayVar( THaVar* pvar, const void* addr, VarType type,
 		      const Int_t* count );
 
     virtual Int_t        GetLen()  const;
-    virtual Int_t        GetNdim() const;
     virtual const Int_t* GetDim()  const;
 
     virtual Bool_t       HasSizeVar() const;

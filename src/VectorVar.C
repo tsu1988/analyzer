@@ -84,7 +84,7 @@ const void* VectorVar::GetDataPointer( Int_t i ) const
     return 0;
 
   if( i<0 || i>=GetLen() ) {
-    fVar->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
+    fSelf->Error(here, "Index out of range, variable %s, index %d", GetName(), i );
     return 0;
   }
 
@@ -129,6 +129,14 @@ Bool_t VectorVar::IsArray() const
   // Data are an array (GetLen() may be != 1)
 
   return kTRUE;
+}
+
+//_____________________________________________________________________________
+Bool_t VectorVar::IsBasic() const
+{
+  // Data are basic (POD variable or array)
+
+  return kFALSE;
 }
 
 //_____________________________________________________________________________

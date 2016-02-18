@@ -25,14 +25,13 @@ public:
 
   // Explicit instantiations for supported types are provided in implementation
   template <typename T>
-  THaVar( const char* name, const char* descript, T& var, const Int_t* count );
-
-  template <typename T>
-  THaVar( const char* name, const char* descript, T& var, Int_t offset,
-	  TMethodCall* method=0 );
+  THaVar( const char* name, const char* descript, T& var, const Int_t* count=0 );
 
   template <typename T>
   THaVar( const char* name, const char* descript, std::vector<T>& var );
+
+  THaVar( const char* name, const char* descript, const void* obj,
+	  VarType type, Int_t offset, TMethodCall* method=0 );
 
   //TODO: copy, assignment
   virtual ~THaVar();

@@ -13,6 +13,7 @@
 #include <iostream>
 #include <cstring>
 #include <typeinfo>
+#include <cassert>
 
 using namespace std;
 
@@ -48,15 +49,17 @@ const Int_t* VariableArrayVar::GetDim() const
 }
 
 //_____________________________________________________________________________
-Bool_t VariableArrayVar::HasSameSize( const THaVar& rhs ) const
+Bool_t VariableArrayVar::HasSameSize( const Variable& rhs ) const
 {
   // Compare the size counter of this variable to that of 'rhs'.
 
   if( typeid(*this) != typeid(rhs) )
     return kFALSE;
 
-  assert( dynamic_cast<const VariableArrayVar*>(&rhs) );
-  const VariableArrayVar* other = static_cast<const VariableArrayVar*>(&rhs);
+  const VariableArrayVar* other = dynamic_cast<const VariableArrayVar*>(&rhs);
+  assert( other );
+  if( !other )
+    return kFALSE;
 
   return fCount == other->fCount;
 }
