@@ -21,10 +21,10 @@ namespace Podd {
 		      Int_t offset );
 
     virtual Int_t        GetLen()  const;
+    virtual Int_t        GetNdim() const;
     virtual const Int_t* GetDim()  const;
     virtual const void*  GetDataPointer( Int_t i = 0 ) const;
     virtual Bool_t       HasSameSize( const Variable& rhs ) const;
-    virtual Bool_t       IsArray() const;
     virtual Bool_t       IsBasic() const;
     virtual Bool_t       IsContiguous() const;
     virtual Bool_t       IsPointerArray() const;
@@ -33,8 +33,6 @@ namespace Podd {
   protected:
     Int_t                fOffset;   //Offset of data w.r.t. object pointer
     mutable Int_t        fDim;      //Current array dimension
-
-    ClassDef(SeqCollectionVar,0)    //Member variable of function in TSeqCollection
   };
 
 }// namespace Podd

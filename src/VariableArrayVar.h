@@ -19,20 +19,18 @@ namespace Podd {
 		      const Int_t* count );
 
     virtual Int_t        GetLen()  const;
+    virtual Int_t        GetNdim() const;
     virtual const Int_t* GetDim()  const;
 
     virtual Bool_t       HasSizeVar() const;
 
     virtual Bool_t       HasSameSize( const Variable& rhs ) const;
-    virtual Bool_t       IsArray() const;
     virtual Bool_t       IsContiguous() const;
     virtual Bool_t       IsPointerArray() const;
     virtual Bool_t       IsVarArray() const;
 
   protected:
     const Int_t*         fCount;    //Pointer to array size variable
-  
-    ClassDef(VariableArrayVar,0)   //Variable size array of basic data
   };
 
 }// namespace Podd

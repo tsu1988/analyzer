@@ -57,13 +57,11 @@ namespace Podd {
   protected:
     THaVar*              fSelf;     //Back-pointer to parent (containing name & description)
     const void*          fValueP;   //Pointer to data (interpretation depends on fType)
-    VarType              fType;     //Eventual POD data type (see VarType.h)
+    VarType              fType;     //Data type (see VarType.h)
 
     const char*          GetName() const;
     size_t               GetTypeSize() const;
     const char*          GetTypeName() const;
-
-    ClassDef(Variable,0)   //Global symbolic variable
   };
 
 } //namespace Podd

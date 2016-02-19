@@ -81,5 +81,3 @@ Bool_t MethodVar::IsBasic() const
 //_____________________________________________________________________________
 
 }// namespace Podd
-
-ClassImp(Podd::MethodVar)

@@ -54,6 +54,14 @@ Int_t SeqCollectionVar::GetLen() const
 }
 
 //_____________________________________________________________________________
+Int_t SeqCollectionVar::GetNdim() const
+{
+  // Number of dimensions
+
+  return 1;
+}
+
+//_____________________________________________________________________________
 const Int_t* SeqCollectionVar::GetDim() const
 {
   // Return array of dimensions of the array
@@ -116,14 +124,6 @@ Bool_t SeqCollectionVar::HasSameSize( const Variable& rhs ) const
 }
 
 //_____________________________________________________________________________
-Bool_t SeqCollectionVar::IsArray() const
-{
-  // Data are an array (GetLen() may be != 1)
-
-  return kTRUE;
-}
-
-//_____________________________________________________________________________
 Bool_t SeqCollectionVar::IsBasic() const
 {
   // Data are basic (POD variable or array)
@@ -158,5 +158,3 @@ Bool_t SeqCollectionVar::IsVarArray() const
 //_____________________________________________________________________________
 
 }// namespace Podd
-
-ClassImp(Podd::SeqCollectionVar)

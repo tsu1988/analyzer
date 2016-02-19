@@ -85,7 +85,7 @@ static struct VarTypeInfo_t {
     { kUShort,   "kUShort",   "UShort_t",    sizeof(UShort_t),  &typeid(UShort_t) },
     { kChar,     "kChar",     "Char_t",      sizeof(Char_t),    &typeid(Char_t) },
     { kUChar,    "kUChar",    "UChar_t",     sizeof(UChar_t),   &typeid(UChar_t) },
-    { kObject,   "kObject",   "TObject",     0,                 0 },
+    { kObject,   "kObject",   "TObject",     0,                 &typeid(TObject) },
     { kTString,  "kTString",  "TString",     sizeof(char),      &typeid(TString) },
     { kString,   "kString",   "string",      sizeof(char),      &typeid(std::string) },
     { kIntV,     "kIntV",     "vector<int>",              sizeof(int),         &typeid(std::vector<int>) },
@@ -105,7 +105,7 @@ static struct VarTypeInfo_t {
     { kUShortP,  "kUShortP",  "UShort_t*",   sizeof(UShort_t),  &typeid(UShort_t*) },
     { kCharP,    "kCharP",    "Char_t*",     sizeof(Char_t),    &typeid(Char_t*) },
     { kUCharP,   "kUCharP",   "UChar_t*",    sizeof(UChar_t),   &typeid(UChar_t*) },
-    { kObjectP,  "kObjectP",  "TObject*",    0,                 0 },
+    { kObjectP,  "kObjectP",  "TObject*",    0,                 &typeid(TObject*) },
     { kDouble2P, "kDouble2P", "Double_t**",  sizeof(Double_t),  &typeid(Double_t**) },
     { kFloat2P,  "kFloat2P",  "Float_t**",   sizeof(Float_t),   &typeid(Float_t**) },
     { kLong2P,   "kLong2P",   "Long64_t**",  sizeof(Long64_t),  &typeid(Long64_t**) },
@@ -116,7 +116,7 @@ static struct VarTypeInfo_t {
     { kUShort2P, "kUShort2P", "UShort_t**",  sizeof(UShort_t),  &typeid(UShort_t**) },
     { kChar2P,   "kChar2P",   "Char_t**",    sizeof(Char_t),    &typeid(Char_t**) },
     { kUChar2P,  "kUChar2P",  "UChar_t**",   sizeof(UChar_t),   &typeid(UChar_t**) },
-    { kObject2P, "kObject2P", "TObject**",   0,                 0}
+    { kObject2P, "kObject2P", "TObject**",   0,                 &typeid(TObject**)}
   };
 
 // Static access function into var_type_info[] table above
@@ -157,6 +157,8 @@ size_t THaVar::GetTypeSize( VarType itype )
 struct ByTypeInfo
 {
   bool operator() ( const type_info* a, const type_info* b ) const {
+    if( !b )
+      return false;
     return a->before(*b);
   }
 };
@@ -205,19 +207,23 @@ THaVar::THaVar( const char* name, const char* descript, T& var,
   // Constructor for basic types and fixed and variable-size arrays
 
   VarType type = FindType( typeid(T) );
-  if( type != kVarTypeEnd ) {
+  if( type >= kIntV && type <= kDoubleV ) {
     if( count )
-      fImpl = new Podd::VariableArrayVar( this, &var, type, count ); 
-    else if( fName.Index("[") == kNPOS )
-      fImpl = new Podd::Variable( this, &var, type );
-    else
+      Warning( "THaVar", "Ignoring size counter for std::vector variable %s", name );
+    fImpl = new Podd::VectorVar( this, &var, type );
+  }
+  else if( type != kVarTypeEnd ) {
+    if( count )
+      fImpl = new Podd::VariableArrayVar( this, &var, type, count );
+    else if( fName.Index("[") != kNPOS )
       fImpl = new Podd::FixedArrayVar( this, &var, type );
+    else
+      fImpl = new Podd::Variable( this, &var, type );
 
     if( fImpl->IsError() )
       MakeZombie();
   }
   else {
-    //Should never happen if all supported types are instantiated
     Error( "THaVar", "Unsupported data type for variable %s", name );
     MakeZombie();
   }
@@ -225,49 +231,55 @@ THaVar::THaVar( const char* name, const char* descript, T& var,
 
 //_____________________________________________________________________________
 THaVar::THaVar( const char* name, const char* descript, const void* obj,
-		VarType type, Int_t offset, TMethodCall* method )
+		VarType type, Int_t offset, TMethodCall* method,
+		const Int_t* count )
   : TNamed(name,descript), fImpl(0)
 {
-  // Constructor for variables in objects stored in ROOT collections
-  // and/or method calls on ROOT objects
+  // Generic constructor (used by THaVarList::DefineByType)
 
-  if( type == kObject || (type >= kIntV && type <= kDoubleM) ||
-      type >= kObjectP ) {
-    Error( "THaVar", "Wrong constructor call for variable %s. Use vector or "
-	   "object constructor instead", name );
+  if( type == kObject || type == kObjectP || type == kObject2P ) {
+    Error( "THaVar", "Wrong constructor call for variable %s. Use object-type "
+	   "constructor instead", name );
     MakeZombie();
+    return;
   }
-
-  if( offset >= 0 ) {
-    if( method )
+  else if( type >= kIntM && type <= kDoubleM ) {
+    Error( "THaVar", "Variable %s: Matrix type not (yet) supported", name );
+    MakeZombie();
+    return;
+  }
+  else if( type >= kIntV && type <= kDoubleV ) {
+    if( count ) {
+      Error( "THaVar", "Ignoring size counter for std::vector variable %s", name );
+      MakeZombie();
+      return;
+    }
+    fImpl = new Podd::VectorVar( this, obj, type );
+  }
+  else if( count ) {
+    if( offset >= 0 || method ) {
+      Error( "THaVar", "Variable %s: Inconsistent arguments. May not specify "
+	     "both count and offset/method", name );
+      MakeZombie();
+      return;
+    }
+    fImpl = new Podd::VariableArrayVar( this, obj, type, count );
+  }
+  else if( method || offset >= 0 ) {
+    if( method && offset >= 0 )
       fImpl = new Podd::SeqCollectionMethodVar( this, obj, type, method, offset );
-    else
+    else if( !method )
       fImpl = new Podd::SeqCollectionVar( this, obj, type, offset );
-  } else
-    fImpl = new Podd::MethodVar( this, obj, type, method );
+    else
+      fImpl = new Podd::MethodVar( this, obj, type, method );
+  }
+  else if( fName.Index("[") != kNPOS )
+    fImpl = new Podd::FixedArrayVar( this, obj, type );
+  else
+    fImpl = new Podd::Variable( this, obj, type );
 
   if( fImpl->IsError() )
     MakeZombie();
-}
-
-//_____________________________________________________________________________
-template <typename T>
-THaVar::THaVar( const char* name, const char* descript, vector<T>& var )
-  : TNamed(name,descript), fImpl(0)
-{
-  // Constructor for std::vector arrays of selected basic types
-
-  VarType type = FindType( typeid(T) );
-  if( type >= kIntV && type <= kDoubleV ) {
-    fImpl = new Podd::VectorVar( this, &var, type );
-    if( fImpl->IsError() )
-      MakeZombie();
-  }
-  else {
-    //Should never happen if all supported types are instantiated
-    Error( "THaVar", "Unsupported data type for vector variable %s", name );
-    MakeZombie();
-  }
 }
 
 //_____________________________________________________________________________
@@ -336,10 +348,10 @@ template THaVar::THaVar( const char*, const char*, UShort_t**&, const Int_t* );
 template THaVar::THaVar( const char*, const char*, Char_t**&, const Int_t* );
 template THaVar::THaVar( const char*, const char*, UChar_t**&, const Int_t* );
 
-template THaVar::THaVar( const char*, const char*, vector<int>& );
-template THaVar::THaVar( const char*, const char*, vector<unsigned int>& );
-template THaVar::THaVar( const char*, const char*, vector<double>& );
-template THaVar::THaVar( const char*, const char*, vector<float>& );
+template THaVar::THaVar( const char*, const char*, vector<int>&, const Int_t* );
+template THaVar::THaVar( const char*, const char*, vector<unsigned int>&, const Int_t* );
+template THaVar::THaVar( const char*, const char*, vector<double>&, const Int_t* );
+template THaVar::THaVar( const char*, const char*, vector<float>&, const Int_t* );
 
 //_____________________________________________________________________________
 ClassImp(THaVar)

@@ -25,12 +25,14 @@ FixedArrayVar::FixedArrayVar( THaVar* pvar, const void* addr, VarType type )
 {
   // Constructor
 
+  assert( pvar == fSelf );
+
   if( !CheckName(fParsedName) ) {
     fValueP = 0;
     return;
   }
 
-  fSelf->SetName( fParsedName.GetName() );
+  pvar->TNamed::SetName( fParsedName.GetName() );
 }
 
 //_____________________________________________________________________________
@@ -43,14 +45,14 @@ Bool_t FixedArrayVar::CheckName( const THaArrayString& parsed_name ) const
   bool good = true;
 
   if( parsed_name.IsError() ) {
-    fSelf->Error( here, "Malformed array syntax for variable %s", GetName() );
+    fSelf->Error( here, "Malformed array specification for variable %s", GetName() );
     good = false;
   } else if( !parsed_name.IsArray() ) {
     fSelf->Error( here, "Specification \"%s\" for variable %s is not a "
 		 "fixed array", parsed_name.GetName(), GetName() );
     good = false;
   }
-    
+
   return good;
 }
 
@@ -94,14 +96,6 @@ Bool_t FixedArrayVar::HasSameSize( const Variable& rhs ) const
 
   return ( fParsedName.GetNdim() == other->fParsedName.GetNdim() &&
 	   fParsedName.GetLen()  == other->fParsedName.GetLen() );
-}
-
-//_____________________________________________________________________________
-Bool_t FixedArrayVar::IsArray() const
-{
-  // Data are an array (GetLen() may be != 1)
-
-  return kTRUE;
 }
 
 //_____________________________________________________________________________
@@ -160,7 +154,7 @@ void FixedArrayVar::SetName( const char* name )
   if( !CheckName(new_name) )
     return;
 
-  fSelf->SetName( new_name );
+  fSelf->TNamed::SetName( new_name );
   fParsedName = new_name;
 }
 
@@ -173,12 +167,10 @@ void FixedArrayVar::SetNameTitle( const char* name, const char* descript )
   if( !CheckName(new_name) )
     return;
 
-  fSelf->SetNameTitle( new_name, descript );
+  fSelf->TNamed::SetNameTitle( new_name, descript );
   fParsedName = new_name;
 }
 
 //_____________________________________________________________________________
 
 } //namespace Podd
-
-ClassImp(Podd::FixedArrayVar)

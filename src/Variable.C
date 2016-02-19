@@ -66,19 +66,17 @@ Int_t Variable::GetLen() const
 //_____________________________________________________________________________
 Int_t Variable::GetNdim() const
 {
-  // Return number of dimensions of array. Scalars always have 1 dimension.
+  // Return number of dimensions of array. Scalars always have 0 dimensions.
 
-  return 1;
+  return 0;
 }
 
 //_____________________________________________________________________________
 const Int_t* Variable::GetDim() const
 {
-  // Return array of dimensions of the array. Scalers are always return a
-  // pointer to 1 (as with array definition [1]).
+  // Return array of dimensions of the array. Scalers return 0
 
-  static const Int_t dummy = 1;
-  return &dummy;
+  return 0;
 }
 
 //_____________________________________________________________________________
@@ -385,7 +383,7 @@ Bool_t Variable::IsArray() const
 {
   // Data are an array (GetLen() may be != 1)
 
-  return kFALSE;
+  return (GetNdim() > 0);
 }
 
 //_____________________________________________________________________________
@@ -493,7 +491,21 @@ void Variable::Print(Option_t* option) const
 }
 
 //_____________________________________________________________________________
+void Variable::SetName( const char* name )
+{
+  // Set the name of the variable
+
+  fSelf->TNamed::SetName( name );
+}
+
+//_____________________________________________________________________________
+void Variable::SetNameTitle( const char* name, const char* descript )
+{
+  // Set name and description of the variable
+
+  fSelf->TNamed::SetNameTitle( name, descript );
+}
+
+//_____________________________________________________________________________
 
 }  // namespace Podd
-
-ClassImp(Podd::Variable)

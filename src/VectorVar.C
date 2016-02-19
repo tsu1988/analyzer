@@ -62,6 +62,14 @@ Int_t VectorVar::GetLen() const
 }
 
 //_____________________________________________________________________________
+Int_t VectorVar::GetNdim() const
+{
+  // Number of dimensions
+
+  return 1;
+}
+
+//_____________________________________________________________________________
 const Int_t* VectorVar::GetDim() const
 {
   // Return array of dimensions of the array
@@ -124,14 +132,6 @@ Bool_t VectorVar::HasSameSize( const Variable& ) const
 }
 
 //_____________________________________________________________________________
-Bool_t VectorVar::IsArray() const
-{
-  // Data are an array (GetLen() may be != 1)
-
-  return kTRUE;
-}
-
-//_____________________________________________________________________________
 Bool_t VectorVar::IsBasic() const
 {
   // Data are basic (POD variable or array)
@@ -175,5 +175,3 @@ Bool_t VectorVar::IsVarArray() const
 //_____________________________________________________________________________
 
 }// namespace Podd
-
-ClassImp(Podd::VectorVar)

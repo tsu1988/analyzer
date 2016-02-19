@@ -33,8 +33,6 @@ namespace Podd {
     };
 
     const void*  GetDataPointer( const void* obj ) const;
-
-    ClassDef(MethodVar,0)    //Variable of class member function call
   };
 
 }// namespace Podd

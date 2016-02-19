@@ -48,5 +48,3 @@ Bool_t SeqCollectionMethodVar::IsBasic() const
 }
 
 }// namespace Podd
-
-ClassImp(Podd::SeqCollectionMethodVar)

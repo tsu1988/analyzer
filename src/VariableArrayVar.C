@@ -40,6 +40,14 @@ Int_t VariableArrayVar::GetLen() const
 }
 
 //_____________________________________________________________________________
+Int_t VariableArrayVar::GetNdim() const
+{
+  // Number of dimensions
+
+  return 1;
+}
+
+//_____________________________________________________________________________
 const Int_t* VariableArrayVar::GetDim() const
 {
   // Return array of dimensions of the array. Scalers are always return a
@@ -71,14 +79,6 @@ Bool_t VariableArrayVar::HasSizeVar() const
 }
 
 //_____________________________________________________________________________
-Bool_t VariableArrayVar::IsArray() const
-{
-  // Data are an array (GetLen() may be != 1)
-
-  return kTRUE;
-}
-
-//_____________________________________________________________________________
 Bool_t VariableArrayVar::IsContiguous() const
 {
   // Data are contiguous in memory
@@ -105,5 +105,3 @@ Bool_t VariableArrayVar::IsVarArray() const
 //_____________________________________________________________________________
 
 }// namespace Podd
-
-ClassImp(Podd::VariableArrayVar)

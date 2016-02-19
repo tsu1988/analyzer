@@ -23,7 +23,6 @@ namespace Podd {
     virtual const Int_t* GetDim()  const;
 
     virtual Bool_t       HasSameSize( const Variable& rhs ) const;
-    virtual Bool_t       IsArray() const;
     virtual Bool_t       IsContiguous() const;
     virtual Bool_t       IsPointerArray() const;
     virtual Bool_t       IsVarArray() const;
@@ -36,8 +35,6 @@ namespace Podd {
     THaArrayString       fParsedName;
   
     Bool_t               CheckName( const THaArrayString& parsed_name ) const;
-
-    ClassDef(FixedArrayVar,0)   //Fixed size array of basic data
   };
 
 }// namespace Podd

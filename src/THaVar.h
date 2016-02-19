@@ -27,11 +27,8 @@ public:
   template <typename T>
   THaVar( const char* name, const char* descript, T& var, const Int_t* count=0 );
 
-  template <typename T>
-  THaVar( const char* name, const char* descript, std::vector<T>& var );
-
   THaVar( const char* name, const char* descript, const void* obj,
-	  VarType type, Int_t offset, TMethodCall* method=0 );
+	  VarType type, Int_t offset, TMethodCall* method=0, const Int_t* count=0 );
 
   //TODO: copy, assignment
   virtual ~THaVar();
@@ -66,14 +63,14 @@ public:
   Bool_t       IsStreamable()                   const { return fImpl->IsStreamable(); }
   Bool_t       IsTObject()                      const { return fImpl->IsTObject(); }
   Bool_t       IsVarArray()                     const { return fImpl->IsVarArray(); }
-  Bool_t       IsVector() const;
+  Bool_t       IsVector()                       const { return fImpl->IsVector(); }
 
   // Overrides of TNamed methods
   virtual void         Print( Option_t* opt="FULL" )
-                                                const { return fImpl->Print(opt); }
+						const { return fImpl->Print(opt); }
   virtual void         SetName( const char* name )    { fImpl->SetName(name); }
   virtual void         SetNameTitle( const char* name, const char* descript )
-                                                      { fImpl->SetNameTitle(name,descript); }
+						      { fImpl->SetNameTitle(name,descript); }
 
   // Access to detailed information about types defined in VarType.h
   static void          ClearCache();

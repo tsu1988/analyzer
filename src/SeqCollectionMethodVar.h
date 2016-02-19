@@ -23,10 +23,6 @@ namespace Podd {
 
     virtual const void*  GetDataPointer( Int_t i = 0 ) const;
     virtual Bool_t       IsBasic() const;
-
-  protected:
-
-    ClassDef(SeqCollectionMethodVar,0)  //Class member function call on object in TSeqCollection
   };
 
 }// namespace Podd
