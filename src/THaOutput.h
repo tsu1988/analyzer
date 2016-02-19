@@ -21,7 +21,9 @@ class THaVform;
 class THaVhist;
 class THaEvData;
 class TTree;
-class THaEvtTypeHandler;
+//class THaEvtTypeHandler;
+class THaEpicsKey;
+class THaEpicsEvtHandler;
 
 class THaOdata {
 // Utility class used by THaOutput to store arrays 
@@ -64,13 +66,6 @@ private:
 };
 
 
-class THaEpicsKey;
-class THaEpicsEvtHandler;
-
-namespace Podd {
-  class DataBuffer;
-}
-
 class THaOutput {
 
 public:
@@ -86,81 +81,62 @@ public:
   virtual TTree* GetTree() const { return fTree; };
 
   static void SetVerbosity( Int_t level );
+
+  void Print() const;
   
 protected:
 
+#ifndef __CINT__
+  //FIXME: to be able to inherit full from this class, we need to have the
+  // structure/class defintions here, not in the implementation
+  struct HistogramParameters;
+  struct DefinitionSet;
   struct VariableInfo;
   typedef std::map<std::string,VariableInfo> VarMap_t;
+  enum EId { kInvalidEId = 0, kVar, kForm, kCut, kH1f, kH1d, kH2f, kH2d,
+	     kBlock, kBegin, kEnd };
 
-  struct HistogramParameters {
-    std::string stitle, sfvarx, sfvary, scut;
-    Int_t nx,ny,iscut;
-    Double_t xlo,xhi,ylo,yhi;
-  };
-
-  struct VariableInfo {
-    VariableInfo( const THaVar* pvar=0 ) : fVar(pvar), fBranch(0), fBuffer(0) {}
-    VariableInfo( const VariableInfo& other );
-    VariableInfo& operator=( const VariableInfo& rhs );
-#ifndef __CINT__
-#if __cplusplus >= 201103L
-    VariableInfo( VariableInfo&& other );
-    VariableInfo& operator=( VariableInfo&& rhs);
-#endif
-#endif
-    ~VariableInfo();
-    Int_t AddBranch( const std::string& branchname, VarMap_t& varmap, TTree* fTree );
-    Int_t UpdateBranch();
-    Int_t Fill();
-    const THaVar*     fVar;
-    //    TBranch*          fCount;  //TODO: needed?
-    TBranch*          fBranch;
-    Podd::DataBuffer* fBuffer;
-  };
-
-  virtual Int_t LoadFile( const char* filename );
+  virtual Int_t LoadFile( const char* filename, DefinitionSet& defs );
   virtual Int_t Attach();
-  virtual Int_t FindKey(const std::string& key) const;
+  virtual EId   GetKeyID(const std::string& key) const;
   virtual void  ErrFile(Int_t iden, const std::string& sline) const;
   virtual Int_t ParseHistogramDef(Int_t key, const std::string& sline,
 				  HistogramParameters& param );
-  virtual Int_t BuildBlock(const std::string& blockn);
+  virtual Int_t BuildBlock(const std::string& blockn, DefinitionSet& defs);
   virtual std::string StripBracket(const std::string& var) const; 
   std::vector<std::string> reQuote(const std::vector<std::string>& input) const;
   std::string CleanEpicsName(const std::string& var) const;
   void BuildList(const std::vector<std::string>& vdata);
-  void Print() const;
   // Variables, Formulas, Cuts, Histograms
-  Int_t fNvar;
-  Double_t *fVar, *fEpicsVar;
-  std::vector<std::string> fVarnames, 
-                           fFormnames, fFormdef,
-                           fCutnames, fCutdef,
-                           fArrayNames, fVNames; 
+  //  Int_t fNvar;
+  //  Double_t *fVar;
+  Double_t *fEpicsVar;
   //  std::vector<THaVar* >  fVariables, fArrays;
+  VarMap_t fVariables;
   std::vector<THaVform* > fFormulas, fCuts;
   std::vector<THaVhist* > fHistos;
-  VarMap_t fVariables;
   std::vector<THaOdata* > fOdata;
   std::vector<THaEpicsKey*>  fEpicsKey;
+  std::vector<std::string> fArrayNames;
+  std::vector<std::string> fVNames; 
   TTree *fTree, *fEpicsTree; 
   bool fInit;
   
-  enum EId {kVar = 1, kForm, kCut, kH1f, kH1d, kH2f, kH2d, kBlock,
-            kBegin, kEnd, kRate, kCount };
   static const Int_t kNbout = 4000;
   static const Int_t fgNocut = -1;
 
   static Int_t fgVerbose;
 
 private:
-
-  THaOutput(const THaOutput&);
-  THaOutput& operator=(const THaOutput& );
-
-  THaEvtTypeHandler *fEpicsHandler;
+  //  THaEvtTypeHandler *fEpicsHandler;
 
   Bool_t fOpenEpics,fFirstEpics;
+
+#endif  // ifndef __CINT__
+
+private:
+  THaOutput(const THaOutput&);
+  THaOutput& operator=(const THaOutput& );
 
   ClassDef(THaOutput,0)  
 };

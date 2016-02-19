@@ -53,8 +53,48 @@ typedef vector<string>::iterator Iter_s_t;
 
 Int_t THaOutput::fgVerbose = 1;
 //FIXME: these should be member variables
-static Bool_t fgDoBench = kFALSE;
+static Bool_t fgDoBench = kTRUE;
 static THaBenchmark fgBench;
+
+//_____________________________________________________________________________
+struct THaOutput::HistogramParameters {
+  string stitle, sfvarx, sfvary, scut;
+  Double_t xlo,xhi,ylo,yhi;
+  Int_t nx,ny,iscut;
+};
+
+//_____________________________________________________________________________
+struct THaOutput::DefinitionSet {
+  // Definitions parsed from the configuration file
+  vector<string> varnames;    // Variable names
+  vector<string> formnames;   // Formula names
+  vector<string> formdef;     // Formula definitions
+  vector<string> cutnames;    // Cut names
+  vector<string> cutdef;      // Cut definitions
+  void clear() {
+    formnames.clear(); formdef.clear();
+    cutnames.clear(); cutdef.clear();
+  }
+};
+
+//_____________________________________________________________________________
+struct THaOutput::VariableInfo {
+  explicit VariableInfo( const THaVar* pvar=0 )
+    : fVar(pvar), fBranch(0), fBuffer(0) {}
+  VariableInfo( const VariableInfo& other );
+  VariableInfo& operator=( const VariableInfo& rhs );
+#if __cplusplus >= 201103L
+  VariableInfo( VariableInfo&& other );
+  VariableInfo& operator=( VariableInfo&& rhs);
+#endif
+  ~VariableInfo();
+  Int_t AddBranch( const std::string& branchname, VarMap_t& varmap, TTree* fTree );
+  Int_t UpdateBranch();
+  Int_t Fill();
+  const THaVar*     fVar;
+  TBranch*          fBranch;
+  Podd::DataBuffer* fBuffer;
+};
 
 //_____________________________________________________________________________
 class THaEpicsKey {
@@ -175,7 +215,7 @@ Bool_t THaOdata::Resize(Int_t i)
 
 //_____________________________________________________________________________
 THaOutput::THaOutput() :
-   fNvar(0), fVar(NULL), fEpicsVar(0), fTree(NULL), 
+  /*fNvar(0), fVar(NULL), */fEpicsVar(0), fTree(NULL), 
    fEpicsTree(NULL), fInit(false)
 {
   // Constructor
@@ -196,7 +236,7 @@ THaOutput::~THaOutput()
     if (fTree) delete fTree;
     if (fEpicsTree) delete fEpicsTree;
   }
-  if (fVar) delete [] fVar;
+  //  if (fVar) delete [] fVar;
   if (fEpicsVar) delete [] fEpicsVar;
   for (Iter_o_t od = fOdata.begin();
        od != fOdata.end(); ++od) delete *od;
@@ -288,9 +328,11 @@ static inline const char* GetVarTypeStr( const THaVar* pvar )
 
 //_____________________________________________________________________________
 THaOutput::VariableInfo::VariableInfo( const VariableInfo& rhs )
-  : fVar(rhs.fVar), fBranch(rhs.fBranch), fBuffer(new DataBuffer(*rhs.fBuffer))
+  : fVar(rhs.fVar), fBranch(rhs.fBranch), fBuffer(0)
 {
   // Copy constructor
+  if( rhs.fBuffer )
+    fBuffer = new DataBuffer(*rhs.fBuffer);
 }
 
 //_____________________________________________________________________________
@@ -302,7 +344,10 @@ THaOutput::VariableInfo::operator=( const VariableInfo& rhs)
     fVar = rhs.fVar;
     fBranch = rhs.fBranch;
     delete fBuffer;
-    fBuffer = new DataBuffer(*rhs.fBuffer);
+    if( rhs.fBuffer )
+      fBuffer = new DataBuffer(*rhs.fBuffer);
+    else
+      fBuffer = 0;
   }
   return *this;
 }
@@ -324,13 +369,9 @@ THaOutput::VariableInfo::operator=( VariableInfo&& rhs)
 {
   // Move assignment
   if( this != &rhs ) {
-    delete fBuffer;
-    fVar = rhs.fVar;
-    fBranch = rhs.fBranch;
-    fBuffer = rhs.fBuffer;
-    rhs.fVar = nullptr;
-    rhs.fBranch = nullptr;
-    rhs.fBuffer = nullptr;
+    swap( fVar, rhs.fVar );
+    swap( fBranch, rhs.fBranch );
+    swap( fBuffer, rhs.fBuffer );
   }
   return *this;
 }
@@ -399,11 +440,11 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 
   string leafdef;
   if ( fVar->IsVarArray()) {
-    // If this variable has a counter variable, check if it is available as a
-    // global variable already, and if so, use it. Otherwise, set up an
-    // individual counter branch for this variable-size array
     string countbranch;
     if( fVar->HasSizeVar() ) {
+      // If this variable has a counter variable, check if it is available as a
+      // global variable already, and if so, use it. Otherwise, set up an
+      // individual counter branch for this variable-size array
       const Int_t* pcounter = fVar->GetDim();
       assert( pcounter );
       TIter next(gHaVars);
@@ -431,8 +472,6 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
     } else
       leafdef = branchname + "[" + countbranch + ']';
 
-    // 	fArrayNames.push_back(fVarnames[ivar]);
-    //   fOdata.push_back(new THaOdata());
   } else if( fVar->IsArray() ) {
     stringstream ostr;
     assert( fVar->GetNdim() > 0 );
@@ -444,15 +483,14 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
     leafdef = branchname + ostr.str();
   } else {
     leafdef = branchname;
-    // 	fVNames.push_back(fVarnames[ivar]);
   }
-  // Function calls only support Int_t and Double_t
-  if( fVar->IsMethod() ) {
-    if( type == 'F' )
-      type = "D";
-    else
-      type = "I";
-  }
+  // Function calls only support Int_t (actually Long64_t) and Double_t
+  // if( fVar->IsMethod() ) {
+  //   if( type == 'F' )
+  //     type = "D";
+  //   else if( type != 'D' )
+  //     type = "I";
+  // }
   leafdef += "/" + type;
 
   // Now for the data pointer. This is quite tricky
@@ -469,8 +507,8 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   // Pointer array    **fData             yes    yes    must copy -> use buffer addr
   // Method call      GetX()              no     no     must copy -> use buffer addr
 
-  void* leafp = const_cast<void*>( fVar->GetBasicDataPointer() );
-  if( !leafp ) {
+  const void* leafp = fVar->GetDataPointer();
+  if( !fVar->IsContiguous() ) {
     // We're dealing with non-contiguous data (array of pointers to data
     // or members of a TSeqCollection/TClonesArray), or with transient
     // data (method call). In these cases, we need to store a copy of 
@@ -482,7 +520,7 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 
     leafp = fBuffer->Get();  // the branch address will be reset later if necessary
   }
-  fBranch = tree->Branch( branchname.c_str(), leafp, leafdef.c_str() );
+  fBranch = tree->Branch( branchname.c_str(), const_cast<void*>(leafp), leafdef.c_str() );
     
   return 0;
 }
@@ -503,11 +541,15 @@ Int_t THaOutput::VariableInfo::UpdateBranch()
   else if( fVar->GetType() == kObject2P )
     ptr = const_cast<void*>( fVar->GetValuePointer() );
   else
-    ptr = const_cast<void*>( fVar->GetBasicDataPointer() );
+    ptr = const_cast<void*>( fVar->GetDataPointer() );
   assert(ptr);
 
   if( fBranch->GetAddress() != ptr )
     fBranch->SetAddress(ptr);
+
+  // For variable arrays with a transient size, update fDim
+  if( fVar->IsVarArray() && !fVar->HasSizeVar() )
+    fVar->GetDim();  // updates internal counter, which the count branch points to
 
   return 0;
 }
@@ -522,16 +564,9 @@ Int_t THaOutput::VariableInfo::Fill()
 
   fBuffer->Clear();
   fBuffer->Resize( fVar->GetLen() );
-  if( fVar->IsMethod() ) {
-    Double_t result;
-    for( Int_t i = 0, imax = fVar->GetLen(); i < imax; ++i ) {
-      Int_t size = fVar->GetDataFromMethod( &result, i );
-      fBuffer->Fill( &result, size );
-    }
-  } else {
-    for( Int_t i = 0, imax = fVar->GetLen(); i < imax; ++i )
-      fBuffer->Fill( fVar->GetDataPointer(i), fVar->GetTypeSize(), i );
-  }
+  for( Int_t i = 0, imax = fVar->GetLen(); i < imax; ++i )
+    fBuffer->Fill( fVar->GetDataPointer(i), fVar->GetTypeSize(), i );
+
   return 0;
 }
 
@@ -561,7 +596,8 @@ Int_t THaOutput::Init( const char* filename )
 
   if( fgDoBench ) fgBench.Begin("Init");
 
-  Int_t err = LoadFile( filename );
+  DefinitionSet defs;
+  Int_t err = LoadFile( filename, defs );
   if( err != -1 && err != 0 ) {
     if( fgDoBench ) fgBench.Stop("Init");
     return -3;
@@ -577,12 +613,11 @@ Int_t THaOutput::Init( const char* filename )
     return 0;       // No error if file not found, but please
   }                    // read the instructions.
 
-  fNvar = fVarnames.size();  // this gets reassigned below
-  fArrayNames.clear();
-  fVNames.clear();
+  //  fNvar = defs.varnames.size();  // this gets reassigned below
 
-  for( VarMap_t::iterator it = fVariables.begin(); it != fVariables.end(); ++it ) {
-    const string& branchname = (*it).first;
+  // Variable definitions
+  for( Iter_s_t it = defs.varnames.begin(); it != defs.varnames.end(); ++it ) {
+    const string& branchname = *it;
     const THaVar* pvar = gHaVars->Find(branchname.c_str());
     if (!pvar) {
       cout << endl << "THaOutput::Init: WARNING: Global variable ";
@@ -590,17 +625,27 @@ Int_t THaOutput::Init( const char* filename )
       cout << "There is probably a typo error... "<<endl;
       continue;
     }
-    VariableInfo& vinfo = (*it).second;
-    vinfo.fVar = pvar;
-    vinfo.AddBranch( branchname, fVariables, fTree );
-
-    
+    pair<VarMap_t::iterator,bool> ins =
+      fVariables.insert( make_pair(branchname,VariableInfo(pvar)) );
+    if( ins.second ) {
+      VarMap_t::iterator item = ins.first;
+      VariableInfo& vinfo = item->second;
+      Int_t ret = vinfo.AddBranch( branchname, fVariables, fTree );
+      if( ret != 0 ) {
+	// Error message already printed
+	fVariables.erase( item );
+	continue;
+      }
+      fVNames.push_back(branchname);
+    }
   }
+
+  // Formula definitions
   Int_t k = 0;
-  for (Iter_s_t inam = fFormnames.begin(); inam != fFormnames.end(); ++inam, ++k) {
+  for (Iter_s_t inam = defs.formnames.begin(); inam != defs.formnames.end(); ++inam, ++k) {
     string tinfo = Form("f%d",k);
     // FIXME: avoid duplicate formulas
-    THaVform* pform = new THaVform("formula",inam->c_str(),fFormdef[k].c_str());
+    THaVform* pform = new THaVform("formula",inam->c_str(),defs.formdef[k].c_str());
     Int_t status = pform->Init();
     if ( status != 0) {
       cout << "THaOutput::Init: WARNING: Error in formula ";
@@ -629,26 +674,34 @@ Int_t THaOutput::Init( const char* filename )
 	    fOdata.push_back(new THaOdata());
 	  }
 	} else {
+	  //FIXME: search fVariables here
 	  Iter_s_t it = find(fVNames.begin(),fVNames.end(),svar);
 	  if( it == fVNames.end() )
 	    fVNames.push_back(svar);
 	}
       }
+      //FIXME: what if !pvar ... ?
     }
   }
+
+  // Add fOdata branches to the tree
   k = 0;
   for(Iter_o_t iodat = fOdata.begin(); iodat != fOdata.end(); ++iodat, ++k)
     (*iodat)->AddBranches(fTree, fArrayNames[k]);
-  fNvar = fVNames.size();
-  fVar = new Double_t[fNvar];
-  for (k = 0; k < fNvar; ++k) {
-    string tinfo = fVNames[k] + "/D";
-    fTree->Branch(fVNames[k].c_str(), &fVar[k], tinfo.c_str(), kNbout);
-  }
+
+  // superseded by VariableInfo
+  // fNvar = fVNames.size();
+  // fVar = new Double_t[fNvar];
+  // for (Int_t k = 0; k < fNvar; ++k) {
+  //   string tinfo = fVNames[k] + "/D";
+  //   fTree->Branch(fVNames[k].c_str(), &fVar[k], tinfo.c_str(), kNbout);
+  // }
+
+  // Cuts initialization
   k = 0;
-  for (Iter_s_t inam = fCutnames.begin(); inam != fCutnames.end(); ++inam, ++k ) {
+  for (Iter_s_t inam = defs.cutnames.begin(); inam != defs.cutnames.end(); ++inam, ++k ) {
     // FIXME: avoid duplicate cuts
-    THaVform* pcut = new THaVform("cut", inam->c_str(), fCutdef[k].c_str());
+    THaVform* pcut = new THaVform("cut", inam->c_str(), defs.cutdef[k].c_str());
     Int_t status = pcut->Init();
     if ( status != 0 ) {
       cout << "THaOutput::Init: WARNING: Error in formula ";
@@ -664,6 +717,8 @@ Int_t THaOutput::Init( const char* filename )
     if( fgVerbose>2 )
       pcut->LongPrint();  // for debug
   }
+
+  // Ensure that the variables referenced in the histograms and cuts exist in the tree
   for (Iter_h_t ihist = fHistos.begin(); ihist != fHistos.end(); ++ihist) {
 // After initializing formulas and cuts, must sort through
 // histograms and potentially reassign variables.  
@@ -692,6 +747,8 @@ Int_t THaOutput::Init( const char* filename )
     (*ihist)->Init();
   }
 
+  // Add branches for EPICS keys
+  //TODO: don't add to event tree since we already have an EPICS tree?
   if (!fEpicsKey.empty()) {
     vector<THaEpicsKey*>::size_type siz = fEpicsKey.size();
     fEpicsVar = new Double_t[siz+1];
@@ -892,17 +949,17 @@ Int_t THaOutput::Process()
   if( fgDoBench ) fgBench.Stop("Cuts");
 
   if( fgDoBench ) fgBench.Begin("Variables");
-  // THaVar *pvar;
-  // for (Int_t ivar = 0; ivar < fNvar; ivar++) {
-  //   pvar = fVariables[ivar];
-  //   if (pvar) fVar[ivar] = pvar->GetValue();
-  // }
-  // Int_t k = 0;
+  for( VarMap_t::iterator it = fVariables.begin(); it != fVariables.end(); ++it ) {
+    VariableInfo& vinfo = it->second;
+    vinfo.UpdateBranch();
+    vinfo.Fill();
+  }
+  //  Int_t k = 0;
   // for (Iter_o_t it = fOdata.begin(); it != fOdata.end(); ++it, ++k) { 
+  //   THaVar* pvar = fArrays[k];
+  //   if ( pvar == NULL ) continue;
   //   THaOdata* pdat(*it);
   //   pdat->Clear();
-  //   pvar = fArrays[k];
-  //   if ( pvar == NULL ) continue;
   //   // Fill array in reverse order so that fOdata[k] gets resized just once
   //   Int_t i = pvar->GetLen();
   //   bool first = true;
@@ -959,7 +1016,7 @@ Int_t THaOutput::End()
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::LoadFile( const char* filename ) 
+Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs ) 
 {
   // Process the file that defines the output
   
@@ -979,7 +1036,6 @@ Int_t THaOutput::LoadFile( const char* filename )
   string::size_type pos;
   vector<string> strvect;
   string sline;
-  fVariables.clear();
   while (getline(odef,sline)) {
     // Blank line or comment line?
     if( sline.empty()
@@ -997,6 +1053,7 @@ Int_t THaOutput::LoadFile( const char* filename )
       // Split the line into tokens separated by whitespace
       const string& str = *it;
       strvect = Split(str);
+      //TODO: check this...
       bool special_before = fOpenEpics;
       BuildList(strvect);
       bool special_now = fOpenEpics;
@@ -1006,28 +1063,28 @@ Int_t THaOutput::LoadFile( const char* filename )
 	ErrFile(0, str);
 	continue;
       }
-      Int_t ikey = FindKey(strvect[0]);
+      EId ikey = GetKeyID( strvect[0] );
       string sname = StripBracket(strvect[1]);
       switch (ikey) {
       case kVar:
-	fVariables.insert( make_pair(sname,VariableInfo()) );
-	//	fVarnames.push_back(sname);
+	// std::map automatically prevents duplicate definitions
+	defs.varnames.push_back(sname);
 	break;
       case kForm:
 	if (strvect.size() < 3) {
 	  ErrFile(ikey, str);
 	  continue;
 	}
-	fFormnames.push_back(sname);
-	fFormdef.push_back(strvect[2]);
+	defs.formnames.push_back(sname);
+	defs.formdef.push_back(strvect[2]);
 	break;
       case kCut:
 	if (strvect.size() < 3) {
 	  ErrFile(ikey, str);
 	  continue;
 	}
-	fCutnames.push_back(sname);
-	fCutdef.push_back(strvect[2]);
+	defs.cutnames.push_back(sname);
+	defs.cutdef.push_back(strvect[2]);
 	break;
       case kH1f:
       case kH1d:
@@ -1052,7 +1109,7 @@ Int_t THaOutput::LoadFile( const char* filename )
 	break;
       case kBlock:
 	// Do not strip brackets for block regexps: use strvect[1] not sname
-	if( BuildBlock(strvect[1]) == 0 ) {
+	if( BuildBlock(strvect[1],defs) == 0 ) {
 	  cout << "\nTHaOutput::Init: WARNING: Block ";
 	  cout << strvect[1] << " does not match any variables. " << endl;
 	  cout << "There is probably a typo error... "<<endl;
@@ -1061,30 +1118,17 @@ Int_t THaOutput::LoadFile( const char* filename )
       case kBegin:
       case kEnd:
 	break;
-      default:
+      case kInvalidEId:
 	cout << "Warning: keyword "<<strvect[0]<<" undefined "<<endl;
       }
     }
   }
 
-  // sort thru fVarnames, removing identical entries
-  // if( fVarnames.size() > 1 ) {
-  //   sort(fVarnames.begin(),fVarnames.end());
-  //   vector<string>::iterator Vi = fVarnames.begin();
-  //   while ( (Vi+1)!=fVarnames.end() ) {
-  //     if ( *Vi == *(Vi+1) ) {
-  // 	fVarnames.erase(Vi+1);
-  //     } else {
-  // 	++Vi;
-  //     }
-  //   }
-  // }
-
   return 0;
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::FindKey(const string& key) const
+THaOutput::EId THaOutput::GetKeyID(const string& key) const
 {
   // Return integer flag corresponding to
   // case-insensitive keyword "key" if it exists
@@ -1115,7 +1159,7 @@ Int_t THaOutput::FindKey(const string& key) const
       it++;
     }
   }
-  return -1;
+  return kInvalidEId;
 }
 
 //_____________________________________________________________________________
@@ -1281,25 +1325,25 @@ void THaOutput::Print() const
   // Printout the definitions. Amount printed depends on verbosity
   // level, set with SetVerbosity().
 
-  typedef vector<string>::const_iterator Iterc_s_t;
+  typedef VarMap_t::const_iterator Iterc_v_t;
   typedef vector<THaVform*>::const_iterator Iterc_f_t;
   typedef vector<THaVhist*>::const_iterator Iterc_h_t;
 
   if( fgVerbose > 0 ) {
-    if( fVarnames.size() == 0 && fFormulas.size() == 0 &&
+    if( fVariables.size() == 0 && fFormulas.size() == 0 &&
 	fCuts.size() == 0 && fHistos.size() == 0 ) {
       ::Warning("THaOutput", "no output defined");
     } else {
       cout << endl << "THaOutput definitions: " << endl;
-      if( !fVarnames.empty() ) {
-	cout << "=== Number of variables "<<fVarnames.size()<<endl;
+      if( !fVariables.empty() ) {
+	cout << "=== Number of variables "<<fVariables.size()<<endl;
 	if( fgVerbose > 1 ) {
 	  cout << endl;
 	  
 	  UInt_t i = 0;
-	  for (Iterc_s_t ivar = fVarnames.begin(); ivar != fVarnames.end(); 
+	  for (Iterc_v_t ivar = fVariables.begin(); ivar != fVariables.end(); 
 	       i++, ivar++ ) {
-	    cout << "Variable # "<<i<<" =  "<<(*ivar)<<endl;
+	    cout << "Variable # "<<i<<" =  "<< ivar->first <<endl;
 	  }
 	}
       }
@@ -1403,7 +1447,7 @@ Int_t THaOutput::ParseHistogramDef( Int_t iden, const string& sline,
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::BuildBlock(const string& blockn)
+Int_t THaOutput::BuildBlock(const string& blockn, DefinitionSet& defs)
 {
   // From the block name, identify and save a specific grouping
   // of global variables by adding them to the fVarnames list.
@@ -1425,9 +1469,8 @@ Int_t THaOutput::BuildBlock(const string& blockn)
   while ((obj = next())) {
     TString s = obj->GetName();
     if ( s.Index(re) != kNPOS ) {
-      s.Append('\0');
       string vn(s.Data());
-      fVarnames.push_back(vn);
+      defs.varnames.push_back(vn);
       nvars++;
     }
   }
