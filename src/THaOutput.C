@@ -391,42 +391,47 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   if( fBranch )
     return -1;
 
-  // std::vector can be streamed directly, but to set up the branch correctly,
-  // we need to cast them explicitly to their type
-  if( fVar->IsVector() ) {
-    void* ptr = const_cast<void*>(fVar->GetValuePointer());
-    switch( fVar->GetType() ) {
-    case kIntV:
-      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<int>*>(ptr) );
-      break;
-    case kUIntV:
-      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<unsigned int>*>(ptr) );
-      break;
-    case kFloatV:
-      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<float>*>(ptr) );
-      break;
-    case kDoubleV:
-      fBranch = tree->Branch( branchname.c_str(), static_cast<vector<double>*>(ptr) );
-      break;
-    default:
-      assert(false);  // unsupported vector type
-      break;
+  // Is this an object that can be streamed directly?
+  if( fVar->IsStreamable() ) {
+    if( fVar->IsVector() ) {
+      // std::vector of certain basic types
+      void* ptr = const_cast<void*>(fVar->GetValuePointer());
+      switch( fVar->GetType() ) {
+      case kIntV:
+	fBranch = tree->Branch( branchname.c_str(), static_cast<vector<int>*>(ptr) );
+	break;
+      case kUIntV:
+	fBranch = tree->Branch( branchname.c_str(), static_cast<vector<unsigned int>*>(ptr) );
+	break;
+      case kFloatV:
+	fBranch = tree->Branch( branchname.c_str(), static_cast<vector<float>*>(ptr) );
+	break;
+      case kDoubleV:
+	fBranch = tree->Branch( branchname.c_str(), static_cast<vector<double>*>(ptr) );
+	break;
+      default:
+	assert(false);  // unsupported vector type
+	return -2;
+      }
+      return 0;
     }
-    return 0;
-  }
-
-  // Stream objects deriving from TObject directly using the class name interface
-  if( fVar->GetType() == kObject2P ) {
-    void* ptr = const_cast<void*>(fVar->GetValuePointer());
-    if( !ptr ) {
-      cerr << "Zero pointer for global variable object " << fVar->GetName()
-	 << ", ignoring definition" << endl;
-      return 1;
+    else if( fVar->GetType() == kObject2P ) {
+      // Stream objects deriving from TObject directly using the class name interface
+      void* ptr = const_cast<void*>(fVar->GetValuePointer());
+      if( !ptr ) {
+	cerr << "Zero pointer for global variable object " << fVar->GetName()
+	     << ", ignoring definition" << endl;
+	return 1;
+      }
+      string branchname_dot = branchname + '.';
+      fBranch = tree->Branch( branchname_dot.c_str(),
+			      (*static_cast<TObject**>(ptr))->ClassName(), ptr );
+      return 0;
     }
-    string branchname_dot = branchname + '.';
-    fBranch = tree->Branch( branchname_dot.c_str(),
-			    (*static_cast<TObject**>(ptr))->ClassName(), ptr );
-    return 0;
+    cerr << "Unsupported streamable object type = \"" << fVar->GetTypeName()
+	 << "\" for variable " << fVar->GetName() << ", ignoring definition"
+	 << endl;
+    return 1;
   }
 
   // Basic data
@@ -439,14 +444,14 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   }
 
   string leafdef;
-  if ( fVar->IsVarArray()) {
+  if( fVar->IsVarArray() ) {
     string countbranch;
     if( fVar->HasSizeVar() ) {
       // If this variable has a counter variable, check if it is available as a
       // global variable already, and if so, use it. Otherwise, set up an
       // individual counter branch for this variable-size array
       const Int_t* pcounter = fVar->GetDim();
-      assert( pcounter );
+      assert( pcounter );  // else HasSizeVar() lies
       TIter next(gHaVars);
       THaVar* pvar;
       while( (pvar = static_cast<THaVar*>(next())) ) {
@@ -465,6 +470,9 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 	}
       }
     }
+    // else if (...) {
+      // Other ways to get a common counter....
+    // }
     if( countbranch.empty() ) {
       countbranch = "Ndata." + branchname;
       tree->Branch( countbranch.c_str(), (void*)fVar->GetDim(), (countbranch+"/I").c_str() );
@@ -474,7 +482,7 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 
   } else if( fVar->IsArray() ) {
     stringstream ostr;
-    assert( fVar->GetNdim() > 0 );
+    assert( fVar->GetNdim() > 0 );  // else IsArray() lies
     if( fVar->GetNdim() != 2 ) {  // flatten multidimensional arrays ( d>2 )
       ostr << '[' << fVar->GetLen() << ']';
     } else {
@@ -484,13 +492,6 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   } else {
     leafdef = branchname;
   }
-  // Function calls only support Int_t (actually Long64_t) and Double_t
-  // if( fVar->IsMethod() ) {
-  //   if( type == 'F' )
-  //     type = "D";
-  //   else if( type != 'D' )
-  //     type = "I";
-  // }
   leafdef += "/" + type;
 
   // Now for the data pointer. This is quite tricky
@@ -507,8 +508,10 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   // Pointer array    **fData             yes    yes    must copy -> use buffer addr
   // Method call      GetX()              no     no     must copy -> use buffer addr
 
-  const void* leafp = fVar->GetDataPointer();
-  if( !fVar->IsContiguous() ) {
+  const void* leafp;
+  if( fVar->IsContiguous() ) {
+    leafp = fVar->GetDataPointer();
+  } else {
     // We're dealing with non-contiguous data (array of pointers to data
     // or members of a TSeqCollection/TClonesArray), or with transient
     // data (method call). In these cases, we need to store a copy of 
@@ -557,7 +560,7 @@ Int_t THaOutput::VariableInfo::UpdateBranch()
 //_____________________________________________________________________________
 Int_t THaOutput::VariableInfo::Fill()
 {
-  // For non-contiguous data or object/method calls, fill the local buffer
+  // For non-contiguous data, fill the local buffer
 
   if( !fBuffer || fVar->GetLen() == 0 )
     return 0;
