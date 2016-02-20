@@ -40,7 +40,7 @@ Variable::~Variable()
 //_____________________________________________________________________________
 const char* Variable::GetName() const
 {
-  return fSelf->GetName();
+  return fSelf->TNamed::GetName();
 }
 
 //_____________________________________________________________________________

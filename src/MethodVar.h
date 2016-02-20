@@ -26,11 +26,8 @@ namespace Podd {
 
   protected:
     TMethodCall*         fMethod;   //Member function to access data in object
-    union {
-      // Data cache, filled in GetDataPointer()
-      mutable Double_t   fData;     //Data as double
-      mutable Long64_t   fDataInt;  //Data as integer
-    };
+    // Data cache, filled in GetDataPointer()
+    mutable Double_t     fData;     //Function call result (interpretation depends on fType!)
 
     const void*  GetDataPointer( const void* obj ) const;
   };

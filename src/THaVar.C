@@ -157,8 +157,7 @@ size_t THaVar::GetTypeSize( VarType itype )
 struct ByTypeInfo
 {
   bool operator() ( const type_info* a, const type_info* b ) const {
-    if( !b )
-      return false;
+    assert(b);
     return a->before(*b);
   }
 };
