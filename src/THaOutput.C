@@ -369,9 +369,13 @@ THaOutput::VariableInfo::operator=( VariableInfo&& rhs)
 {
   // Move assignment
   if( this != &rhs ) {
-    swap( fVar, rhs.fVar );
-    swap( fBranch, rhs.fBranch );
-    swap( fBuffer, rhs.fBuffer );
+    delete fBuffer;
+    fVar = rhs.fVar;
+    fBranch = rhs.fBranch;
+    fBuffer = rhs.fBuffer;
+    rhs.fVar = nullptr;
+    rhs.fBranch = nullptr;
+    rhs.fBuffer = nullptr;
   }
   return *this;
 }

@@ -15,7 +15,6 @@
 #include "DataBuffer.h"
 #include <cstring>   // for memcpy
 #include <cassert>
-#include <utility>
 
 using namespace std;
 
@@ -47,7 +46,7 @@ namespace Podd {
   }
 
   //_____________________________________________________________________________
-  DataBuffer& DataBuffer::operator=( const DataBuffer& rhs)
+  DataBuffer& DataBuffer::operator=( const DataBuffer& rhs )
   {
     // Assignment operator
     if( this != &rhs ) {
@@ -78,13 +77,16 @@ namespace Podd {
   }
 
   //_____________________________________________________________________________
-  DataBuffer& DataBuffer::operator=( DataBuffer&& rhs) noexcept
+  DataBuffer& DataBuffer::operator=( DataBuffer&& rhs ) noexcept
   {
     // Move assignment
     if( this != &rhs ) {
-      std::swap( fData,   rhs.fData );
-      std::swap( fNalloc, rhs.fNalloc );
-      std::swap( fNdata,  rhs.fNdata );
+      delete [] fData;
+      fData   = rhs.fData;
+      fNalloc = rhs.fNalloc;
+      fNdata  = rhs.fNdata;
+      rhs.fNalloc = rhs.fNdata = 0;
+      rhs.fData = nullptr;
     }
     return *this;
   }
