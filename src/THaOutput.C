@@ -393,10 +393,11 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 
   // Is this an object that can be streamed directly?
   if( fVar->IsStreamable() ) {
+    VarType type = fVar->GetType();
     if( fVar->IsVector() ) {
       // std::vector of certain basic types
       void* ptr = const_cast<void*>(fVar->GetValuePointer());
-      switch( fVar->GetType() ) {
+      switch( type ) {
       case kIntV:
 	fBranch = tree->Branch( branchname.c_str(), static_cast<vector<int>*>(ptr) );
 	break;
@@ -415,7 +416,7 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
       }
       return 0;
     }
-    else if( fVar->GetType() == kObject2P ) {
+    else if( type == kObject2P ) {
       // Stream objects deriving from TObject directly using the class name interface
       void* ptr = const_cast<void*>(fVar->GetValuePointer());
       if( !ptr ) {
@@ -435,8 +436,8 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   }
 
   // Basic data
-  string type = GetVarTypeStr( fVar );
-  if( type.empty() ) {
+  string typec = GetVarTypeStr( fVar );
+  if( typec.empty() ) {
     cerr << "Unsupported variable type " << fVar->GetTypeName()
 	 << "for global variable " << fVar->GetName()
 	 << ", ignoring definition" << endl;
@@ -452,9 +453,11 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
       // individual counter branch for this variable-size array
       const Int_t* pcounter = fVar->GetDim();
       assert( pcounter );  // else HasSizeVar() lies
-      TIter next(gHaVars);
+      TIter next(gHaVars); // FIXME: use local variable list
       THaVar* pvar;
       while( (pvar = static_cast<THaVar*>(next())) ) {
+	if( pvar == fVar ) // can't be counter for itself
+	  continue;
 	if( pvar->GetType() == kInt && pvar->GetValuePointer() == pcounter ) {
 	  countbranch = pvar->GetName();
 	  VarMap_t::iterator it = varmap.find( countbranch );
@@ -470,15 +473,33 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 	}
       }
     }
-    // else if (...) {
-      // Other ways to get a common counter....
-    // }
+    else {
+      // For all other variable-size arrays, try to find other variables that
+      // report being parallel to this one
+      TIter next(gHaVars); // FIXME: use local variable list
+      THaVar* pvar;
+      while( (pvar = static_cast<THaVar*>(next())) ) {
+	if( fVar == pvar )
+	  // fVar is the first variable with this reported size: set up
+	  // a new count branch. Just fall through to let this happen.
+	  break;
+	if( fVar->HasSameSize(pvar) ) {
+	  // Found another variable before the current one, so the count branch
+	  // must already exist. Find it and indicate so in the leafdef.
+	  //FIXME: relies on fVar->GetName() == branchname,  which is true,
+	  // but the code doesn't reflect it
+	  countbranch = "Ndata.";
+	  countbranch.append( pvar->GetName() );
+	  break;
+	}
+      }
+      assert( pvar != 0 ); // fVar must be in gHaVars
+    }
     if( countbranch.empty() ) {
       countbranch = "Ndata." + branchname;
       tree->Branch( countbranch.c_str(), (void*)fVar->GetDim(), (countbranch+"/I").c_str() );
-      leafdef = "data[" + countbranch + ']';
-    } else
-      leafdef = branchname + "[" + countbranch + ']';
+    }
+    leafdef = branchname + '[' + countbranch + ']';
 
   } else if( fVar->IsArray() ) {
     stringstream ostr;
@@ -492,7 +513,7 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
   } else {
     leafdef = branchname;
   }
-  leafdef += "/" + type;
+  leafdef += "/" + typec;
 
   // Now for the data pointer. This is quite tricky
   //
