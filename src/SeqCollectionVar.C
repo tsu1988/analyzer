@@ -112,11 +112,7 @@ Bool_t SeqCollectionVar::HasSameSize( const Variable& rhs ) const
   // Trivially, TSeqCollection variables have the same size if they
   // belong to the same TSeqCollection
 
-  if( typeid(*this) != typeid(rhs) )
-    return kFALSE;
-
   const SeqCollectionVar* other = dynamic_cast<const SeqCollectionVar*>(&rhs);
-  assert( other );
   if( !other )
     return kFALSE;
 
