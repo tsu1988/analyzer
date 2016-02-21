@@ -78,7 +78,8 @@ struct THaOutput::DefinitionSet {
 };
 
 //_____________________________________________________________________________
-struct THaOutput::VariableInfo {
+class THaOutput::VariableInfo {
+public:
   explicit VariableInfo( const THaVar* pvar=0 )
     : fVar(pvar), fBranch(0), fBuffer(0) {}
   VariableInfo( const VariableInfo& other );
@@ -89,8 +90,8 @@ struct THaOutput::VariableInfo {
 #endif
   ~VariableInfo();
   Int_t AddBranch( const std::string& branchname, VarMap_t& varmap, TTree* fTree );
-  Int_t UpdateBranch();
   Int_t Fill();
+private:
   const THaVar*     fVar;
   TBranch*          fBranch;
   Podd::DataBuffer* fBuffer;
@@ -554,52 +555,54 @@ Int_t THaOutput::VariableInfo::AddBranch( const string& branchname,
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::VariableInfo::UpdateBranch()
+Int_t THaOutput::VariableInfo::Fill()
 {
-  // For certain data types, update branch address
+  // For non-contiguous data, fill the local buffer. Update branch address for
+  // those variable types for which it might vary
 
-  if( !fBranch )
+  // Get the current variable length. For 1-d arrays, get it via GetDim() to
+  // update the internal counter that a count branch might point to
+  Int_t len = fVar->GetNdim();
+  if( len == 0 )
+    len = 1;
+  else if( len == 1 )
+    len = *fVar->GetDim();
+  else
+    len = fVar->GetLen();
+
+  if( len == 0 )
     return 0;
+
   if( fVar->IsBasic() && !fVar->IsPointerArray() )
     return 0;
-  
-  void* ptr;
-  if( fBuffer )
+
+  void* ptr = 0;
+  if( fBuffer ) {
+    // Non-contiguous variable-size arrays (e.g. pointer array, SeqCollection)
+    size_t siz = fVar->GetTypeSize();
+    fBuffer->Clear();
+    fBuffer->Resize( siz*len );
+    for( Int_t i = 0; i < len; ++i )
+      fBuffer->Fill( fVar->GetDataPointer(i), siz, i );
+    // Fill() may reallocate the buffer
     ptr = fBuffer->Get();
-  else if( fVar->GetType() == kObject2P )
-    ptr = const_cast<void*>( fVar->GetValuePointer() );
+  }
+  //TODO:
+  // else if( fVar->GetType() == kObject2P )
+  //   ptr = const_cast<void*>( fVar->GetValuePointer() );
   else
+    // Contiguous non-basic data (vector, MethodVar)
     ptr = const_cast<void*>( fVar->GetDataPointer() );
   assert(ptr);
 
   if( fBranch->GetAddress() != ptr )
     fBranch->SetAddress(ptr);
 
-  // For variable arrays with a transient size, update fDim
-  if( fVar->IsVarArray() && !fVar->HasSizeVar() )
-    fVar->GetDim();  // updates internal counter, which the count branch points to
-
   return 0;
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::VariableInfo::Fill()
-{
-  // For non-contiguous data, fill the local buffer
-
-  if( !fBuffer || fVar->GetLen() == 0 )
-    return 0;
-
-  fBuffer->Clear();
-  fBuffer->Resize( fVar->GetLen() );
-  for( Int_t i = 0, imax = fVar->GetLen(); i < imax; ++i )
-    fBuffer->Fill( fVar->GetDataPointer(i), fVar->GetTypeSize(), i );
-
-  return 0;
-}
-
-//_____________________________________________________________________________
-Int_t THaOutput::Init( const char* filename ) 
+Int_t THaOutput::Init( const char* filename )
 {
   // Initialize output system. Required before anything can happen.
   //
@@ -979,7 +982,6 @@ Int_t THaOutput::Process()
   if( fgDoBench ) fgBench.Begin("Variables");
   for( VarMap_t::iterator it = fVariables.begin(); it != fVariables.end(); ++it ) {
     VariableInfo& vinfo = it->second;
-    vinfo.UpdateBranch();
     vinfo.Fill();
   }
   //  Int_t k = 0;

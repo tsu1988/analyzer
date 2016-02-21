@@ -112,7 +112,7 @@ namespace Podd {
     // Copy nbytes from ptr to buffer. If i is non-zero, write to element i
     // of the buffer, assumed to be an array of some data type with size nbytes.
     size_t n = (i+1)*nbytes;
-    if( n > fNalloc && !Resize(n) ) return 1;
+    if( n > fNalloc && Resize(n) ) return 1;
     if( n > fNdata ) fNdata = n;
     memcpy( fData+i*nbytes, ptr, nbytes );
     return 0;
@@ -155,8 +155,8 @@ namespace Podd {
     if( n <= fNalloc ) return 0;
     if( n > MAX ) return 1;
     size_t newsize = fNalloc;
-    if( newsize == 0 ) newsize = 1;
-    while( n > newsize ) { newsize *= 2; }
+    if( newsize == 0 ) newsize = n;
+    while( n > newsize ) { newsize = double(newsize) * 1.618; }
     if( newsize > MAX ) newsize = MAX;
     return Realloc(newsize);
   }
