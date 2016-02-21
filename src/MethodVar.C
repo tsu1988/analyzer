@@ -14,6 +14,8 @@
 #include "TMethodCall.h"
 #include <cstring> // for memcpy
 #include <cassert>
+#include <cmath>
+#include <limits>
 
 using namespace std;
 
@@ -53,7 +55,6 @@ const void* MethodVar::GetDataPointer( const void* obj ) const
 
   void* pobj = const_cast<void*>(obj);  // TMethodCall wants a non-const object...
 
-  fData = 0;
   if( IsFloat() ) {
     // Floating-point data
     Double_t result;
@@ -64,8 +65,13 @@ const void* MethodVar::GetDataPointer( const void* obj ) const
       break;
     case kFloat:
       {
-	// This must fit without overflow, otherwise the interpreter lied to us
-	// when it gave us the function return type
+	// The data here must fit without overflow, otherwise the interpreter
+	// lied to us when it gave us the function return type
+	assert( fabs(result) <= numeric_limits<float>::max() );
+
+	// The conversion could be done in a single assignment,
+	//*reinterpret_cast<Float_t*>(&fData) = result;
+	//but it's more readable and perhaps more portable this way
 	Float_t resultF = result;
 	memcpy( &fData, &resultF, sizeof(resultF) );
       }
