@@ -276,7 +276,9 @@ size_t Variable::GetData( void* buf ) const
   // by the caller and must be able to hold at least GetLen()*GetTypeSize() bytes.
   // The return value is the number of bytes actually copied.
 
-  size_t nbytes = GetLen() * GetTypeSize();
+  Int_t nelem = GetLen();
+  size_t type_size = GetTypeSize();
+  size_t nbytes = nelem * type_size;
   if( nbytes == 0 || !fValueP )
     return 0;
 
@@ -289,14 +291,13 @@ size_t Variable::GetData( void* buf ) const
   }
   else {
     // Non-contiguous data (e.g. pointer array) must be copied element by element
-    Int_t nelem = GetLen();
-    size_t type_size = GetTypeSize();
+    assert( sizeof(char) == 1 );
     nbytes = 0;
     for( Int_t i = 0; i<nelem; ++i ) {
       const void* src = GetDataPointer(i);
       if( !src )
 	return nbytes;
-      memcpy( buf, src, type_size );
+      memcpy( static_cast<char*>(buf)+nbytes, src, type_size );
       nbytes += type_size;
     }
   }
