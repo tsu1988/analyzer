@@ -579,13 +579,17 @@ Int_t THaOutput::VariableInfo::Fill()
   void* ptr = 0;
   if( fBuffer ) {
     // Non-contiguous variable-size arrays (e.g. pointer array, SeqCollection)
-    size_t siz = fVar->GetTypeSize();
+    size_t nbytes = fVar->GetTypeSize() * len;
     fBuffer->Clear();
-    fBuffer->Resize( siz*len );
-    for( Int_t i = 0; i < len; ++i )
-      fBuffer->Fill( fVar->GetDataPointer(i), siz, i );
-    // Fill() may reallocate the buffer
+    fBuffer->Reserve( nbytes );
+    assert( fBuffer->GetAllocation() >= nbytes );
     ptr = fBuffer->Get();
+#ifndef NDEBUG
+    size_t ncopied =
+#endif
+    fVar->GetData( ptr );
+    assert( ncopied == nbytes );
+    fBuffer->SetSize( nbytes );
   }
   //TODO:
   // else if( fVar->GetType() == kObject2P )
