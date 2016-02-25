@@ -27,7 +27,7 @@ namespace Podd {
     // Constructor. Creates an empty object (buffer size zero) by default.
     // If n > 0, allocate n bytes
     if( n > 0 )
-      Resize(n);
+      Reserve(n);
   }
 
   //_____________________________________________________________________________
@@ -35,8 +35,6 @@ namespace Podd {
     : fData(0), fNalloc(rhs.fNalloc), fNdata(rhs.fNdata)
   {
     // Copy constructor
-    assert( fNalloc <= MAX );
-    if( fNalloc > MAX ) fNalloc = MAX;
     assert( fNalloc >= fNdata );
     if( fNdata > fNalloc ) fNdata = fNalloc;
     if( fNalloc > 0 ) {
@@ -52,8 +50,6 @@ namespace Podd {
     if( this != &rhs ) {
       fNalloc = rhs.fNalloc;
       fNdata  = rhs.fNdata;
-      assert( fNalloc <= MAX );
-      if( fNalloc > MAX ) fNalloc = MAX;
       assert( fNalloc >= fNdata );
       if( fNdata > fNalloc ) fNdata = fNalloc;
       delete [] fData; fData = 0;
@@ -100,19 +96,12 @@ namespace Podd {
   }
 
   //_____________________________________________________________________________
-  void DataBuffer::Clear()
-  {
-    // Tell the buffer that it is supposed to be empty
-    fNdata = 0;
-  }
-
-  //_____________________________________________________________________________
   Int_t DataBuffer::Fill( const void* ptr, size_t nbytes, size_t i /* = 0 */ )
   {
     // Copy nbytes from ptr to buffer. If i is non-zero, write to element i
     // of the buffer, assumed to be an array of some data type with size nbytes.
     size_t n = (i+1)*nbytes;
-    if( n > fNalloc && Resize(n) ) return 1;
+    if( n > fNalloc && Reserve(n) ) return 1;
     if( n > fNdata ) fNdata = n;
     memcpy( fData+i*nbytes, ptr, nbytes );
     return 0;
@@ -147,17 +136,15 @@ namespace Podd {
   }
 
   //_____________________________________________________________________________
-  Int_t DataBuffer::Resize( size_t n )
+  Int_t DataBuffer::Reserve( size_t n )
   {
     // Make sure the buffer can hold at least n bytes. Reallocates the buffer
     // if necessary, so Get() may return a different pointer after this call.
 
     if( n <= fNalloc ) return 0;
-    if( n > MAX ) return 1;
     size_t newsize = fNalloc;
     if( newsize == 0 ) newsize = n;
     while( n > newsize ) { newsize = double(newsize) * 1.618; }
-    if( newsize > MAX ) newsize = MAX;
     return Realloc(newsize);
   }
 
