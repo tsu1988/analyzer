@@ -27,6 +27,7 @@
 #include "THaScalerEvtHandler.h"
 #include "THaString.h"
 #include "THaBenchmark.h"
+#include "THaEvent.h"
 #include "DataBuffer.h"
 #include "TROOT.h"
 #include "TH1.h"
@@ -215,9 +216,9 @@ Bool_t THaOdata::Resize(Int_t i)
 }
 
 //_____________________________________________________________________________
-THaOutput::THaOutput() :
-  /*fNvar(0), fVar(NULL), */fEpicsVar(0), fTree(NULL), 
-   fEpicsTree(NULL), fInit(false)
+THaOutput::THaOutput( const char* rootfile, THaEvent* event /* = 0 */ )
+  : fFilename(rootfile), fFile(0), fTree(0), fEpicsTree(0), fEvent(event),
+    fEpicsVar(0), fInit(false)
 {
   // Constructor
 }
@@ -234,8 +235,12 @@ THaOutput::~THaOutput()
   // Can we use this here?
   Bool_t alive = TROOT::Initialized();
   if( alive ) {
-    if (fTree) delete fTree;
-    if (fEpicsTree) delete fEpicsTree;
+    if (fFile)
+      delete fFile;
+    else {
+      if (fTree) delete fTree;
+      if (fEpicsTree) delete fEpicsTree;
+    }
   }
   //  if (fVar) delete [] fVar;
   if (fEpicsVar) delete [] fEpicsVar;

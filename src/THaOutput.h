@@ -13,13 +13,14 @@
 #include <string> 
 #include <utility>
 
-class THaVar;
 class TH1F;
 class TH2F;
 class TBranch;
 class THaVform;
 class THaVhist;
 class THaEvData;
+class THaEvent;
+class TFile;
 class TTree;
 //class THaEvtTypeHandler;
 class THaEpicsKey;
@@ -70,8 +71,8 @@ class THaOutput {
 
 public:
 
-  THaOutput();
-  virtual ~THaOutput(); 
+  THaOutput( const char* rootfile, THaEvent* event = 0 );
+  virtual ~THaOutput();
 
   virtual Int_t Init( const char* filename="output.def" );
   virtual Int_t Process();
@@ -107,19 +108,27 @@ protected:
   std::vector<std::string> reQuote(const std::vector<std::string>& input) const;
   std::string CleanEpicsName(const std::string& var) const;
   void BuildList(const std::vector<std::string>& vdata);
+
+  std::string  fFilename;
+  TFile*       fFile;
+  TTree*       fTree;
+  TTree*       fEpicsTree;
+
+  THaEvent* fEvent;
+
   // Variables, Formulas, Cuts, Histograms
   //  Int_t fNvar;
   //  Double_t *fVar;
-  Double_t *fEpicsVar;
   //  std::vector<THaVar* >  fVariables, fArrays;
+  Double_t* fEpicsVar;
+
   VarMap_t fVariables;
   std::vector<THaVform* > fFormulas, fCuts;
   std::vector<THaVhist* > fHistos;
   std::vector<THaOdata* > fOdata;
   std::vector<THaEpicsKey*>  fEpicsKey;
   std::vector<std::string> fArrayNames;
-  std::vector<std::string> fVNames; 
-  TTree *fTree, *fEpicsTree; 
+  std::vector<std::string> fVNames;
   bool fInit;
   
   static const Int_t kNbout = 4000;
