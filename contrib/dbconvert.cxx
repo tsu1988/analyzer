@@ -60,20 +60,21 @@ static bool IsDBdate( const string& line, time_t& date );
 static bool IsDBcomment( const string& line );
 static Int_t IsDBkey( const string& line, string& key, string& text );
 static bool IsDBSubDir( const string& fname, time_t& date );
+static int CheckPath( string path, bool writable );
 
 // Command line parameter defaults
 static int do_debug = 0, verbose = 0, do_file_copy = 1, do_subdirs = 0;
 static int do_clean = 1, do_verify = 1, do_dump = 0, purge_all_default_keys = 1;
 static int format_fp = 1;
-static string srcdir;
-static string destdir;
+static vector<string> srcargs;
+static string dstarg;
+static bool src_is_dir = false, dst_is_dir = false;
 static const char* prgname = 0;
 static const char* mapfile = 0;
 static const char* inp_tz_arg = 0, *outp_tz_arg = 0;
 static string inp_tz, outp_tz, cur_tz;
 static string current_filename;
-static const char* c_out_subdirs = 0;
-static vector<string> out_subdirs;
+static const char* out_subdirs_arg = 0;
 
 static struct poptOption options[] = {
   //  POPT_AUTOHELP
@@ -82,7 +83,7 @@ static struct poptOption options[] = {
   { "debug",    'd', POPT_ARG_VAL,    &do_debug, 1, 0, 0  },
   { "mapfile",  'm', POPT_ARG_STRING, &mapfile,  0, 0, 0  },
   // "detlist", 'l', ... // list of wildcards of detector names
-  { "subdirs",  's', POPT_ARG_STRING, &c_out_subdirs, 0, 0, 0  },  // overrides preserve-subdirs
+  { "subdirs",  's', POPT_ARG_STRING, &out_subdirs_arg, 0, 0, 0  },  // overrides preserve-subdirs
   { "preserve-subdirs",    's', POPT_ARG_VAL,  &do_subdirs, 1, 0, 0  },
   { "no-preserve-subdirs", 0, POPT_ARG_VAL,    &do_subdirs, 0, 0, 0  },
   { "no-clean",  0, POPT_ARG_VAL,    &do_clean, 0, 0, 0  },
@@ -114,9 +115,9 @@ static void help()
 {
   // Print help message and exit
 
-  cerr << "Usage: " << prgname << " [options] SRC_DIR  DEST_DIR" << endl;
-  cerr << " Convert Podd 1.5 and earlier database files under SRC_DIR to Podd 1.6" << endl;
-  cerr << " and later format, written to DEST_DIR" << endl;
+  cerr << "Usage: " << prgname << " [options] SRC [SRC...] DEST" << endl;
+  cerr << " Convert Podd 1.5 and earlier database file(s) SRC to Podd 1.6" << endl;
+  cerr << " and later format, written to DEST" << endl;
   //  cerr << endl;
   cerr << "Options:" << endl;
   cerr << " -h, --help\t\t\tshow this help message" << endl;
@@ -226,6 +227,13 @@ static inline void reset_tz()
 }
 
 //-----------------------------------------------------------------------------
+static inline bool IsDBFileName( const string& fname )
+{
+  return (fname.size() > 7 && fname.substr(0,3) == "db_" &&
+	  fname.substr(fname.size()-4,4) == ".dat" );
+}
+
+//-----------------------------------------------------------------------------
 static void getargs( int argc, const char** argv )
 {
   // Get command line parameters
@@ -233,7 +241,7 @@ static void getargs( int argc, const char** argv )
   prgname = basename(argv[0]);
 
   poptContext pc = poptGetContext("dbconvert", argc, argv, options, 0);
-  poptSetOtherOptionHelp(pc, "SRC_DIR DEST_DIR");
+  poptSetOtherOptionHelp(pc, "SRC... DEST");
 
   int opt;
   while( (opt = poptGetNextOpt(pc)) > 0 ) {
@@ -251,23 +259,22 @@ static void getargs( int argc, const char** argv )
     usage(pc);
   }
 
-  // TODO: add option have several files as input
-  const char* arg = poptGetArg(pc);
-  if( !arg ) {
-    cerr << "Error: Must specify SRC_DIR and DEST_DIR" << endl;
+  vector<string> plainargs;
+  const char* arg;
+  while( (arg = poptGetArg(pc)) )
+    plainargs.push_back( string(arg) );
+
+  if( plainargs.empty() ) {
+    cerr << "Error: Must specify SRC and DEST" << endl;
     usage(pc);
   }
-  srcdir = arg;
-  arg = poptGetArg(pc);
-  if( !arg ) {
-    cerr << "Error: Must specify DEST_DIR" << endl;
+  if( plainargs.size() < 2 ) {
+    cerr << "Error: Must specify DEST" << endl;
     usage(pc);
   }
-  destdir = arg;
-  if( poptPeekArg(pc) ) {
-    cerr << "Error: too many arguments" << endl;
-    usage(pc);
-  }
+  srcargs.assign( plainargs.begin(), plainargs.end()-1 );
+  dstarg = plainargs.back();
+
   // Parse timezone specs
   if( inp_tz_arg ) {
     inp_tz = inp_tz_arg;
@@ -290,24 +297,84 @@ static void getargs( int argc, const char** argv )
   if( !inp_tz.empty() && outp_tz.empty() )
     outp_tz = inp_tz;
 
-  out_subdirs.clear();
-  if( c_out_subdirs && *c_out_subdirs ) {
-    istringstream istr(c_out_subdirs);
-    string item;
-    time_t date;
-    while( getline(istr,item,',') ) {
-      if( item != "DEFAULT" && IsDBSubDir(item,date) )
-	out_subdirs.push_back(item);
-    }
-    do_subdirs = true;
+  poptFreeContext(pc);
+}
+
+//-----------------------------------------------------------------------------
+static int EvalPlainargs()
+{
+  // Check if source and destination arguments are a valid combination of
+  // files or directories
+
+  if( srcargs.empty() || dstarg.empty() ) {
+    cerr << "Must specify at least one SRC and DEST" << endl;
+    return 1;
   }
 
-  //DEBUG
-  if( mapfile )
-    cout << "Mapfile name is \"" << mapfile << "\"" << endl;
-  cout << "Converting from \"" << srcdir << "\" to \"" << destdir << "\"" << endl;
+  errno = 0;
 
-  poptFreeContext(pc);
+  int dststat = CheckPath(dstarg, true);
+  dst_is_dir = false;
+  if( dststat == 0 )
+    dst_is_dir = true;
+  else if( dststat < -1 ) {
+    // Destination does not necessarily have to exist
+    perror(dstarg.c_str());
+    return 2;
+  }
+
+  src_is_dir = false;
+  if( srcargs.size() == 1 ) {
+    // A single source can be either a file or a directory
+    int srcstat = CheckPath(srcargs[0],false);
+    if( srcstat == 0 ) {
+      src_is_dir = true;
+      if( dststat == -1 )
+	dst_is_dir = true;
+      else if( !dst_is_dir ) {
+	cerr << "Cannot copy input directory \"" << srcargs[0] << "\""
+	     << "to a single output file \"" << dstarg << "\"" << endl;
+	return 3;
+      }
+    } else if( srcstat < 0 ) {
+      // Source must exist
+      perror(srcargs[0].c_str());
+      return 4;
+    } else if( !dst_is_dir ) {
+      // Source is a file. If destination is a file also, ensure it has the correct form.
+      string base = basename(dstarg.c_str());
+      if( !IsDBFileName(base) ) {
+	cerr << "Bad output file name \"" << dstarg << "\". Must match db_*.dat.";
+	return 5;
+      }
+    }
+  } else {
+    // If multiple sources, all must be files and the destination must be a directory.
+    for( vector<string>::size_type i = 0; i < srcargs.size(); ++i ) {
+      int srcstat = CheckPath(srcargs[i],false);
+      if( srcstat == 0 ) {
+	cerr << "Source \"" << srcargs[i] << "\" is a directory. "
+	     << "When giving multiple sources, all must be files." << endl;
+	return 6;
+      } else if( srcstat < 0 ) {
+	perror(srcargs[i].c_str());
+	return 7;
+      }
+      string base = basename(srcargs[i].c_str());
+      if( !IsDBFileName(base) ) {
+	cerr << "Bad input file name \"" << srcargs[i] << "\". Must match db_*.dat.";
+	return 8;
+      }
+    }
+    if( dststat == -1 )
+      dst_is_dir = true;
+    else if( !dst_is_dir ) {
+      cerr << "Cannot copy multiple input files to a single output file \""
+	   << dstarg << "\"" << endl;
+      return 9;
+    }
+  }
+  return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -400,13 +467,6 @@ static inline string MakePath( const string& dir, const string& fname )
   if( need_slash ) fpath += '/';
   fpath.append(fname);
   return fpath;
-}
-
-//-----------------------------------------------------------------------------
-static inline bool IsDBFileName( const string& fname )
-{
-  return (fname.size() > 7 && fname.substr(0,3) == "db_" &&
-	  fname.substr(fname.size()-4,4) == ".dat" );
 }
 
 //-----------------------------------------------------------------------------
@@ -1696,8 +1756,7 @@ static int GetFilenames( const string& srcdir, const time_t start_time,
 			 FilenameMap_t& filenames, vector<string>& subdirs )
 {
   // Get a list of all database files, based on Podd's search order rules.
-  // Keep timestamps info with each file. Reading files from the current
-  // directory must be explicitly requested, though.
+  // Keep timestamps info with each file.
 
   assert( !srcdir.empty() );
 
@@ -1705,10 +1764,59 @@ static int GetFilenames( const string& srcdir, const time_t start_time,
 }
 
 //-----------------------------------------------------------------------------
-static int CheckDir( string path, bool writable )
+static int ParseFilenames( const vector<string>& srcfiles,
+			   FilenameMap_t& filenames )
 {
-  // Check if 'dir' exists and is readable. If 'writable' is true, also
-  // check if it is writable. Print error if any test fails.
+  // Copy the list of source database file names in 'srcfiles' to 'filenames',
+  // interpreting directory names in the file paths, if any, as timestamps.
+
+  filenames.clear();
+  if( srcfiles.empty() )
+    return 0;
+
+  for( vector<string>::size_type i = 0; i < srcfiles.size(); ++i ) {
+    const string& fpath = srcfiles[i];
+    const char* cpath = fpath.c_str();
+    struct stat sb;
+    errno = 0;
+    if( stat(cpath, &sb) || errno ) {
+      perror(cpath);
+      return -1;
+    }
+    if( !S_ISREG(sb.st_mode) ) {
+      cerr << fpath << " is not a regular file" << endl;
+      return -2;
+    }
+    const string fname = basename(cpath);
+    if( !IsDBFileName(fname) ) {
+      cerr << fpath << " filename must match db_*.dat" << endl;
+      return -3;
+    }
+    time_t start = 0;
+    string::size_type pos = fpath.rfind('/');
+    if( pos != string::npos ) {
+      string dir(fpath);
+      dir.erase(pos);
+      pos = dir.rfind('/');
+      if( pos != string::npos )
+	dir.erase(0,pos+1);
+      IsDBSubDir(dir, start);
+    }
+    filenames[GetDetName(fpath)].insert( Filenames_t(start,fpath) );
+  }
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+static int CheckPath( string path, bool writable )
+{
+  // Check if 'path' exists, is either a file or a directory, and is readable.
+  // If 'writable' is true, also check if it is writable. Return values:
+  //  0: Path exists, is directory, can be accessed as requested (readable/writable)
+  //  1: Path exists, is a file, and can be accessed as requested
+  // -1: Path does not exist or is otherwise inaccessible
+  // -2: Path exists, but cannot be accessed as requested
+  // -3: Path exists but is neither a directory nor a file
 
   errno = 0;
 
@@ -1717,26 +1825,30 @@ static int CheckDir( string path, bool writable )
     return -1;
   }
 
-  // Chop trailing '/' from the directory name
+  // Chop trailing '/' from any directory name
   while( !path.empty() && *path.rbegin() == '/' ) {
     path.erase( path.size()-1 );
   }
 
+  int ret = 0;
   struct stat sb;
   const char* cpath = path.c_str();
-  int mode = R_OK|X_OK;
-  if( writable )  mode |= W_OK;
-
-  if( lstat(cpath,&sb) ) {
-    return 1;
+  if( stat(cpath,&sb) ) {
+    return -1;
   }
-  if( !S_ISDIR(sb.st_mode) ) {
-    return 2;
+  int mode = writable ? W_OK : R_OK;
+  if( S_ISDIR(sb.st_mode) ) {
+    mode |= X_OK;
+  } else if( S_ISREG(sb.st_mode) ) {
+    ret = 1;
+  } else {
+    return -3;
   }
   if( access(cpath,mode) ) {
-    return 3;
+    return -2;
   }
-  return 0;
+
+  return ret;
 }
 
 //-----------------------------------------------------------------------------
@@ -1752,7 +1864,7 @@ static int PrepareOutputDir( const string& topdir, const vector<string>& subdirs
   const char* ctop = topdir.c_str();
 
   // Check if target directory exists and can be written to
-  int err = CheckDir(topdir, true);
+  int err = CheckPath(topdir, true);
   switch( err ) {
   case 0:
     break;
@@ -2336,6 +2448,10 @@ int main( int argc, const char** argv )
     exit(1);;
   reset_tz();
 
+  // See if we are going to copy files or directories
+  if( EvalPlainargs() )
+    exit(2);
+
   // Read the detector name mapping file. If unavailable, set up defaults.
   if( mapfile ) {
     if( ReadMapfile(mapfile) )
@@ -2351,15 +2467,39 @@ int main( int argc, const char** argv )
   // Get list of all database files to convert
   FilenameMap_t filemap;
   vector<string> subdirs;
-  set<string> copy_dets;
-  if( GetFilenames(srcdir, 0, filemap, subdirs) < 0 )
-    exit(4);  // Error message already printed
+  if( src_is_dir ) {
+    assert( srcargs.size() == 1 );
+    if( GetFilenames(srcargs[0], 0, filemap, subdirs) < 0 )
+      exit(4);  // Error message already printed
+  } else {
+    if( ParseFilenames(srcargs, filemap) )
+      exit(4);
+  }
+
+  // Determine output subdirectories
+  vector<string> out_subdirs;
+  if( dst_is_dir ) {
+    if( out_subdirs_arg && *out_subdirs_arg ) {
+      istringstream istr(out_subdirs_arg);
+      string item;
+      time_t date;
+      while( getline(istr,item,',') ) {
+	if( item != "DEFAULT" && IsDBSubDir(item,date) )
+	  out_subdirs.push_back(item);
+      }
+      do_subdirs = !out_subdirs.empty();
+    }
+    else if( do_subdirs )
+      out_subdirs = subdirs;
+  } else
+    do_subdirs = false;
 
   // Assign a parser to each database file, based on the name mapping info.
   // Let the parsers translate each file to database keys.
   // If the original parser supported in-file timestamps, pre-parse the
   // corresponding files to find any timestamps in them.
   // Keep all found keys/values along with timestamps in a central map.
+  set<string> copy_dets;
   for( FilenameMap_t::iterator ft = filemap.begin(); ft != filemap.end();
        ++ft ) {
     const string& detname = ft->first;
@@ -2417,15 +2557,15 @@ int main( int argc, const char** argv )
   if( do_dump )
     DumpMap();
 
-  if( do_subdirs && out_subdirs.empty() )
-    out_subdirs = subdirs;
-
   int err = 0;
-  if( PrepareOutputDir(destdir,out_subdirs) )
-    err = 6;
-
-  if( !err && WriteFileDB(destdir,out_subdirs) )
-    err = 7;
+  if( dst_is_dir ) {
+    if( PrepareOutputDir(dstarg,out_subdirs) )
+      err = 6;
+    if( !err && WriteFileDB(dstarg,out_subdirs) )
+      err = 7;
+  } else {
+    // TODO
+  }
 
   reset_tz();
 
@@ -2435,7 +2575,7 @@ int main( int argc, const char** argv )
       const string& detname = *it;
       FilenameMap_t::const_iterator ft = filemap.find( detname );
       assert( ft != filemap.end() );
-      if( CopyFiles(destdir,out_subdirs,ft) )
+      if( CopyFiles(dstarg,out_subdirs,ft) )
 	err = 8;
     }
   }
