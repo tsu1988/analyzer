@@ -69,6 +69,36 @@ public:
   Int_t     GetNextChan(Int_t crate, Int_t slot, Int_t index) const;
   const char* DevType(Int_t crate, Int_t slot) const;
 
+  // Access processed data for multi-function modules
+  enum EModuleType { kADC, kTDC };  // TODO: should be in DetMap; TODO: add more types
+  Bool_t HasCapability( EModuleType type, Int_t crate, Int_t slot ) const
+  {
+    // TODO: implement (needs accesst o DetMap ...)
+    return true;
+  }
+  Bool_t IsMultifunction( EModuleType type, Int_t crate, Int_t slot ) const
+  {
+    // TODO: implement (needs accesst o DetMap ...)
+    return false;
+  }
+
+  Int_t GetData( EModuleType type, Int_t crate, Int_t slot, Int_t chan, Int_t hit ) const
+  {
+    // TODO: real implementation
+    if( !HasCapability( type, crate, slot ) )
+      throw someException;
+    if( IsMultifunction( crate, slot ) ) {
+      switch( type ) {
+      case kADC:
+	return GetADC( crate, slot, chan, hit );
+      case kTDC:
+	return GetTDC( crate, slot, chan, hit );
+	//...
+      }
+    } else
+      return GetData( crate, slot, chan, hit );
+  }
+  
   // Optional functionality that may be implemented by derived classes
   virtual ULong64_t GetEvTime() const { return evt_time; }
    // Returns Beam Helicity (-1,0,+1)  '0' is 'unknown'
