@@ -70,15 +70,15 @@ public:
   const char* DevType(Int_t crate, Int_t slot) const;
 
   // Access processed data for multi-function modules
-  enum EModuleType { kADC, kTDC };  // TODO: should be in DetMap; TODO: add more types
+  enum EInfoType { kADC, kTDC };  // TODO: should be in DetMap; TODO: add more types
   Bool_t HasCapability( EModuleType type, Int_t crate, Int_t slot ) const
   {
-    // TODO: implement (needs accesst o DetMap ...)
+    // TODO: implement (needs to access CrateMap ...)
     return true;
   }
-  Bool_t IsMultifunction( EModuleType type, Int_t crate, Int_t slot ) const
+  Bool_t IsMultifunction( Int_t crate, Int_t slot ) const
   {
-    // TODO: implement (needs accesst o DetMap ...)
+    // TODO: implement (needs to access CrateMap ...)
     return false;
   }
 
