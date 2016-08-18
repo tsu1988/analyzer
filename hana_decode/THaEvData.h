@@ -9,6 +9,7 @@
 
 
 #include "Decoder.h"
+#include "Module.h"
 #include "TObject.h"
 #include "TString.h"
 #include "THaSlotData.h"
@@ -69,34 +70,34 @@ public:
   Int_t     GetNextChan(Int_t crate, Int_t slot, Int_t index) const;
   const char* DevType(Int_t crate, Int_t slot) const;
 
-  // Access processed data for multi-function modules
-  enum EInfoType { kADC, kTDC };  // TODO: should be in DetMap; TODO: add more types
-  Bool_t HasCapability( EModuleType type, Int_t crate, Int_t slot ) const
+  Bool_t HasCapability( Decoder::EModuleType type, Int_t crate, Int_t slot ) const
   {
-    // TODO: implement (needs to access CrateMap ...)
-    return true;
+    Decoder::Module* module = GetModule(crate, slot);
+    if (!module) { 
+      std::cout << "No module at crate "<<crate<<"   slot "<<slot<<std::endl;
+      return false;
+    }
+    return module->HasCapability(type);
   }
   Bool_t IsMultifunction( Int_t crate, Int_t slot ) const
   {
-    // TODO: implement (needs to access CrateMap ...)
-    return false;
+    Decoder::Module* module = GetModule(crate, slot);
+    if (!module) { 
+      std::cout << "No module at crate "<<crate<<"   slot "<<slot<<std::endl;
+      return false;
+    }
+    return module->IsMultiFunction();
   }
 
-  Int_t GetData( EModuleType type, Int_t crate, Int_t slot, Int_t chan, Int_t hit ) const
+  Int_t GetData( Decoder::EModuleType type, Int_t crate, Int_t slot, Int_t chan, Int_t hit ) const
   {
-    // TODO: real implementation
-    if( !HasCapability( type, crate, slot ) )
-      throw someException;
-    if( IsMultifunction( crate, slot ) ) {
-      switch( type ) {
-      case kADC:
-	return GetADC( crate, slot, chan, hit );
-      case kTDC:
-	return GetTDC( crate, slot, chan, hit );
-	//...
-      }
-    } else
+    Decoder::Module* module = GetModule(crate, slot);
+    if (!module) return false;
+    if (module->HasCapability( type )) {
+      return module->GetData(type, chan, hit);
+    } else {
       return GetData( crate, slot, chan, hit );
+    }
   }
   
   // Optional functionality that may be implemented by derived classes
