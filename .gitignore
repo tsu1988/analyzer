@@ -39,6 +39,7 @@ evio/
 *.cdef
 *.png
 *.patch
+tutorial/
 
 #scons stuff
 config.log
