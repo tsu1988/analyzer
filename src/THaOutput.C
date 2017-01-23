@@ -631,17 +631,19 @@ Int_t THaOutput::Init( const char* filename )
 
   if( fgDoBench ) fgBench.Begin("Init");
 
+  fOpenEpics  = kFALSE;
+  fFirstEpics = kTRUE;
+
   DefinitionSet defs;
   Int_t err = LoadFile( filename, defs );
   if( err != -1 && err != 0 ) {
+    // FIXME: LoadFile returns only -1 or 0, so this is never reached
     if( fgDoBench ) fgBench.Stop("Init");
     return -3;
   }
 
   fTree = new TTree("T","Hall A Analyzer Output DST");
   fTree->SetAutoSave(200000000);
-  fOpenEpics  = kFALSE;
-  fFirstEpics = kTRUE; 
 
   if( err == -1 ) {
     if( fgDoBench ) fgBench.Stop("Init");
