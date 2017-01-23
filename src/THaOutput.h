@@ -91,7 +91,7 @@ protected:
   // structure/class defintions here, not in the implementation
   struct HistogramParameters;
   struct DefinitionSet;
-  struct VariableInfo;
+  class VariableInfo;
   typedef std::map<std::string,VariableInfo> VarMap_t;
   enum EId { kInvalidEId = 0, kVar, kForm, kCut, kH1f, kH1d, kH2f, kH2d,
 	     kBlock, kBegin, kEnd };
