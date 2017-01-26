@@ -2862,7 +2862,7 @@ int Detector::ReadBlock( FILE* fi, T* data, int nval, const char* here, int flag
 	  }
 	  if( TestBit(flags,kRequireGreaterZero) && data[nread] <= 0 ) {
 	    if( !TestBit(flags,kQuietOnErrors) )
-	      Error( Here(here), "Values must be greater then zero:\n \"%s\"",
+	      Error( Here(here), "Values must be greater than zero:\n \"%s\"",
 		     line.c_str() );
 	    fseeko(fi,pos_on_entry,SEEK_SET);
 	    return kLessEqualZeroFound;
