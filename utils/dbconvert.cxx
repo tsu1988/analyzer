@@ -3598,7 +3598,7 @@ int BPM::ReadDB( FILE* fi, time_t, time_t )
     fgets( buf, LEN, fi);
     n = sscanf(buf,"%6d %6d %6d %6d %6d %6d %6d",
 	       &first_chan, &crate, &dummy, &slot, &first, &last, &modulid);
-    if( n < 1 ) return ErrPrint(fi,here);
+    if( n < 6 ) return ErrPrint(fi,here);
     if( n == 7 )
       fDetMapHasModel = true;
     if (first_chan>=0 && n >= 6 ) {
@@ -3681,7 +3681,7 @@ int Raster::ReadDB( FILE* fi, time_t date, time_t )
     fgets( buf, LEN, fi);
     n = sscanf(buf,"%6d %6d %6d %6d %6d %6d %6d",
 	       &first_chan, &crate, &dummy, &slot, &first, &last, &modulid);
-    if( n < 1 ) return ErrPrint(fi,here);
+    if( n < 6 ) return ErrPrint(fi,here);
     if( n == 7 )
       fDetMapHasModel = true;
     if (first_chan>=0 && n >= 6 ) {
