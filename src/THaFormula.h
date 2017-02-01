@@ -18,6 +18,7 @@
 #include "THaGlobals.h"
 #include <vector>
 #include <iostream>
+#include <cassert>
 
 class THaVarList;
 class THaCutList;
@@ -56,6 +57,8 @@ public:
   // need to hack this-pointer to be non-const - courtesy of ROOT team
   { return const_cast<THaFormula*>(this)->Eval(); }
   virtual Double_t    EvalInstance( Int_t instance );
+  virtual Bool_t      HasSameSize( const THaFormula& rhs ) const;
+  virtual Bool_t      HasSameSize( const THaFormula* rhs ) const;
   virtual Int_t       GetNdata()   const;
   virtual Bool_t      IsArray()    const { return TestBit(kArrayFormula); }
   virtual Bool_t      IsVarArray() const { return TestBit(kVarArray); }
@@ -113,6 +116,16 @@ Double_t THaFormula::EvalInstanceUnchecked( Int_t instance )
     return DefinedValue(0);
   else
     return EvalPar(0);
+}
+
+//_____________________________________________________________________________
+inline
+Bool_t THaFormula::HasSameSize( const THaFormula* rhs ) const
+{
+  assert(rhs);
+  if( !rhs )
+    return kFALSE;
+  return HasSameSize( *rhs );
 }
 
 #endif

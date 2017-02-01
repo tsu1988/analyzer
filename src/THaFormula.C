@@ -712,6 +712,27 @@ Int_t THaFormula::GetNdata() const
 }
 
 //_____________________________________________________________________________
+Bool_t THaFormula::HasSameSize( const THaFormula& other ) const
+{
+  // Check if this formula and 'other' formula are parallel array formulas.
+  // Always true for scalars and fixed arrays of same size
+
+  if( IsArray() ) {
+    if( IsVarArray() ) {
+      // variable array
+      // if( other.IsVarArray() ) {
+      // 	// TODO - may be true under certain conditions
+      // 	return kFALSE;
+      // } else
+      return kFALSE;
+    } else
+      // Fixed array
+      return (other.IsArray() && GetNdata() == other.GetNdata() );
+  }
+  return kTRUE;
+}
+
+//_____________________________________________________________________________
 void THaFormula::Print( Option_t* option ) const
 {
   // Print this formula to stdout
