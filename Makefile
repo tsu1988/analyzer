@@ -147,7 +147,7 @@ export VERSION SOVERSION VERCODE CXXEXTFLG MAKEDEPEND
 
 #------------------------------------------------------------------------------
 
-SRC          := src/THaFormula.C src/THaVform.C src/THaVhist.C \
+SRC          := src/THaFormula.C \
 		src/THaVar.C src/THaVarList.C src/THaCut.C \
 		src/THaNamedList.C src/THaCutList.C src/THaInterface.C \
 		src/THaRunBase.C src/THaCodaRun.C src/THaRun.C \

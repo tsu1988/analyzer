@@ -24,9 +24,9 @@ THaQWEAKHelicity.C        THaShower.C               THaTriggerTime.C          TH
 THaBeam.C                 THaDetectorBase.C         THaInterface.C
 THaQWEAKHelicityReader.C  THaSpectrometer.C         THaTwoarmVertex.C         THaVertexModule.C
 THaBeamDet.C              THaElectronKine.C         THaNamedList.C
-THaRTTI.C                 THaSpectrometerDetector.C THaUnRasteredBeam.C       THaVform.C
+THaRTTI.C                 THaSpectrometerDetector.C THaUnRasteredBeam.C
 THaBeamEloss.C            THaElossCorrection.C      THaNonTrackingDetector.C
-THaRaster.C               THaString.C               THaVDC.C                  THaVhist.C
+THaRaster.C               THaString.C               THaVDC.C
 THaBeamInfo.C             THaEpicsEbeam.C
 THaRasteredBeam.C         THaSubDetector.C          THaVDCAnalyticTTDConv.C   VDCeff.C
 THaBeamModule.C           THaEvent.C

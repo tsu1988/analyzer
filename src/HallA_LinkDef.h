@@ -21,8 +21,6 @@
 #pragma link C++ class THaVarList+;
 #pragma link C++ class THaNamedList+;
 #pragma link C++ class THaFormula+;
-#pragma link C++ class THaVform+;
-#pragma link C++ class THaVhist+;
 #pragma link C++ class THaCut+;
 #pragma link C++ class THaCutList+;
 #pragma link C++ class THaHashList+;
@@ -60,7 +58,6 @@
 #pragma link C++ class THaEventHeader+;
 #pragma link C++ class Podd::DataBuffer+;
 #pragma link C++ class THaOutput+;
-//#pragma link C++ class THaOdata+;
 //#pragma link C++ class THaScalerKey+;
 #pragma link C++ class THaAnalyzer+;
 #pragma link C++ class THaPrintOption+;
