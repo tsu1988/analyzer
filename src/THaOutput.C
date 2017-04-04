@@ -36,6 +36,7 @@
 #include "TFile.h"
 #include "TRegexp.h"
 #include "TError.h"
+#include "TSystem.h"
 #include <algorithm>
 #include <fstream>
 #include <cstring>
@@ -51,11 +52,6 @@ typedef vector<THaOdata*>::iterator Iter_o_t;
 typedef vector<THaVform*>::iterator Iter_f_t;
 typedef vector<THaVhist*>::iterator Iter_h_t;
 typedef vector<string>::iterator Iter_s_t;
-
-Int_t THaOutput::fgVerbose = 1;
-//FIXME: these should be member variables
-static Bool_t fgDoBench = kTRUE;
-static THaBenchmark fgBench;
 
 //_____________________________________________________________________________
 struct THaOutput::HistogramParameters {
@@ -218,7 +214,8 @@ Bool_t THaOdata::Resize(Int_t i)
 //_____________________________________________________________________________
 THaOutput::THaOutput( const char* rootfile, THaEvent* event /* = 0 */ )
   : fFilename(rootfile), fFile(0), fTree(0), fEpicsTree(0), fEvent(event),
-    fEpicsVar(0), fInit(false)
+    fBench(new THaBenchmark), fEpicsVar(0), fCompress(1), fVerbose(0), 
+    fLocalEvent(kFALSE), fOverwrite(kTRUE), fDoBench(kFALSE), fInit(kFALSE)
 {
   // Constructor
 }
@@ -227,6 +224,8 @@ THaOutput::THaOutput( const char* rootfile, THaEvent* event /* = 0 */ )
 THaOutput::~THaOutput() 
 {
   // Destructor
+
+  delete fBench;
 
   // Delete Trees and histograms only if ROOT system is initialized.
   // ROOT will report being uninitialized if we're called from the TSystem
@@ -611,10 +610,33 @@ Int_t THaOutput::VariableInfo::Fill()
 }
 
 //_____________________________________________________________________________
+TFile* THaOutput::GetCurrentFile() const
+{
+  // Get TFile currently being written to (may differ from fFile due to
+  // splitting
+
+  return (fTree != 0) ? fTree->GetCurrentFile() : fFile;
+}
+
+//_____________________________________________________________________________
+Bool_t THaOutput::cd( const char* path )
+{
+  // Change ROOT's current directory to current output file
+
+  TFile* file = GetCurrentFile();
+  if( !file )
+    return kFALSE;
+
+  return file->cd(path);
+}
+
+//_____________________________________________________________________________
 Int_t THaOutput::Init( const char* filename )
 {
   // Initialize output system. Required before anything can happen.
-  //
+
+  const char* const here = "Init";
+
   // Only re-attach to variables and re-compile cuts and formulas
   // upon re-initialization (eg: continuing analysis with another file)
   if( fInit ) {
@@ -634,24 +656,58 @@ Int_t THaOutput::Init( const char* filename )
 
   if( !gHaVars ) return -2;
 
-  if( fgDoBench ) fgBench.Begin("Init");
+  if( fDoBench ) fBench->Begin("Init");
 
   DefinitionSet defs;
   Int_t err = LoadFile( filename, defs );
   if( err != -1 && err != 0 ) {
-    if( fgDoBench ) fgBench.Stop("Init");
+    if( fDoBench ) fBench->Stop("Init");
     return -3;
   }
 
+  // Open ROOT output file
+  if( !fFile ) {
+    if( fFilename.IsNull() ) {
+      Error( here, "Must specify an output file. Set it with SetOutFile()." );
+      return -12;
+    }
+    // File exists?
+    if( gSystem->AccessPathName(fFilename) == kFALSE ) { //sic
+      if( !fOverwrite ) {
+	Error( here, "Output file %s already exists. Choose a different "
+	       "file name or enable overwriting with EnableOverwrite().",
+	       fFilename.Data() );
+	return -13;
+      }
+      cout << "Overwriting existing";
+    } else
+      cout << "Creating new";
+    cout << " output file: " << fFilename << endl;
+    fFile = new TFile( fFilename.Data(), "RECREATE" );
+  }
+  if( !fFile || fFile->IsZombie() ) {
+    Error( here, "failed to create output file %s. Check file/directory "
+	   "permissions.", fFilename.Data() );
+    //    Close();
+    return -10;
+  }
+  fFile->SetCompressionLevel(fCompress);
+
+  //FIXME: use THaTree
   fTree = new TTree("T","Hall A Analyzer Output DST");
+  //FIXME: revise
   fTree->SetAutoSave(200000000);
   fOpenEpics  = kFALSE;
   fFirstEpics = kTRUE; 
 
   if( err == -1 ) {
-    if( fgDoBench ) fgBench.Stop("Init");
+    if( fDoBench ) fBench->Stop("Init");
     return 0;       // No error if file not found, but please
   }                    // read the instructions.
+
+  if( fEvent )
+    fTree->Branch( "Event_Branch", fEvent->IsA()->GetName(),
+		   &fEvent, 16000, 99 );
 
   //  fNvar = defs.varnames.size();  // this gets reassigned below
 
@@ -698,7 +754,7 @@ Int_t THaOutput::Init( const char* filename )
     }
     pform->SetOutput(fTree);
     fFormulas.push_back(pform);
-    if( fgVerbose > 2 )
+    if( fVerbose > 2 )
       pform->LongPrint();  // for debug
 // Add variables (i.e. those var's used by the formula) to tree.
 // Reason is that TTree::Draw() may otherwise fail with ERROR 26 
@@ -754,7 +810,7 @@ Int_t THaOutput::Init( const char* filename )
     }
     pcut->SetOutput(fTree);
     fCuts.push_back(pcut);
-    if( fgVerbose>2 )
+    if( fVerbose>2 )
       pcut->LongPrint();  // for debug
   }
 
@@ -811,11 +867,11 @@ Int_t THaOutput::Init( const char* filename )
 
   fInit = true;
 
-  if( fgDoBench ) fgBench.Stop("Init");
+  if( fDoBench ) fBench->Stop("Init");
 
-  if( fgDoBench ) fgBench.Begin("Attach");
+  if( fDoBench ) fBench->Begin("Attach");
   Int_t st = Attach();
-  if( fgDoBench ) fgBench.Stop("Attach");
+  if( fDoBench ) fBench->Stop("Attach");
   if ( st )
     return -4;
 
@@ -945,7 +1001,7 @@ Int_t THaOutput::ProcEpics(THaEvData *evdata, THaEpicsEvtHandler *epicshandle)
   if ( !epicshandle ) return 0;
   if ( !epicshandle->IsMyEvent(evdata->GetEvType()) 
        || fEpicsKey.empty() || !fEpicsTree ) return 0;
-  if( fgDoBench ) fgBench.Begin("EPICS");
+  if( fDoBench ) fBench->Begin("EPICS");
   fEpicsVar[fEpicsKey.size()] = -1e32;
   for (UInt_t i = 0; i < fEpicsKey.size(); i++) {
     if (epicshandle->IsLoaded(fEpicsKey[i]->GetName().c_str())) {
@@ -968,7 +1024,7 @@ Int_t THaOutput::ProcEpics(THaEvData *evdata, THaEpicsEvtHandler *epicshandle)
     }
   }
   if (fEpicsTree != 0) fEpicsTree->Fill();  
-  if( fgDoBench ) fgBench.Stop("EPICS");
+  if( fDoBench ) fBench->Stop("EPICS");
   return 1;
 }
 
@@ -978,17 +1034,17 @@ Int_t THaOutput::Process()
   // Process the variables, formulas, and histograms.
   // This is called by THaAnalyzer.
 
-  if( fgDoBench ) fgBench.Begin("Formulas");
+  if( fDoBench ) fBench->Begin("Formulas");
   for (Iter_f_t iform = fFormulas.begin(); iform != fFormulas.end(); ++iform)
     if (*iform) (*iform)->Process();
-  if( fgDoBench ) fgBench.Stop("Formulas");
+  if( fDoBench ) fBench->Stop("Formulas");
 
-  if( fgDoBench ) fgBench.Begin("Cuts");
+  if( fDoBench ) fBench->Begin("Cuts");
   for (Iter_f_t icut = fCuts.begin(); icut != fCuts.end(); ++icut)
     if (*icut) (*icut)->Process();
-  if( fgDoBench ) fgBench.Stop("Cuts");
+  if( fDoBench ) fBench->Stop("Cuts");
 
-  if( fgDoBench ) fgBench.Begin("Variables");
+  if( fDoBench ) fBench->Begin("Variables");
   for( VarMap_t::iterator it = fVariables.begin(); it != fVariables.end(); ++it ) {
     VariableInfo& vinfo = it->second;
     vinfo.Fill();
@@ -1006,7 +1062,7 @@ Int_t THaOutput::Process()
   //     // FIXME: for better efficiency, should use pointer to data and 
   //     // Fill(int n,double* data) method in case of a contiguous array
   //     if (pdat->Fill(i,pvar->GetValue(i)) != 1) {
-  // 	if( fgVerbose>0 && first ) {
+  // 	if( fVerbose>0 && first ) {
   // 	  cerr << "THaOutput::ERROR: storing too much variable sized data: " 
   // 	       << pvar->GetName() <<"  "<<pvar->GetLen()<<endl;
   // 	  first = false;
@@ -1014,16 +1070,16 @@ Int_t THaOutput::Process()
   //     }
   //   }
   // }
-  if( fgDoBench ) fgBench.Stop("Variables");
+  if( fDoBench ) fBench->Stop("Variables");
 
-  if( fgDoBench ) fgBench.Begin("Histos");
+  if( fDoBench ) fBench->Begin("Histos");
   for ( Iter_h_t it = fHistos.begin(); it != fHistos.end(); ++it )
     (*it)->Process();
-  if( fgDoBench ) fgBench.Stop("Histos");
+  if( fDoBench ) fBench->Stop("Histos");
 
-  if( fgDoBench ) fgBench.Begin("TreeFill");
+  if( fDoBench ) fBench->Begin("TreeFill");
   if (fTree != 0) fTree->Fill();  
-  if( fgDoBench ) fgBench.Stop("TreeFill");
+  if( fDoBench ) fBench->Stop("TreeFill");
 
   return 0;
 }
@@ -1031,25 +1087,25 @@ Int_t THaOutput::Process()
 //_____________________________________________________________________________
 Int_t THaOutput::End() 
 {
-  if( fgDoBench ) fgBench.Begin("End");
+  if( fDoBench ) fBench->Begin("End");
 
   if (fTree != 0) fTree->Write();
   if (fEpicsTree != 0) fEpicsTree->Write();
   for (Iter_h_t ihist = fHistos.begin(); ihist != fHistos.end(); ++ihist)
     (*ihist)->End();
-  if( fgDoBench ) fgBench.Stop("End");
+  if( fDoBench ) fBench->Stop("End");
 
-  if( fgDoBench ) {
+  if( fDoBench ) {
     cout << "Output timing summary:" << endl;
-    fgBench.Print("Init");
-    fgBench.Print("Attach");
-    fgBench.Print("Variables");
-    fgBench.Print("Formulas");
-    fgBench.Print("Cuts");
-    fgBench.Print("Histos");
-    fgBench.Print("TreeFill");
-    fgBench.Print("EPICS");
-    fgBench.Print("End");
+    fBench->Print("Init");
+    fBench->Print("Attach");
+    fBench->Print("Variables");
+    fBench->Print("Formulas");
+    fBench->Print("Cuts");
+    fBench->Print("Histos");
+    fBench->Print("TreeFill");
+    fBench->Print("EPICS");
+    fBench->Print("End");
   }
   return 0;
 }
@@ -1359,7 +1415,7 @@ void THaOutput::ErrFile(Int_t iden, const string& sline) const
 }
 
 //_____________________________________________________________________________
-void THaOutput::Print() const
+void THaOutput::Print( Option_t* ) const
 {
   // Printout the definitions. Amount printed depends on verbosity
   // level, set with SetVerbosity().
@@ -1368,7 +1424,7 @@ void THaOutput::Print() const
   typedef vector<THaVform*>::const_iterator Iterc_f_t;
   typedef vector<THaVhist*>::const_iterator Iterc_h_t;
 
-  if( fgVerbose > 0 ) {
+  if( fVerbose > 0 ) {
     if( fVariables.size() == 0 && fFormulas.size() == 0 &&
 	fCuts.size() == 0 && fHistos.size() == 0 ) {
       ::Warning("THaOutput", "no output defined");
@@ -1376,7 +1432,7 @@ void THaOutput::Print() const
       cout << endl << "THaOutput definitions: " << endl;
       if( !fVariables.empty() ) {
 	cout << "=== Number of variables "<<fVariables.size()<<endl;
-	if( fgVerbose > 1 ) {
+	if( fVerbose > 1 ) {
 	  cout << endl;
 	  
 	  UInt_t i = 0;
@@ -1388,13 +1444,13 @@ void THaOutput::Print() const
       }
       if( !fFormulas.empty() ) {
 	cout << "=== Number of formulas "<<fFormulas.size()<<endl;
-	if( fgVerbose > 1 ) {
+	if( fVerbose > 1 ) {
 	  cout << endl;
 	  UInt_t i = 0;
 	  for (Iterc_f_t iform = fFormulas.begin(); 
 	       iform != fFormulas.end(); i++, iform++ ) {
 	    cout << "Formula # "<<i<<endl;
-	    if( fgVerbose>2 )
+	    if( fVerbose>2 )
 	      (*iform)->LongPrint();
 	    else
 	      (*iform)->ShortPrint();
@@ -1403,13 +1459,13 @@ void THaOutput::Print() const
       }
       if( !fCuts.empty() ) {
 	cout << "=== Number of cuts "<<fCuts.size()<<endl;
-	if( fgVerbose > 1 ) {
+	if( fVerbose > 1 ) {
 	  cout << endl;
 	  UInt_t i = 0;
 	  for (Iterc_f_t icut = fCuts.begin(); icut != fCuts.end();
 	       i++, icut++ ) {
 	    cout << "Cut # "<<i<<endl;
-	    if( fgVerbose>2 )
+	    if( fVerbose>2 )
 	      (*icut)->LongPrint();
 	    else
 	      (*icut)->ShortPrint();
@@ -1418,7 +1474,7 @@ void THaOutput::Print() const
       }
       if( !fHistos.empty() ) {
 	cout << "=== Number of histograms "<<fHistos.size()<<endl;
-	if( fgVerbose > 1 ) {
+	if( fVerbose > 1 ) {
 	  cout << endl;
 	  UInt_t i = 0;
 	  for (Iterc_h_t ihist = fHistos.begin(); ihist != fHistos.end(); 
@@ -1517,11 +1573,53 @@ Int_t THaOutput::BuildBlock(const string& blockn, DefinitionSet& defs)
 }
 
 //_____________________________________________________________________________
-void THaOutput::SetVerbosity( Int_t level )
+void THaOutput::SetVerbosity( Int_t )
+{
+  // Set verbosity level for debug messages (deprecated, use SetVerbosityLevel)
+
+  Warning( "", "Static function THaOutput::SetVerbosity is deprecated and does "
+	   "nothing. Call analyzer->SetVerbosity() or output->SetVerbosityLevel()" );
+}
+
+//_____________________________________________________________________________
+void THaOutput::EnableBenchmarks( Bool_t b )
+{
+  // Enable timing statistics
+
+  fDoBench = b;
+}
+
+//_____________________________________________________________________________
+void THaOutput::EnableOverwrite( Bool_t b )
+{
+  // Enable overwriting of ROOT output file
+
+  fOverwrite = b;
+}
+
+//_____________________________________________________________________________
+void THaOutput::SetFilename( const char* name )
+{
+  // Set ROOT output file name
+
+  //FIXME: might want to warn if already initialized
+  fFilename = name;
+}
+
+//_____________________________________________________________________________
+void THaOutput::SetCompressionLevel( Int_t level )
+{
+  // Set compression level of ROOT output files
+
+  fCompress = level;
+}
+
+//_____________________________________________________________________________
+void THaOutput::SetVerbosityLevel( Int_t level )
 {
   // Set verbosity level for debug messages
 
-  fgVerbose = level;
+  fVerbose = level;
 }
 
 //_____________________________________________________________________________

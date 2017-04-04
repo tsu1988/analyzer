@@ -7,7 +7,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "Rtypes.h"
+#include <TString.h>
 #include <vector>
 #include <map>
 #include <string> 
@@ -25,6 +25,7 @@ class TTree;
 //class THaEvtTypeHandler;
 class THaEpicsKey;
 class THaEpicsEvtHandler;
+class THaBenchmark;
 
 class THaOdata {
 // Utility class used by THaOutput to store arrays 
@@ -78,13 +79,24 @@ public:
   virtual Int_t Process();
   virtual Int_t ProcEpics(THaEvData *ev, THaEpicsEvtHandler *han);
   virtual Int_t End();
-  virtual Bool_t TreeDefined() const { return fTree != 0; };
-  virtual TTree* GetTree() const { return fTree; };
+  virtual Bool_t cd( const char* path = 0 );
+  virtual void   SetFilename( const char* name );
+  virtual void Print( Option_t* opt="" ) const;
 
+  void   EnableBenchmarks( Bool_t b = kTRUE );
+  void   EnableOverwrite( Bool_t b = kTRUE );
+
+  TTree* GetTree() const { return fTree; };
+  TFile* GetFile() const { return fFile; };
+  Int_t  GetCompressionLevel() const  { return fCompress; }
+  TFile* GetCurrentFile() const;
+  void   SetVerbosityLevel( Int_t level );
+  void   SetCompressionLevel( Int_t level );
+
+  // Deprecated, for backwards compatibility
+  Bool_t TreeDefined() const { return fTree != 0; };
   static void SetVerbosity( Int_t level );
 
-  void Print() const;
-  
 protected:
 
 #ifndef __CINT__
@@ -99,22 +111,23 @@ protected:
 
   virtual Int_t LoadFile( const char* filename, DefinitionSet& defs );
   virtual Int_t Attach();
-  virtual EId   GetKeyID(const std::string& key) const;
+  EId   GetKeyID(const std::string& key) const;
   virtual void  ErrFile(Int_t iden, const std::string& sline) const;
   virtual Int_t ParseHistogramDef(Int_t key, const std::string& sline,
 				  HistogramParameters& param );
   virtual Int_t BuildBlock(const std::string& blockn, DefinitionSet& defs);
-  virtual std::string StripBracket(const std::string& var) const; 
+  std::string StripBracket(const std::string& var) const; 
   std::vector<std::string> reQuote(const std::vector<std::string>& input) const;
   std::string CleanEpicsName(const std::string& var) const;
   void BuildList(const std::vector<std::string>& vdata);
 
-  std::string  fFilename;
+  TString      fFilename;
   TFile*       fFile;
   TTree*       fTree;
   TTree*       fEpicsTree;
 
   THaEvent* fEvent;
+  THaBenchmark*  fBench;           //Counters for timing statistics
 
   // Variables, Formulas, Cuts, Histograms
   //  Int_t fNvar;
@@ -129,13 +142,18 @@ protected:
   std::vector<THaEpicsKey*>  fEpicsKey;
   std::vector<std::string> fArrayNames;
   std::vector<std::string> fVNames;
-  bool fInit;
+
+  Int_t          fCompress;        //Compression level for ROOT output file
+  Int_t          fVerbose;         //Verbosity level
+
+  Bool_t         fLocalEvent;      // fEvent allocated by this object
+  Bool_t         fOverwrite;       // Overwrite existing output files
+  Bool_t         fDoBench;         // Collect detailed timing statistics
+  Bool_t fInit;
   
   static const Int_t kNbout = 4000;
   static const Int_t fgNocut = -1;
-
-  static Int_t fgVerbose;
-
+  
 private:
   //  THaEvtTypeHandler *fEpicsHandler;
 

@@ -50,7 +50,8 @@ public:
   const char*    GetCutFileName()      const  { return fCutFileName.Data(); }
   const char*    GetOdefFileName()     const  { return fOdefFileName.Data(); }
   const char*    GetSummaryFileName()  const  { return fSummaryFileName.Data(); }
-  TFile*         GetOutFile()          const  { return fFile; }
+  TFile*         GetOutFile()          const;
+  TFile*         GetCurrentFile()      const;
   Int_t          GetCompressionLevel() const  { return fCompress; }
   THaEvent*      GetEvent()            const  { return fEvent; }
   THaEvData*     GetDecoder()          const  { return fEvData; }
@@ -108,7 +109,7 @@ protected:
 
   enum ECountMode { kCountPhysics, kCountAll, kCountRaw };
 
-  TFile*         fFile;            //The ROOT output file.
+  //  TFile*         fFile;            //The ROOT output file.
   THaOutput*     fOutput;          //Flexible ROOT output (tree, histograms)
   THaEpicsEvtHandler* fEpicsHandler; // EPICS event handler used by THaOutput
   TString        fOutFileName;     //Name of output ROOT file.

@@ -37,7 +37,7 @@
 #include "THaEpicsEvtHandler.h"
 #include "TList.h"
 #include "TTree.h"
-#include "TFile.h"
+//#include "TFile.h"
 #include "TClass.h"
 #include "TDatime.h"
 #include "TClass.h"
@@ -72,7 +72,7 @@ THaAnalyzer* THaAnalyzer::fgAnalyzer = 0;
 
 //_____________________________________________________________________________
 THaAnalyzer::THaAnalyzer() :
-  fFile(NULL), fOutput(NULL), fEpicsHandler(NULL),
+  /*fFile(NULL),*/ fOutput(NULL), fEpicsHandler(NULL),
   fOdefFileName(kDefaultOdefFile), fEvent(NULL), fNStages(0), fNCounters(0),
   fStages(NULL), fCounters(NULL), fNev(0), fMarkInterval(1000), fCompress(1),
   fVerbose(2), fCountMode(kCountRaw), fBench(NULL), fPrevEvent(NULL),
@@ -191,9 +191,9 @@ void THaAnalyzer::Close()
 
   delete fEvData; fEvData = NULL;
   delete fOutput; fOutput = NULL;
-  if( TROOT::Initialized() )
-    delete fFile;
-  fFile = NULL;
+  // if( TROOT::Initialized() )
+  //   delete fFile;
+  // fFile = NULL;
   delete fRun; fRun = NULL;
   if( fLocalEvent ) {
     delete fEvent; fEvent = fPrevEvent = NULL;
@@ -324,6 +324,23 @@ bool THaAnalyzer::EvalStage( int n )
   }
   if( fDoBench ) fBench->Stop("Cuts");
   return ret;
+}
+
+//_____________________________________________________________________________
+TFile* THaAnalyzer::GetOutFile() const
+{
+  // Return pointer to ROOT output file
+
+  return (fOutput != 0) ? fOutput->GetFile() : 0;
+}
+
+//_____________________________________________________________________________
+TFile* THaAnalyzer::GetCurrentFile() const
+{
+  // Return pointer to currently open ROOT output file (may differ from
+  // original file due to output splitting)
+
+  return (fOutput != 0) ? fOutput->GetCurrentFile() : 0;
 }
 
 //_____________________________________________________________________________
@@ -489,6 +506,7 @@ Int_t THaAnalyzer::DoInit( THaRunBase* run )
   static const char* const here = "Init";
   Int_t retval = 0;
 
+#if 0   // Now handled by THaOutput
   //--- Open the output file if necessary so that Trees and Histograms
   //    are created on disk.
 
@@ -531,6 +549,7 @@ Int_t THaAnalyzer::DoInit( THaRunBase* run )
     return -10;
   }
   fFile->SetCompressionLevel(fCompress);
+#endif
 
   // Set up the analysis stages and allocate counters.
   if( !fIsInit ) {
@@ -578,7 +597,7 @@ Int_t THaAnalyzer::DoInit( THaRunBase* run )
   bool new_output = false;
   if( !fOutput || new_event ) {
     delete fOutput;
-    fOutput = new THaOutput;
+    fOutput = new THaOutput( fOutFileName, fEvent );
     new_output = true;
   }
 
@@ -701,22 +720,22 @@ Int_t THaAnalyzer::DoInit( THaRunBase* run )
     // first, make sure we are in the output file, but remember the previous
     // state. This makes a difference if another ROOT-file is opened to read
     // in simulated or old data
-    TDirectory *olddir = gDirectory;
-    fFile->cd();
+    // TDirectory *olddir = gDirectory;
+    // fFile->cd();
 
     if( (retval = fOutput->Init( fOdefFileName )) < 0 ) {
       Error( here, "Error initializing THaOutput." );
     } else if( retval == 1 )
       retval = 0;  // Reinitialization ok, not an error
-    else {
-      // If initialized ok, but not re-initialized, make a branch for
-      // the event structure in the output tree
-      TTree* outputTree = fOutput->GetTree();
-      if( outputTree )
-	outputTree->Branch( "Event_Branch", fEvent->IsA()->GetName(),
-			    &fEvent, 16000, 99 );
-    }
-    olddir->cd();
+    // else {
+    //   // If initialized ok, but not re-initialized, make a branch for
+    //   // the event structure in the output tree
+    //   TTree* outputTree = fOutput->GetTree();
+    //   if( outputTree )
+    // 	outputTree->Branch( "Event_Branch", fEvent->IsA()->GetName(),
+    // 			    &fEvent, 16000, 99 );
+    // }
+    // olddir->cd();
 
     // Post-process has to be initialized after all cuts are known
     TIter nextp(fPostProcess);
@@ -1317,8 +1336,8 @@ Int_t THaAnalyzer::Process( THaRunBase* run )
   UInt_t nlast = fRun->GetLastEvent();
   fAnalysisStarted = kTRUE;
   BeginAnalysis();
-  if( fFile ) {
-    fFile->cd();
+  if( fOutput ) {
+    fOutput->cd();
     fRun->Write("Run_Data");  // Save run data to first ROOT file
   }
 
@@ -1404,14 +1423,16 @@ Int_t THaAnalyzer::Process( THaRunBase* run )
   // ... someone might have pulled the rug from under our feet
 
   // get the CURRENT file, since splitting might have occurred
-  if( fOutput && fOutput->GetTree() )
-    fFile = fOutput->GetTree()->GetCurrentFile();
-  if( fFile )   fFile->cd();
-  if( fOutput ) fOutput->End();
-  if( fFile ) {
+  // if( fOutput && fOutput->GetTree() )
+  //   fFile = fOutput->GetTree()->GetCurrentFile();
+  // if( fFile )   fFile->cd();
+  // if( fOutput ) fOutput->End();
+  // if( fFile ) {
+  if( fOutput ) {
+    fOutput->End();
     fRun->Write("Run_Data");  // Save run data to ROOT file
     //    fFile->Write();//already done by fOutput->End()
-    fFile->Purge();         // get rid of excess object "cycles"
+    //    fFile->Purge();         // get rid of excess object "cycles"
   }
   if( fDoBench ) fBench->Stop("Output");
 
