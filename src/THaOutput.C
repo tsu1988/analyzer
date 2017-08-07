@@ -35,6 +35,8 @@
 #include "TFile.h"
 #include "TRegexp.h"
 #include "TError.h"
+#include "TSystem.h"
+#include "TString.h"
 #include <algorithm>
 #include <fstream>
 #include <cstring>
@@ -55,6 +57,10 @@ Int_t THaOutput::fgVerbose = 1;
 //FIXME: these should be member variables
 static Bool_t fgDoBench = kTRUE;
 static THaBenchmark fgBench;
+
+static const char comment('#');
+static const string inctxt("#include");
+static const string whitespace(" \t");
 
 //TODO list from 6-Feb-2016:
 //
@@ -650,7 +656,6 @@ Int_t THaOutput::Init( const char* filename )
   DefinitionSet defs;
   Int_t err = LoadFile( filename, defs );
   if( err != -1 && err != 0 ) {
-    // FIXME: LoadFile returns only -1 or 0, so this is never reached
     if( fgDoBench ) fgBench.Stop("Init");
     return -3;
   }
@@ -659,11 +664,10 @@ Int_t THaOutput::Init( const char* filename )
   fTree->SetAutoSave(200000000);
 
   if( err == -1 ) {
+    // No error if file not found, but read the instructions.
     if( fgDoBench ) fgBench.Stop("Init");
-    return 0;       // No error if file not found, but please
-  }                    // read the instructions.
-
-  //  fNvar = defs.varnames.size();  // this gets reassigned below
+    return 0;
+  }
 
   // Variable definitions
   for( Iter_s_t it = defs.varnames.begin(); it != defs.varnames.end(); ++it ) {
@@ -1065,14 +1069,59 @@ Int_t THaOutput::End()
 }
 
 //_____________________________________________________________________________
+inline static Int_t GetIncludeFileName( const string& line, string& incfile )
+{
+  // Extract file name from #include statement
+
+  if( line.substr(0,inctxt.length()) != inctxt ||
+      line.length() <= inctxt.length() )
+    return -1; // Not an #include statement (should never happen)
+  string::size_type pos = line.find_first_not_of(whitespace,inctxt.length()+1);
+  if( pos == string::npos || (line[pos] != '<' && line[pos] != '\"') )
+    return -2; // No proper file name delimiter
+  const char end = (line[pos] == '<') ? '>' : '\"';
+  string::size_type pos2 = line.find(end,pos+1);
+  if( pos2 == string::npos || pos2 == pos+1 )
+    return -3; // Unbalanced delimiters or zero length filename
+  if( line.length() > pos2 &&
+      line.find_first_not_of(whitespace,pos2+1) != string::npos )
+    return -4; // Trailing garbage after filename spec
+
+  incfile = line.substr(pos+1,pos2-pos-1);
+  return 0;
+}
+
+//_____________________________________________________________________________
+inline static Int_t CheckIncludeFilePath( string& incfile )
+{
+  // Check if 'incfile' can be opened in the current directory or
+  // any of the directories in the include path
+
+  vector<TString> paths;
+  paths.push_back(incfile.c_str());
+  //TODO: support some kind of search path
+
+  for( vector<TString>::size_type i = 0; i<paths.size(); ++i ) {
+    TString& path = paths[i];
+    if( !gSystem->ExpandPathName(path) &&
+	!gSystem->AccessPathName(path,kReadPermission) ) {
+      incfile = path.Data();
+      return 0;
+    }
+  }
+  return -1;
+}
+
+//_____________________________________________________________________________
 Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
 {
   // Process the file that defines the output
 
+  const char* const here = "THaOutput::LoadFile";
+
   if( !filename || !*filename || strspn(filename," ") == strlen(filename) ) {
-    ::Error( "THaOutput::LoadFile", "invalid file name, "
-	     "no output definition loaded" );
-    return -1;
+    ::Error( here, "invalid file name, no output definition loaded" );
+    return -2;
   }
   string loadfile(filename);
   ifstream odef(loadfile.c_str());
@@ -1080,19 +1129,46 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
     ErrFile(-1, loadfile);
     return -1;
   }
-  const string comment = "#";
-  const string whitespace( " \t" );
   string::size_type pos;
   vector<string> strvect;
   string sline;
   while (getline(odef,sline)) {
+    // #include
+    if( sline.substr(0,inctxt.length()) == inctxt &&
+	sline.length() > inctxt.length() ) {
+      string incfilename;
+      if( GetIncludeFileName(sline,incfilename) != 0 ) {
+	ostringstream ostr;
+	ostr << "Error in #include specification: " << sline;
+	::Error( here, "%s", ostr.str().c_str() );
+	return -3;
+      }
+      if( CheckIncludeFilePath(incfilename) != 0 ) {
+	ostringstream ostr;
+	ostr << "Error opening include file: " << sline;
+	::Error( here, "%s", ostr.str().c_str() );
+	return -3;
+      }
+      if( incfilename == filename ) {
+	// File including itself?
+	// FIXME: does not catch including the same file via full pathname or similar
+	ostringstream ostr;
+	ostr << "File cannot include itself: " << sline;
+	::Error( here, "%s", ostr.str().c_str() );
+	return -3;
+      }
+      Int_t ret = LoadFile( incfilename.c_str(), defs );
+      if( ret != 0 )
+	return ret;
+      continue;
+    }
     // Blank line or comment line?
-    if( sline.empty()
-	|| (pos = sline.find_first_not_of( whitespace )) == string::npos
-	|| comment.find(sline[pos]) != string::npos )
+    if( sline.empty() ||
+	(pos = sline.find_first_not_of(whitespace)) == string::npos ||
+	sline[pos] == comment )
       continue;
     // Get rid of trailing comments
-    if( (pos = sline.find_first_of( comment )) != string::npos )
+    if( (pos = sline.find(comment)) != string::npos )
       sline.erase(pos);
     // Substitute text variables
     vector<string> lines( 1, sline );
