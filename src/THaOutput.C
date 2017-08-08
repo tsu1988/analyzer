@@ -43,6 +43,9 @@
 #include <iostream>
 //#include <iterator>
 #include <sstream>
+#include <utility>
+#include <cstdlib>  // for atoi, atof
+#include <memory>
 
 using namespace std;
 using namespace Podd;
@@ -61,6 +64,12 @@ static THaBenchmark fgBench;
 static const char comment('#');
 static const string inctxt("#include");
 static const string whitespace(" \t");
+
+#if __cplusplus >= 201103L
+# define SMART_PTR unique_ptr
+#else
+# define SMART_PTR auto_ptr
+#endif
 
 //TODO list from 6-Feb-2016:
 //
@@ -1098,8 +1107,25 @@ inline static Int_t CheckIncludeFilePath( string& incfile )
   // any of the directories in the include path
 
   vector<TString> paths;
-  paths.push_back(incfile.c_str());
-  //TODO: support some kind of search path
+  paths.push_back( incfile.c_str() );
+
+  TString incp = gSystem->Getenv("ANALYZER_CONFIGPATH");
+  if( !incp.IsNull() ) {
+    SMART_PTR<TObjArray> incdirs( incp.Tokenize(":") );
+    if( !incdirs->IsEmpty() ) {
+      Int_t ndirs = incdirs->GetLast()+1;
+      assert( ndirs>0 );
+      for( Int_t i = 0; i < ndirs; ++i ) {
+	TString path = (static_cast<TObjString*>(incdirs->At(i)))->String();
+	if( path.IsNull() )
+	  continue;
+	if( !path.EndsWith("/") )
+	  path.Append("/");
+	path.Append( incfile.c_str() );
+	paths.push_back( path.Data() );
+      }
+    }
+  }
 
   for( vector<TString>::size_type i = 0; i<paths.size(); ++i ) {
     TString& path = paths[i];
