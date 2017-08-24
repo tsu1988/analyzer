@@ -15,10 +15,10 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "THaOutput.h"
-//#include "THaVhist.h"
 #include "THaVarList.h"
 #include "THaVar.h"
 #include "THaFormula.h"
+#include "Histogram.h"
 #include "THaTextvars.h"
 #include "THaGlobals.h"
 #include "THaEvData.h"
@@ -50,9 +50,10 @@ using namespace std;
 using namespace Output;
 using namespace THaString;
 
-//typedef vector<THaVhist*>::iterator Iter_h_t;
 typedef vector<string>::iterator Iter_s_t;
 typedef vector<string>::const_iterator Iter_cs_t;
+typedef vector<Histogram*>::iterator Iter_h_t;
+typedef vector<Histogram*>::const_iterator Iterc_h_t;
 
 //FIXME: these should be member variables
 static Bool_t fgDoBench = kTRUE;
@@ -64,9 +65,13 @@ static const string whitespace(" \t");
 
 #if __cplusplus >= 201103L
 # define SMART_PTR unique_ptr
+# define STDMOVE(x) std::move(x)
 #else
 # define SMART_PTR auto_ptr
+# define STDMOVE(x) (x)
 #endif
+
+#define ALL(c) (c).begin(), (c).end()
 
 //TODO list from 6-Feb-2016:
 //
@@ -154,7 +159,13 @@ private:
 //___________________________________________________________________________
 struct DeleteObject {
   template< typename T >
-  void operator() ( const T* ptr ) const { delete ptr; }
+  void operator() ( T* ptr ) const { delete ptr; }
+};
+
+//___________________________________________________________________________
+struct ClearObject {
+  template< typename T >
+  void operator() ( T* ptr ) const { if(ptr) ptr->Clear(); }
 };
 
 //___________________________________________________________________________
@@ -168,7 +179,7 @@ template< typename Container >
 inline void DeleteContainer( Container& c )
 {
   // Delete all elements of given container of pointers
-  for_each( c.begin(), c.end(), DeleteObject() );
+  for_each( ALL(c), DeleteObject() );
   c.clear();
 }
 
@@ -177,7 +188,7 @@ template< typename Container >
 inline void DeleteMap( Container& c )
 {
   // Delete all elements of given container of pointers
-  for_each( c.begin(), c.end(), DeleteMapElement() );
+  for_each( ALL(c), DeleteMapElement() );
   c.clear();
 }
 
@@ -203,24 +214,29 @@ THaOutput::~THaOutput()
   if( alive ) {
     if (fTree) delete fTree;
     if (fEpicsTree) delete fEpicsTree;
+    // Deleting the tree should have deleted all the histograms as well,
+    // so clear the now-dangling histogram pointers in the Histogram objects
+    for_each( ALL(fHistos), ClearObject() );
   }
   if (fEpicsVar) delete [] fEpicsVar;
   DeleteMap(fBranches);
-  //  DeleteContainer(fHistos);
+  DeleteContainer(fHistos);
   DeleteContainer(fEpicsKey);
 }
 
 //_____________________________________________________________________________
 struct THaOutput::HistogramParameters {
+  HistogramParameters() : ikey(kInvalidEId), xlo(0), xhi(0), ylo(0), yhi(0),
+			  nx(0), ny(0), iscut(false), isscalar(true) {}
   EId ikey;
   string sname, stitle, sfvarx, sfvary, scut;
   Double_t xlo,xhi,ylo,yhi;
   Int_t nx,ny;
-  bool iscut;
+  bool iscut, isscalar;
   void clear() {
     ikey = kInvalidEId;
     sname.clear(); stitle.clear(); sfvarx.clear(); sfvary.clear(); scut.clear();
-    iscut = false;
+    iscut = false; isscalar = true;
     nx = ny = xlo = xhi = ylo = yhi = 0;
   }
 };
@@ -296,44 +312,226 @@ Int_t THaOutput::InitCuts( const DefinitionSet& defs )
 }
 
 //_____________________________________________________________________________
+Int_t THaOutput::MakeAxis( const string& axis_name, const string& axis_expr,
+			   HistogramAxis& axis )
+{
+  // Initialize the histogram axis/cut handler 'axis' from the
+  // expression'axis_expr'
+
+  //TODO: original code behavior:
+  // - case insensitive formula/cut name comparison! (make case-insensitivity configurable?)
+  // - only search formulas for x/y-axes, only search cuts for cut "axis"
+
+  if( axis_expr.empty() )
+    return 0;
+  Int_t ret;
+  BranchMap_t::iterator it = fBranches.find( axis_expr );
+  if( it != fBranches.end() ) {
+    // If axis_expr matches a defined variable, cut or formula exactly, use it
+    ret = it->second->LinkTo( axis );
+  } else {
+    // Otherwise, create a new formula (or possibly an "eye")
+    ret = axis.Init( axis_name, axis_expr );
+  }
+  return ret;
+}
+
+//_____________________________________________________________________________
 Int_t THaOutput::InitHistos( const DefinitionSet& defs )
 {
-  //    const char* const here = "THaOutput::InitHistos";
+  // Initialize histograms
+  const char* const here = "THaOutput::InitHistos";
 
-#if 0
-	  fHistos.push_back( new THaVhist(strvect[0],sname,hpar.stitle));
-	  // Tentatively assign variables and cuts as strings.
-	  // They will be parsed when initializing the THaVhists
-	  fHistos.back()->SetX(hpar.nx, hpar.xlo, hpar.xhi, hpar.sfvarx);
-	  if (ikey == kH2f || ikey == kH2d) {
-	    fHistos.back()->SetY(hpar.ny, hpar.ylo, hpar.yhi, hpar.sfvary);
-	  }
-	  if( hpar.iscut )
-	    fHistos.back()->SetCut(hpar.scut);
+  for( vector<HistogramParameters>::const_iterator it = defs.histdef.begin();
+       it != defs.histdef.end(); ++it ) {
 
-  // Ensure that the variables referenced in the histograms and cuts exist in the tree
-  for( Iter_h_t ihist = fHistos.begin(); ihist != fHistos.end(); ++ihist ) {
-    THaVhist* h = *ihist;
-    // After initializing formulas and cuts, must sort through
-    // histograms and potentially reassign variables.
-    // A histogram variable or cut is either a string (which can
-    // encode a formula) or an externally defined THaVform.
-    string var = h->GetVarX();
-    FormulaMap_t::const_iterator it = fFormulas.find(var);
-    if( it != fFormulas.end() )
-      h->SetX( it->second.GetFormula() );
-    var = h->GetVarY();
-    if( !var.empty() && (it = fFormulas.find(var)) != fFormulas.end() )
-      h->SetY( it->second.GetFormula() );
-    if( h->HasCut() ) {
-      var = h->GetCutStr();
-      it = fCuts.find(var);
-      if( it != fCuts.end() )
-	h->SetCut( it->second.GetFormula() );
-    }
-    h->Init();
-  }
+    const HistogramParameters& hpar = *it;
+    if( hpar.sfvarx.empty() )
+      continue;
+
+    Histogram* h;
+    HistogramAxis xax, yax, cut;
+    MakeAxis( hpar.sname+"X",   hpar.sfvarx, xax );
+    MakeAxis( hpar.sname+"Cut", hpar.scut,   cut );
+    //TODO: check for errors, skip on error
+
+    bool dbl = false;
+    bool scalar = hpar.isscalar;
+    Int_t nhist = 0;
+    switch( hpar.ikey ) {
+      // 1D histograms
+      // Creation rules:
+      //  S = scalar, A = fixed array, V = variable array, I = [I] (Iteration$)
+      // The cut cannot be I. It makes no sense.
+      // "new": not supported in original code
+      //
+      //  xax  cut  -> histo   notes
+      //   S    -        S
+      //   S    S        S
+      //   S    A        S     different, all cut[i] (Bob: size=1 vector histogram?)
+      //   S    V        S     different, all cut[i] (Bob: cut[0] (may not exist))
+      //   A    -        S     all x[i]  (A for consistency with 2D?)
+      //   A    S        S     all x[i]  (A for consistency with 2D?)
+      //   A    A        A     require sizex == sizec
+      //   A    V        S     new, normal ROOT behavior: index runs up to min(sizex,sizec)
+      //   V    -        S
+      //   V    S        S
+      //   V    A        S    /new, normal ROOT behavior: index runs up to min(sizex,sizec)
+      //   V    V        S    \(Bob: ill-defined, sizex==sizec and sizex!=sizec different)
+      //   I    -    disallowed
+      //   I    S        S     new, distribution of cut[0] (for consistency)
+      //   I    A        S     new, distribution of cut(index)
+      //   I    V        S     new, distribution of cut(index)
+    case kH1d:
+      dbl = true;
+      // fall through to next case
+    case kH1f:
+      // Test for disallowed combinations
+      if( xax.IsFixedArray() && cut.IsFixedArray() ) {
+	if( xax.GetSize() != cut.GetSize() ) {
+	  Error( here, "Histogram %s: Inconsistent cut size", hpar.sname.c_str() );
+	  continue;
+	}
+	// this is the only point where we get a 1D vector histogram,
+	// provided we started out with hpar.isscaler = false (set in LoadFile)
+	nhist = xax.GetSize();
+      } else if( cut.IsEye() || (xax.IsEye() && !cut.IsInit()) ) {
+	Error( here, "Histogram %s: Illegal [I] expression", hpar.sname.c_str() );
+	continue;
+      } else {
+	scalar = true;
+      }
+
+      if( scalar || nhist == 1 ) {
+	h = new Histogram1D( hpar.sname, hpar.stitle,
+			     hpar.nx, hpar.xlo, hpar.xhi, dbl );
+      } else {
+	assert( xax.IsFixedArray() );
+	assert( nhist > 0 );
+	h = new MultiHistogram1D( hpar.sname, hpar.stitle, nhist,
+				  hpar.nx, hpar.xlo, hpar.xhi, dbl );
+#ifndef NDEBUG
+	h->RequireEqualArrays(true);
 #endif
+      }
+      break;
+
+      // 2D histograms
+      // Creation rules: (assuming x/y symmetry)
+      //
+      //  xax  yax cut  -> histo   notes
+      //   S    S   -        S
+      //   S    S   S        S
+      //   S    S   A        S     all cut[i] (Bob: size=1 vector histogram)
+      //   S    S   V        S     all cut[i] (Bob: undefined if sizec==0?)
+      //   S    A   -        S     all y[i]   (Bob: only y[0] BUG?)
+      //   S    A   S        S     all y[i]   (Bob: only y[0] BUG?)
+      //   S    A   A        A     require sizey == sizec
+      //   S    A   V        S     y[i], cut[i] parallel
+      //   S    V   -        S     all y[i]
+      //   S    V   S        S     "
+      //   S    V   A        S     y[i], cut[i] parallel
+      //   S    V   V        S     "
+      //   A    A   -        A     require sizex == sizey
+      //   A    A   S        A     "
+      //   A    A   A        A     require sizex == sizey == sizec
+      //   A    A   V        S     vector histogram would be ill-defined
+      //   A    V   -        S
+      //   A    V   S        S
+      //   A    V   A        S     vector histogram would be ill-defined
+      //   A    V   V        S
+      //   V    V   -        S
+      //   V    V   S        S
+      //   V    V   A        S     (Bob: ill-defined vector?)
+      //   V    V   V        S
+      //   I    S   -        S
+      //   I    S   S        S
+      //   I    S   A        S
+      //   I    S   V        S
+      //   I    A   -        S
+      //   I    A   S        S
+      //   I    A   A        A    require sizey == sizec
+      //   I    A   V        S    vector histogram would be ill-defined
+      //   I    V   -        S
+      //   I    V   S        S
+      //   I    V   A        S    (Bob: ill-defined vector?)
+      //   I    V   V        S
+      //   I    I   -   disallowed
+      //   I    I   S        S
+      //   I    I   A        S    (Bob: ill-defined vector?)
+      //   I    I   V        S
+    case kH2d:
+      dbl = true;
+      // fall through to next case
+    case kH2f:
+      MakeAxis( hpar.sname+"Y", hpar.sfvary, yax );
+      //TODO: handle MakeAxis errors
+
+      // Test for disallowed combinations
+      if( cut.IsEye() || (xax.IsEye() && yax.IsEye() && !cut.IsInit()) ) {
+	Error( here, "Histogram %s: Illegal [I] expression(s)",
+	       hpar.sname.c_str() );
+	continue;
+      }
+      // Create a multi-histogram if two or more axes are fixed arrays,
+      // unless the user has explicitly asked for a single (scalar) one
+      // or one of the axes has variable size.
+      // All fixed arrays must have the same size.
+      if( !scalar ) {
+	if( xax.IsVarArray() || yax.IsVarArray() || cut.IsVarArray() ) {
+	  scalar = true;
+	} else {
+	  HistogramAxis* axes[] = { &xax, &yax, &cut };
+	  HistogramAxis* prev_fixed = 0;
+	  Int_t nfixed = 0;
+	  for( Int_t i = 0; i < 3; ++i ) {
+	    HistogramAxis* theAxis = axes[i];
+	    if( theAxis->IsFixedArray() ) {
+	      if( prev_fixed && prev_fixed->GetSize() != theAxis->GetSize() ) {
+		Error( here, "Histogram %s: Inconsistent expression sizes "
+		       "%s (%d) vs. %s (%d)", hpar.sname.c_str(),
+		       prev_fixed->GetName(), prev_fixed->GetSize(),
+		       theAxis->GetName(), theAxis->GetSize() );
+		continue;
+	      }
+	      nhist = theAxis->GetSize();
+	      prev_fixed = theAxis;
+	      ++nfixed;
+	    }
+	  }
+	  if( nfixed < 2 )
+	    scalar = true;
+	}
+      }
+
+      if( scalar || nhist == 1 ) {
+	h = new Histogram2D( hpar.sname, hpar.stitle,
+			     hpar.nx, hpar.xlo, hpar.xhi,
+			     hpar.ny, hpar.ylo, hpar.yhi, dbl );
+      } else {
+	assert( nhist > 0 );
+	h = new MultiHistogram2D( hpar.sname, hpar.stitle, nhist,
+				  hpar.nx, hpar.xlo, hpar.xhi,
+				  hpar.ny, hpar.ylo, hpar.yhi, dbl );
+#ifndef NDEBUG
+	h->RequireEqualArrays(true);
+#endif
+      }
+
+      assert( dynamic_cast<HistogramBase2D*>(h) );
+      static_cast<HistogramBase2D*>(h)->SetY( STDMOVE(yax) );
+
+      break;
+    default:
+      assert(false);  // otherwise hpar not filled correctly
+      break;
+    }
+
+    h->SetX( STDMOVE(xax) );
+    h->SetCut( STDMOVE(cut) );
+
+    fHistos.push_back(h);
+  }
   return 0;
 }
 
@@ -539,11 +737,11 @@ Int_t THaOutput::Attach()
   for (Iter_f_t icut=fCuts.begin(); icut!=fCuts.end(); ++icut) {
     (*icut)->ReAttach();
   }
+#endif
 
   for (Iter_h_t ihist = fHistos.begin(); ihist != fHistos.end(); ++ihist) {
     (*ihist)->ReAttach();
   }
-#endif
 
   return 0;
 
@@ -624,12 +822,10 @@ Int_t THaOutput::Process()
   //   }
   // }
 
-#if 0
   if( fgDoBench ) fgBench.Begin("Histos");
   for ( Iter_h_t it = fHistos.begin(); it != fHistos.end(); ++it )
-    (*it)->Process();
+    (*it)->Fill();
   if( fgDoBench ) fgBench.Stop("Histos");
-#endif
 
   if( fgDoBench ) fgBench.Begin("TreeFill");
   if (fTree != 0) fTree->Fill();
@@ -645,10 +841,8 @@ Int_t THaOutput::End()
 
   if (fTree != 0) fTree->Write();
   if (fEpicsTree != 0) fEpicsTree->Write();
-#if 0
   for (Iter_h_t ihist = fHistos.begin(); ihist != fHistos.end(); ++ihist)
     (*ihist)->End();
-#endif
   if( fgDoBench ) fgBench.Stop("End");
 
   if( fgDoBench ) {
@@ -822,11 +1016,7 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
       switch (ikey) {
       case kVar:
 	AddBranchName(sname);
-#if __cplusplus >= 201103L
-	defs.varnames.push_back(std::move(sname));
-#else
-	defs.varnames.push_back(sname);
-#endif
+	defs.varnames.push_back(STDMOVE(sname));
 	break;
       case kForm:
 	if (strvect.size() < 3) {
@@ -834,13 +1024,8 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
 	  continue;
 	}
 	AddBranchName(sname);
-#if __cplusplus >= 201103L
-	defs.formnames.push_back(std::move(sname));
-	defs.formdef.push_back(std::move(strvect[2]));
-#else
-	defs.formnames.push_back(sname);
-	defs.formdef.push_back(strvect[2]);
-#endif
+	defs.formnames.push_back(STDMOVE(sname));
+	defs.formdef.push_back(STDMOVE(strvect[2]));
 	break;
       case kCut:
 	if (strvect.size() < 3) {
@@ -848,13 +1033,8 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
 	  continue;
 	}
 	AddBranchName(sname);
-#if __cplusplus >= 201103L
-	defs.cutnames.push_back(std::move(sname));
-	defs.cutdef.push_back(std::move(strvect[2]));
-#else
-	defs.cutnames.push_back(sname);
-	defs.cutdef.push_back(strvect[2]);
-#endif
+	defs.cutnames.push_back(STDMOVE(sname));
+	defs.cutdef.push_back(STDMOVE(strvect[2]));
 	break;
       case kH1f:
       case kH1d:
@@ -866,11 +1046,7 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
 	    ErrFile(ikey, str);
 	    continue;
 	  }
-#if __cplusplus >= 201103L
-	  defs.histdef.push_back(std::move(hpar));
-#else
-	  defs.histdef.push_back(hpar);
-#endif
+	  defs.histdef.push_back(STDMOVE(hpar));
 	}
 	break;
       case kBlock:
@@ -1090,7 +1266,6 @@ void THaOutput::Print() const
   // set with SetDebug().
 
   typedef BranchMap_t::const_iterator Iter_t;
-  //  typedef vector<THaVhist*>::const_iterator Iterc_h_t;
 
   if( fDebug > 0 ) {
     if( fBranches.empty() ) {
@@ -1148,7 +1323,6 @@ void THaOutput::Print() const
 	}
       }
     }
-#if 0
     if( !fHistos.empty() ) {
       cout << "=== Number of histograms "<<fHistos.size()<<endl;
       if( fDebug > 1 ) {
@@ -1160,7 +1334,6 @@ void THaOutput::Print() const
 	}
       }
     }
-#endif
     cout << endl;
   }
 }
@@ -1266,11 +1439,7 @@ Int_t THaOutput::BuildBlock(const string& blockn, DefinitionSet& defs)
     if ( s.Index(re) != kNPOS ) {
       string vn(s.Data());
       AddBranchName(vn);
-#if __cplusplus >= 201103L
-      defs.varnames.push_back(std::move(vn));
-#else
-      defs.varnames.push_back(vn);
-#endif
+      defs.varnames.push_back(STDMOVE(vn));
       nvars++;
     }
   }

@@ -157,6 +157,7 @@ SRC          := src/THaFormula.C src/THaVform.C src/THaVhist.C \
 		src/THaHRS.C \
                 src/THaDecData.C src/BdataLoc.C src/THaString.C \
 		src/DataBuffer.C src/BranchHandlers.C src/THaOutput.C \
+		src/Histogram.C src/HistogramAxis.C \
 		src/THaTrackingDetector.C src/THaNonTrackingDetector.C \
 		src/THaPidDetector.C src/THaSubDetector.C \
 		src/THaAnalysisObject.C src/THaDetectorBase.C src/THaRTTI.C \

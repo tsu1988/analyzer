@@ -17,6 +17,7 @@
 class TTree;
 class TBranch;
 class THaVar;
+class THaVarList;
 class THaFormula;
 
 namespace Podd {
@@ -26,6 +27,7 @@ namespace Podd {
 namespace Output {
 
   class BranchHandler;
+  class HistogramAxis;
   typedef std::map<std::string,BranchHandler*> BranchMap_t;
   typedef const std::string css_t;
 
@@ -47,9 +49,11 @@ namespace Output {
     virtual ~BranchHandler();
     virtual Int_t AddBranch( css_t& branchname,
 			     BranchMap_t& branches, TTree* fTree ) = 0;
+    virtual void  Attach() {}
     virtual Int_t Fill() = 0;
     EId           GetType()   const { return fType; }
     TBranch*      GetBranch() const { return fBranch; }
+    virtual Int_t LinkTo( HistogramAxis& ax ) = 0;
   protected:
     EId      fType;
     TBranch* fBranch;
@@ -60,26 +64,32 @@ namespace Output {
   class VariableHandler : public BranchHandler {
     // Support class for THaVar variables
   public:
-    explicit VariableHandler( const THaVar* pvar=0, EId type = kVar )
-      : BranchHandler(type), fVar(pvar) {}
+    VariableHandler( const THaVar* pvar, const THaVarList* plst,
+		     EId type = kVar );
     virtual Int_t AddBranch( css_t& branchname,
 			     BranchMap_t& branches, TTree* fTree );
+    virtual void  Attach();
     virtual Int_t Fill();
     const THaVar* GetVariable() const { return fVar; }
+    virtual Int_t LinkTo( HistogramAxis& ax );
   protected:
-    const THaVar* fVar;
+    const THaVar*      fVar;
+    const THaVarList*  fVarList;
+    std::string        fName;
   };
 
   //_____________________________________________________________________________
   class FormulaHandler : public BranchHandler {
     // Support class for formulas/cuts
   public:
-    explicit FormulaHandler( THaFormula* pform=0, EId type = kForm )
+    FormulaHandler( THaFormula* pform, EId type = kForm )
       : BranchHandler(type), fFormula(pform), fNdata(0) {}
     virtual Int_t AddBranch( css_t& branchname,
 			     BranchMap_t& branches, TTree* fTree );
+    virtual void  Attach();
     virtual Int_t Fill();
     THaFormula*   GetFormula() const { return fFormula; }
+    virtual Int_t LinkTo( HistogramAxis& ax );
   protected:
     THaFormula*   fFormula;
     //    union {
@@ -121,7 +131,6 @@ namespace Output {
 
   //___________________________________________________________________________
   class FormulaHandlerFactory : public BranchHandlerFactory {
-    // Base class for creating output branch handlers (avoids code duplication)
   public:
     FormulaHandlerFactory( const char* here, BranchMap_t& branches, TTree* tree )
       : BranchHandlerFactory(here,branches,tree) {}
@@ -132,7 +141,6 @@ namespace Output {
 
   //___________________________________________________________________________
   class CutHandlerFactory : public FormulaHandlerFactory {
-    // Base class for creating output branch handlers (avoids code duplication)
   public:
     CutHandlerFactory( const char* here, BranchMap_t& branches, TTree* tree )
       : FormulaHandlerFactory(here,branches,tree) {}

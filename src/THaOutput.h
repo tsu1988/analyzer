@@ -15,18 +15,28 @@ class THaVar;
 class TH1F;
 class TH2F;
 class TBranch;
-class THaVhist;
 class THaEvData;
 class TTree;
 //class THaEvtTypeHandler;
 class THaEpicsKey;
 class THaEpicsEvtHandler;
 
+namespace Output {
+  class Histogram;
+  class HistogramAxis;
+}
+
 class THaOutput {
 
 public:
 
   THaOutput();
+#if __cplusplus >= 201103L
+  THaOutput(const THaOutput&) = delete;
+  THaOutput& operator=(const THaOutput& ) = delete;
+  THaOutput(THaOutput&&) = delete;
+  THaOutput& operator=(THaOutput&&) = delete;
+#endif
   virtual ~THaOutput();
 
   virtual Int_t Init( const char* filename="output.def" );
@@ -43,12 +53,12 @@ public:
 protected:
 
 #ifndef __CINT__
-  //FIXME: to be able to inherit full from this class, we need to have the
+  //FIXME: to be able to inherit from this class, we need to have the
   // structure/class defintions here, not in the implementation
   struct HistogramParameters;
   struct DefinitionSet;
   // enum EId { kInvalidEId = 0, kVar, kForm, kCut, kH1f, kH1d, kH2f, kH2d,
-  // 	     kBlock, kBegin, kEnd };
+  //	     kBlock, kBegin, kEnd };
 
   virtual Int_t LoadFile( const char* filename, DefinitionSet& defs );
   virtual Int_t Attach();
@@ -67,13 +77,15 @@ protected:
   virtual Int_t InitHistos( const DefinitionSet& defs );
   virtual Int_t InitEpics( const DefinitionSet& defs );
   virtual Int_t AddBranchName( const std::string& sname );
+  virtual Int_t MakeAxis( const std::string& axis_name, const std::string& axis_expr,
+			  Output::HistogramAxis& axis );
 
   // Variables, Formulas, Cuts, Histograms
   Int_t fNvar, fNform, fNcut;
   Double_t *fEpicsVar;
   Output::BranchMap_t       fBranches;
   std::vector<std::string>  fBranchNames;
-  std::vector<THaVhist*>    fHistos;
+  std::vector<Output::Histogram*>   fHistos;
   std::vector<THaEpicsKey*> fEpicsKey;
   //  std::vector<std::string> fArrayNames;
   //  std::vector<std::string> fVNames;
@@ -91,8 +103,10 @@ private:
 #endif  // ifndef __CINT__
 
 private:
+#if __cplusplus < 201103L
   THaOutput(const THaOutput&);
   THaOutput& operator=(const THaOutput& );
+#endif
 
   ClassDef(THaOutput,0)
 };

@@ -11,6 +11,7 @@
 
 #include "BranchHandlers.h"
 #include "DataBuffer.h"
+#include "HistogramAxis.h"
 #include "TTree.h"
 #include "TError.h"
 #include "THaGlobals.h"
@@ -161,6 +162,15 @@ BranchHandler::~BranchHandler()
 }
 
 //_____________________________________________________________________________
+VariableHandler::VariableHandler( const THaVar* pvar, const THaVarList* plst,
+				  EId type )
+  : BranchHandler(type), fVar(pvar), fVarList(plst)
+{
+  assert(pvar && plst);
+  fName = pvar->GetName();
+}
+
+//_____________________________________________________________________________
 Int_t VariableHandler::AddBranch( css_t& branchname,
 				  BranchMap_t& branches, TTree* tree )
 {
@@ -239,7 +249,7 @@ Int_t VariableHandler::AddBranch( css_t& branchname,
 	  countbranch = pvar->GetName();
 	  BranchMap_t::iterator it = branches.find( countbranch );
 	  if( it == branches.end() ) {
-	    BranchHandler* vinfo = new VariableHandler(pvar);
+	    BranchHandler* vinfo = new VariableHandler(pvar,gHaVars);
 	    Int_t ret = vinfo->AddBranch( countbranch, branches, tree );
 	    if( ret ) {
 	      delete vinfo;
@@ -255,7 +265,7 @@ Int_t VariableHandler::AddBranch( css_t& branchname,
 		 << " exists but is not a variable." << endl
 		 << "Check for conflicting definitions." << endl;
 	    return 1;
-	  } 
+	  }
 	  break;
 	}
       }
@@ -337,6 +347,14 @@ Int_t VariableHandler::AddBranch( css_t& branchname,
 }
 
 //_____________________________________________________________________________
+void VariableHandler::Attach()
+{
+  fVar = fVarList->Find(fName.c_str());
+  //TODO: throw exception if variable not found?
+  assert( fVar );
+}
+
+//_____________________________________________________________________________
 Int_t VariableHandler::Fill()
 {
   // For non-contiguous data, fill the local buffer. Update branch address for
@@ -385,6 +403,12 @@ Int_t VariableHandler::Fill()
     fBranch->SetAddress(ptr);
 
   return 0;
+}
+
+//_____________________________________________________________________________
+Int_t VariableHandler::LinkTo( HistogramAxis& axis )
+{
+  return axis.Init( fVar, fVarList );
 }
 
 //_____________________________________________________________________________
@@ -437,6 +461,12 @@ Int_t FormulaHandler::AddBranch( css_t& branchname,
   fBranch = tree->Branch( branchname.c_str(), const_cast<void*>(leafp), leafdef.c_str() );
 
   return 0;
+}
+
+//_____________________________________________________________________________
+void FormulaHandler::Attach()
+{
+  fFormula->Compile();
 }
 
 //_____________________________________________________________________________
@@ -513,6 +543,12 @@ Int_t BranchHandlerFactory::AddBranch( css_t& branchname,
 }
 
 //_____________________________________________________________________________
+Int_t FormulaHandler::LinkTo( HistogramAxis& axis )
+{
+  return axis.Init( fFormula );
+}
+
+//_____________________________________________________________________________
 Output::BranchHandler*
 VariableHandlerFactory::Create( css_t& branchname,
 				css_t& /* definition */ )
@@ -527,7 +563,7 @@ VariableHandlerFactory::Create( css_t& branchname,
     ::Warning( fHere, "%s", ostr.str().c_str() );
     return 0;
   }
-  BranchHandler* h = new VariableHandler(pvar,kVar);
+  BranchHandler* h = new VariableHandler(pvar,gHaVars,kVar);
   return h;
 }
 
