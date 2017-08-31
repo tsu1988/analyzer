@@ -42,7 +42,6 @@ namespace Output {
     Int_t       GetSize()      const;
     Bool_t      IsArray()      const;
     Bool_t      IsEye()        const;
-    Bool_t      IsIndex()      const;
     Bool_t      IsInit()       const { return (fImpl != 0); }
     Bool_t      IsFixedArray() const { return (IsArray() && !IsVarArray()); }
     Bool_t      IsScalar()     const;

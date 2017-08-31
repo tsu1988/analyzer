@@ -342,7 +342,7 @@ Bool_t HistogramAxis::IsVarArray() const
 }
 
 //___________________________________________________________________________
-Bool_t HistogramAxis::IsIndex() const
+Bool_t HistogramAxis::IsEye() const
 {
   return fImpl ? (fImpl->GetSize() == -1) : false;
 }

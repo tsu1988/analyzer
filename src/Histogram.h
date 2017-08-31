@@ -12,6 +12,7 @@
 #include "HistogramAxis.h"
 #include <vector>
 #include <string>
+#include <cassert>
 
 class TH1;
 class TH2;
@@ -154,7 +155,7 @@ private:
 
   private:
     // Disallow calling this overload for 2D histos
-    virtual Int_t FillImpl( Int_t i, Double_t x ) { return Histogram::FillImpl(i,x); }
+    virtual Int_t FillImpl( Int_t, Double_t ) { assert(false); return 0; }
 
     //    ClassDef(Output::HistogramBase,0)
 
