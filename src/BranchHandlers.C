@@ -612,7 +612,10 @@ bool VariableHandlerFactory::IsEqual( css_t& branchname, css_t& definition,
     assert( dynamic_cast<const VariableHandler*>(existing_handler) != 0 );
     const THaVar* pvar =
       static_cast<const VariableHandler*>(existing_handler)->GetVariable();
-    if( branchname == pvar->GetName() )
+    // Use the actual string comparison function from the map
+    //    if( branchname == pvar->GetName() )
+    BranchMap_t::key_compare comp;
+    if( !(comp(branchname,pvar->GetName()) || comp(pvar->GetName(),branchname)) )
       return true;
   }
   return false;
@@ -626,7 +629,14 @@ bool FormulaHandlerFactory::IsEqual( css_t& branchname, css_t& definition,
     assert( dynamic_cast<const FormulaHandler*>(existing_handler) != 0 );
     const THaFormula* pform =
       static_cast<const FormulaHandler*>(existing_handler)->GetFormula();
-    if( branchname == pform->GetName() && definition == pform->GetTitle() )
+    // Use the actual string comparison function from the map
+      //    if( branchname == pform->GetName() && definition == pform->GetTitle() )
+    BranchMap_t::key_compare comp;
+    if( !(comp(branchname,pform->GetName()) || comp(pform->GetName(),branchname)) &&
+	// If "comp" is a case-insensitive comparison, then comparing the formula
+	// definition in that way is a bit too broad. There could be global variables
+	// (though not formulas/cuts) in the definition which are distinct only by case.
+	!(comp(definition,pform->GetTitle()) || comp(pform->GetTitle(),definition)) )
       return true;
   }
   return false;

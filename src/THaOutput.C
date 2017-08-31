@@ -315,7 +315,6 @@ Int_t THaOutput::MakeAxis( const string& axis_name, const string& axis_expr,
   // expression'axis_expr'
 
   //TODO: original code behavior:
-  // - case insensitive formula/cut name comparison! (make case-insensitivity configurable?)
   // - only search formulas for x/y-axes, only search cuts for cut "axis"
 
   if( axis_expr.empty() )
@@ -915,13 +914,25 @@ inline static Int_t CheckIncludeFilePath( string& incfile )
 }
 
 //_____________________________________________________________________________
+class NameEquals {
+public:
+  NameEquals( const string& string_to_find ) : fToFind(string_to_find) {}
+  bool operator()( const string& s ) {
+    BranchMap_t::key_compare comp;
+    return !(comp(s,fToFind) || comp(fToFind,s));
+  }
+private:
+  const string& fToFind;
+};
+
+//_____________________________________________________________________________
 Int_t THaOutput::AddBranchName( const string& sname )
 {
   // Add name of branch definition (variable, formula, cut) to the list of
   // branches that preserves the order in which things are defined. If a name
   // already exists, it is not added again.
 
-  if( find(ALL(fBranchNames), sname) != fBranchNames.end() )
+  if( find_if(ALL(fBranchNames), NameEquals(sname)) != fBranchNames.end() )
     return 1;
   fBranchNames.push_back(sname);
   return 0;

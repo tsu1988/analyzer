@@ -11,8 +11,8 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "Rtypes.h"
+#include "THaString.h"
 #include <map>
-#include <string>
 
 class TTree;
 class TBranch;
@@ -28,7 +28,9 @@ namespace Output {
 
   class BranchHandler;
   class HistogramAxis;
-  typedef std::map<std::string,BranchHandler*> BranchMap_t;
+  // The original code treats branch names as case-insensitive. Just remove
+  // THaString::NoCaseCompare below to change that to case-sensitive
+  typedef std::map<std::string,BranchHandler*,THaString::NoCaseCompare> BranchMap_t;
   typedef const std::string css_t;
 
   enum EId { kInvalidEId = 0, kVar, kForm, kCut, kH1F, kH1D, kH2F, kH2D,
