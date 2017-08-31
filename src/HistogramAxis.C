@@ -209,14 +209,11 @@ HistogramAxis::HistogramAxis( THaFormula* pform )
 }
 
 //___________________________________________________________________________
-HistogramAxis::HistogramAxis( const string& name, const string& expr )
+HistogramAxis::HistogramAxis( const string& name, const string& expr,
+			      bool cut )
   : fImpl(0)
 {
-  Int_t offset;
-  if( IsEye(expr,offset) )
-    fImpl = new EyeAxis( offset );
-  else
-    fImpl = new InternalFormulaAxis( name, expr );
+  HistogramAxis::Init(name,expr,cut);
 }
 
 //___________________________________________________________________________
@@ -284,15 +281,16 @@ Int_t HistogramAxis::Init( THaFormula* pform )
 }
 
 //___________________________________________________________________________
-Int_t HistogramAxis::Init( const string& name, const string& expr )
+Int_t HistogramAxis::Init( const string& name, const string& expr,
+			   bool /* cut */ )
 {
-
   delete fImpl;
 
   Int_t offset;
   if( IsEye(expr,offset) )
     fImpl = new EyeAxis( offset );
   else
+    //TODO: use "cut" flag to make a cut axis
     fImpl = new InternalFormulaAxis( name, expr );
   return 0;
 }

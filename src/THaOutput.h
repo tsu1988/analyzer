@@ -78,7 +78,7 @@ protected:
   virtual Int_t InitEpics( const DefinitionSet& defs );
   virtual Int_t AddBranchName( const std::string& sname );
   virtual Int_t MakeAxis( const std::string& axis_name, const std::string& axis_expr,
-			  Output::HistogramAxis& axis );
+			  Output::HistogramAxis& axis, Bool_t is_cut = false );
 
   // Variables, Formulas, Cuts, Histograms
   Int_t fNvar, fNform, fNcut;

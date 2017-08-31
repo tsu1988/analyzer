@@ -309,24 +309,23 @@ Int_t THaOutput::InitCuts( const DefinitionSet& defs )
 
 //_____________________________________________________________________________
 Int_t THaOutput::MakeAxis( const string& axis_name, const string& axis_expr,
-			   HistogramAxis& axis )
+			   HistogramAxis& axis, Bool_t is_cut )
 {
   // Initialize the histogram axis/cut handler 'axis' from the
   // expression'axis_expr'
-
-  //TODO: original code behavior:
-  // - only search formulas for x/y-axes, only search cuts for cut "axis"
 
   if( axis_expr.empty() )
     return 0;
   Int_t ret;
   BranchMap_t::iterator it = fBranches.find( axis_expr );
-  if( it != fBranches.end() ) {
+  if( it != fBranches.end() &&
+      ( (is_cut  && it->second->GetType() == kCut) ||
+	(!is_cut && it->second->GetType() != kCut) ) ) {
     // If axis_expr matches a defined variable, cut or formula exactly, use it
     ret = it->second->LinkTo( axis );
   } else {
     // Otherwise, create a new formula (or possibly an "eye")
-    ret = axis.Init( axis_name, axis_expr );
+    ret = axis.Init( axis_name, axis_expr, is_cut );
   }
   return ret;
 }
@@ -347,7 +346,7 @@ Int_t THaOutput::InitHistos( const DefinitionSet& defs )
     Histogram* h;
     HistogramAxis xax, yax, cut;
     MakeAxis( hpar.sname+"X",   hpar.sfvarx, xax );
-    MakeAxis( hpar.sname+"Cut", hpar.scut,   cut );
+    MakeAxis( hpar.sname+"Cut", hpar.scut,   cut, true );
     //TODO: check for errors, skip on error
 
     EId key = hpar.ikey;

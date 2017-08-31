@@ -23,7 +23,8 @@ namespace Output {
   public:
     HistogramAxis();
     explicit HistogramAxis( THaFormula* form );
-    HistogramAxis( const std::string& name, const std::string& expr );
+    HistogramAxis( const std::string& name, const std::string& expr,
+		   bool cut = false );
     HistogramAxis( const THaVar* var, const THaVarList* lst );
     HistogramAxis( const HistogramAxis& other );
     HistogramAxis& operator=( const HistogramAxis& rhs );
@@ -34,7 +35,8 @@ namespace Output {
     ~HistogramAxis();
 
     Int_t  Init( THaFormula* form );
-    Int_t  Init( const std::string& name, const std::string& expr );
+    Int_t  Init( const std::string& name, const std::string& expr,
+		 bool cut = false );
     Int_t  Init( const THaVar* var, const THaVarList* lst );
 
     Double_t    GetData( Int_t index ) const;
