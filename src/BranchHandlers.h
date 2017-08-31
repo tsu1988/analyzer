@@ -31,8 +31,8 @@ namespace Output {
   typedef std::map<std::string,BranchHandler*> BranchMap_t;
   typedef const std::string css_t;
 
-  enum EId { kInvalidEId = 0, kVar, kForm, kCut, kH1f, kH1d, kH2f, kH2d,
-	     kBlock, kBegin, kEnd };
+  enum EId { kInvalidEId = 0, kVar, kForm, kCut, kH1F, kH1D, kH2F, kH2D,
+	     kvH1F, kvH1D, kvH2F, kvH2D, kBlock, kBegin, kEnd };
 
   //___________________________________________________________________________
   class BranchHandler {

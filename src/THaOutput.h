@@ -64,7 +64,7 @@ protected:
   virtual Int_t Attach();
   virtual Output::EId GetKeyID(const std::string& key) const;
   virtual void  ErrFile(Int_t iden, const std::string& sline) const;
-  virtual Int_t ParseHistogramDef( const std::string& sline,
+  virtual Int_t ParseHistogramDef( Output::EId key, const std::string& sline,
 				   HistogramParameters& param );
   virtual Int_t BuildBlock(const std::string& blockn, DefinitionSet& defs);
   virtual std::string StripBracket(const std::string& var) const;

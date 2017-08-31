@@ -85,7 +85,6 @@ static const string whitespace(" \t");
 // - add entry numbers of Epics and scaler trees (do we still have those?)
 //   to event header
 // - support multiple THaOutputs in THaAnalyzer
-// - CHECK: can we use variables defined here in formulas defined here?
 // - CHECK: can we use formulas/cuts defined here in other formulas/cuts defined here?
 
 //_____________________________________________________________________________
@@ -105,15 +104,14 @@ public:
    string::size_type pos;
    string sdata,temp1,temp2;
    sdata = findQuotes(input);
-   pos = sdata.find("=");
+   pos = sdata.find('=');
    if (pos != string::npos) {
-      temp1.assign(sdata.substr(0,pos));
-      temp2.assign(sdata.substr(pos+1,sdata.length()));
+      temp1 = sdata.substr(0,pos);
+      temp2 = sdata.substr(pos+1,sdata.length());
 // In case someone used "==" instead of "="
-      if (temp2.find("=") != string::npos)
-	    temp2.assign
-	      (sdata.substr(pos+2,sdata.length()));
-      if (strlen(temp2.c_str()) > 0) {
+      if (temp2.find('=') != string::npos)
+	temp2 = sdata.substr(pos+2,sdata.length());
+      if (!temp2.empty()) {
 	double tdat = atof(temp2.c_str());
 	fAssign.insert(valType(temp1,tdat));
       } else {  // In case of "epicsvar="
@@ -125,12 +123,12 @@ public:
     string result,temp1;
     string::size_type pos1,pos2;
     result = input;
-    pos1 = input.find("'");
+    pos1 = input.find('\'');
     if (pos1 != string::npos) {
-     temp1.assign(input.substr(pos1+1,input.length()));
-     pos2 = temp1.find("'");
+     temp1 = input.substr(pos1+1,input.length());
+     pos2 = temp1.find('\'');
      if (pos2 != string::npos) {
-      result.assign(temp1.substr(0,pos2));
+      result = temp1.substr(0,pos2);
       result += temp1.substr(pos2+1,temp1.length());
      }
     }
@@ -227,16 +225,14 @@ THaOutput::~THaOutput()
 //_____________________________________________________________________________
 struct THaOutput::HistogramParameters {
   HistogramParameters() : ikey(kInvalidEId), xlo(0), xhi(0), ylo(0), yhi(0),
-			  nx(0), ny(0), iscut(false), isscalar(true) {}
+			  nx(0), ny(0) {}
   EId ikey;
   string sname, stitle, sfvarx, sfvary, scut;
   Double_t xlo,xhi,ylo,yhi;
   Int_t nx,ny;
-  bool iscut, isscalar;
   void clear() {
     ikey = kInvalidEId;
     sname.clear(); stitle.clear(); sfvarx.clear(); sfvary.clear(); scut.clear();
-    iscut = false; isscalar = true;
     nx = ny = xlo = xhi = ylo = yhi = 0;
   }
 };
@@ -355,10 +351,11 @@ Int_t THaOutput::InitHistos( const DefinitionSet& defs )
     MakeAxis( hpar.sname+"Cut", hpar.scut,   cut );
     //TODO: check for errors, skip on error
 
-    bool dbl = false;
-    bool scalar = hpar.isscalar;
+    EId key = hpar.ikey;
+    bool dbl = ( key == kH1D || key == kH2D || key == kvH1D || key == kvH2D );
+    bool scalar = ( key == kH1F || key == kH1D || key == kH2F || key == kH2D );
     Int_t nhist = 0;
-    switch( hpar.ikey ) {
+    switch( key ) {
       // 1D histograms
       // Creation rules:
       //  S = scalar, A = fixed array, V = variable array, I = [I] (Iteration$)
@@ -382,38 +379,35 @@ Int_t THaOutput::InitHistos( const DefinitionSet& defs )
       //   I    S        S     new, distribution of cut[0] (for consistency)
       //   I    A        S     new, distribution of cut(index)
       //   I    V        S     new, distribution of cut(index)
-    case kH1d:
-      dbl = true;
-      // fall through to next case
-    case kH1f:
-      // Test for disallowed combinations
+    case kvH1D:
+    case kvH1F:
+      // For vector histograms, the x-axis and cut must have the same size
       if( xax.IsFixedArray() && cut.IsFixedArray() ) {
 	if( xax.GetSize() != cut.GetSize() ) {
 	  Error( here, "Histogram %s: Inconsistent cut size", hpar.sname.c_str() );
 	  continue;
 	}
-	// this is the only point where we get a 1D vector histogram,
-	// provided we started out with hpar.isscaler = false (set in LoadFile)
 	nhist = xax.GetSize();
-      } else if( cut.IsEye() || (xax.IsEye() && !cut.IsInit()) ) {
+	if( nhist > 1 ) {
+	  h = new MultiHistogram1D( hpar.sname, hpar.stitle, nhist,
+				    hpar.nx, hpar.xlo, hpar.xhi, dbl );
+#ifndef NDEBUG
+	  h->RequireEqualArrays(true);
+#endif
+	  break;
+	}
+      }
+      // If both axes are not fixed arrays or nhist == 1, fall through
+      // to scalar histogram case
+    case kH1F:
+    case kH1D:
+      if( cut.IsEye() || (xax.IsEye() && !cut.IsInit()) ) {
 	Error( here, "Histogram %s: Illegal [I] expression", hpar.sname.c_str() );
 	continue;
-      } else {
-	scalar = true;
       }
 
-      if( scalar || nhist == 1 ) {
-	h = new Histogram1D( hpar.sname, hpar.stitle,
-			     hpar.nx, hpar.xlo, hpar.xhi, dbl );
-      } else {
-	assert( xax.IsFixedArray() );
-	assert( nhist > 0 );
-	h = new MultiHistogram1D( hpar.sname, hpar.stitle, nhist,
-				  hpar.nx, hpar.xlo, hpar.xhi, dbl );
-#ifndef NDEBUG
-	h->RequireEqualArrays(true);
-#endif
-      }
+      h = new Histogram1D( hpar.sname, hpar.stitle,
+			   hpar.nx, hpar.xlo, hpar.xhi, dbl );
       break;
 
       // 2D histograms
@@ -460,12 +454,13 @@ Int_t THaOutput::InitHistos( const DefinitionSet& defs )
       //   I    I   S        S
       //   I    I   A        S    (Bob: ill-defined vector?)
       //   I    I   V        S
-    case kH2d:
-      dbl = true;
-      // fall through to next case
-    case kH2f:
-      MakeAxis( hpar.sname+"Y", hpar.sfvary, yax );
-      //TODO: handle MakeAxis errors
+
+    case kH2F:
+    case kH2D:
+    case kvH2D:
+    case kvH2F:
+      MakeAxis( hpar.sname+"Y",   hpar.sfvary, yax );
+      // TODO: handle MakeAxis errors
 
       // Test for disallowed combinations
       if( cut.IsEye() || (xax.IsEye() && yax.IsEye() && !cut.IsInit()) ) {
@@ -923,14 +918,11 @@ inline static Int_t CheckIncludeFilePath( string& incfile )
 Int_t THaOutput::AddBranchName( const string& sname )
 {
   // Add name of branch definition (variable, formula, cut) to the list of
-  // that preserves the order in which things are defined. If a name
+  // branches that preserves the order in which things are defined. If a name
   // already exists, it is not added again.
 
-  for( vector<string>::iterator it = fBranchNames.begin(); it !=
-	 fBranchNames.end(); ++it ) {
-    if( sname == *it )
-      return 1;
-  }
+  if( find(ALL(fBranchNames), sname) != fBranchNames.end() )
+    return 1;
   fBranchNames.push_back(sname);
   return 0;
 }
@@ -1036,13 +1028,17 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
 	defs.cutnames.push_back(STDMOVE(sname));
 	defs.cutdef.push_back(STDMOVE(strvect[2]));
 	break;
-      case kH1f:
-      case kH1d:
-      case kH2f:
-      case kH2d:
+      case kH1F:
+      case kH1D:
+      case kH2F:
+      case kH2D:
+      case kvH1F:
+      case kvH1D:
+      case kvH2F:
+      case kvH2D:
 	{
 	  HistogramParameters hpar;
-	  if( ParseHistogramDef(str, hpar) != 1) {
+	  if( ParseHistogramDef(ikey, str, hpar) != 1) {
 	    ErrFile(ikey, str);
 	    continue;
 	  }
@@ -1071,7 +1067,6 @@ Int_t THaOutput::LoadFile( const char* filename, DefinitionSet& defs )
       }
     }
   }
-
   return 0;
 }
 
@@ -1090,10 +1085,18 @@ Output::EId THaOutput::GetKeyID(const string& key) const
     { "variable", kVar },
     { "formula",  kForm },
     { "cut",      kCut },
-    { "th1f",     kH1f },
-    { "th1d",     kH1d },
-    { "th2f",     kH2f },
-    { "th2d",     kH2d },
+    { "th1f",     kvH1F },
+    { "th1d",     kvH1D },
+    { "th2f",     kvH2F },
+    { "th2d",     kvH2D },
+    { "sth1f",    kH1F },
+    { "sth1d",    kH1D },
+    { "sth2f",    kH2F },
+    { "sth2d",    kH2D },
+    { "vth1f",    kvH1F },
+    { "vth1d",    kvH1D },
+    { "vth2f",    kvH2F },
+    { "vth2d",    kvH2D },
     { "block",    kBlock },
     { "begin",    kBegin },
     { "end",      kEnd },
@@ -1231,20 +1234,24 @@ void THaOutput::ErrFile(Int_t iden, const string& sline) const
        cerr << "    formula(or cut)  formula-name  formula-expression"<<endl;
        cerr << "Example: "<<endl;
        cerr << "    formula targetX 1.464*B.bpm4b.x-0.464*B.bpm4a.x"<<endl;
-     case kH1f:
-     case kH1d:
+     case kH1F:
+     case kH1D:
+     case kvH1F:
+     case kvH1D:
        cerr << "For 1D histograms, the syntax is: "<<endl;
-       cerr << "  TH1F(or TH1D) name  'title' ";
+       cerr << "  [sv]TH1F(or TH1D) name  'title' ";
        cerr << "variable nbin xlo xhi [cut-expr]"<<endl;
        cerr << "Example: "<<endl;
        cerr << "  TH1F  tgtx 'target X' targetX 100 -2 2"<<endl;
        cerr << "(Title in single quotes.  Variable can be a formula)"<<endl;
        cerr << "optionally can impose THaCut expression 'cut-expr'"<<endl;
        break;
-     case kH2f:
-     case kH2d:
+     case kH2F:
+     case kH2D:
+     case kvH2F:
+     case kvH2D:
        cerr << "For 2D histograms, the syntax is: "<<endl;
-       cerr << "  TH2F(or TH2D)  name  'title'  varx  vary";
+       cerr << "  [sv]TH2F(or TH2D)  name  'title'  varx  vary";
        cerr << "  nbinx xlo xhi  nbiny ylo yhi [cut-expr]"<<endl;
        cerr << "Example: "<<endl;
        cerr << "  TH2F t12 't1 vs t2' D.timeroc1  D.timeroc2";
@@ -1339,7 +1346,7 @@ void THaOutput::Print() const
 }
 
 //_____________________________________________________________________________
-Int_t THaOutput::ParseHistogramDef( const string& sline,
+Int_t THaOutput::ParseHistogramDef( EId key, const string& sline,
 				    HistogramParameters& hpar )
 {
   // Parse the string that defines the histogram.
@@ -1349,12 +1356,8 @@ Int_t THaOutput::ParseHistogramDef( const string& sline,
   vector<string> strvect = Split(sline);
 
   hpar.clear();
-  EId key = GetKeyID( strvect[0] );
-  if( key == kInvalidEId ) {
-    // Unknown type? Should never happen when called from THaOutput::LoadFile
-    assert(false);
+  if( key == kInvalidEId || strvect.size() < 7 )
     return -1;
-  }
   hpar.ikey = key;
   hpar.sname = StripBracket( strvect[1] );
   string::size_type pos1 = sline.find('\'');
@@ -1380,7 +1383,7 @@ Int_t THaOutput::ParseHistogramDef( const string& sline,
   vector<string>::size_type ndef = strvect.size() - idef;
   if( ndef == 4 || ndef == 5) {
     // 1D histogram
-    if( key != kH1f && key != kH1d )
+    if( key != kH1F && key != kH1D && key != kvH1F && key != kvH1D )
       return -1;
     hpar.sfvarx.swap(strvect[idef]);
     hpar.nx  = atoi( strvect[idef+1].c_str() );
@@ -1388,14 +1391,13 @@ Int_t THaOutput::ParseHistogramDef( const string& sline,
     hpar.xhi = atof( strvect[idef+3].c_str() );
     // Optional cut
     if( ndef == 5 ) {
-      hpar.iscut = true;
       hpar.scut.swap(strvect[idef+4]);
     }
     return 1;
   }
   else if( ndef == 8 || ndef == 9 ) {
     // 2D histogram
-    if( key != kH2f && key != kH2d )
+    if( key != kH2F && key != kH2D && key != kvH2F && key != kvH2D )
       return -1;
     hpar.sfvarx.swap(strvect[idef]);
     hpar.sfvary.swap(strvect[idef+1]);
@@ -1407,7 +1409,6 @@ Int_t THaOutput::ParseHistogramDef( const string& sline,
     hpar.yhi = atof( strvect[idef+7].c_str() );
     // Optional cut
     if( ndef == 9 ) {
-      hpar.iscut = true;
       hpar.scut.swap(strvect[idef+8]);
     }
     return 1;
