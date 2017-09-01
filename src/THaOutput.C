@@ -193,7 +193,7 @@ inline void DeleteMap( Container& c )
 //_____________________________________________________________________________
 THaOutput::THaOutput() :
   fNvar(0), fNform(0), fNcut(0),
-  fEpicsVar(0), fTree(0), fEpicsTree(0), fInit(false), fDebug(3)
+  fTree(0), fInit(false), fDebug(3), fEpicsVar(0), fEpicsTree(0)
 {
   // Constructor
 }
@@ -223,34 +223,17 @@ THaOutput::~THaOutput()
 }
 
 //_____________________________________________________________________________
-struct THaOutput::HistogramParameters {
-  HistogramParameters() : ikey(kInvalidEId), xlo(0), xhi(0), ylo(0), yhi(0),
-			  nx(0), ny(0) {}
-  EId ikey;
-  string sname, stitle, sfvarx, sfvary, scut;
-  Double_t xlo,xhi,ylo,yhi;
-  Int_t nx,ny;
-  void clear() {
-    ikey = kInvalidEId;
-    sname.clear(); stitle.clear(); sfvarx.clear(); sfvary.clear(); scut.clear();
-    nx = ny = xlo = xhi = ylo = yhi = 0;
-  }
-};
+void THaOutput::HistogramParameters::clear() {
+  ikey = kInvalidEId;
+  sname.clear(); stitle.clear(); sfvarx.clear(); sfvary.clear(); scut.clear();
+  nx = ny = xlo = xhi = ylo = yhi = 0;
+}
 
 //_____________________________________________________________________________
-struct THaOutput::DefinitionSet {
-  // Definitions parsed from the configuration file
-  vector<string> varnames;    // Variable names
-  vector<string> formnames;   // Formula names
-  vector<string> formdef;     // Formula definitions
-  vector<string> cutnames;    // Cut names
-  vector<string> cutdef;      // Cut definitions
-  vector<HistogramParameters> histdef; // Histogram definitions
-  void clear() {
-    varnames.clear(); formnames.clear(); formdef.clear();
-    cutnames.clear(); cutdef.clear(); histdef.clear();
-  }
-};
+void THaOutput::DefinitionSet::clear() {
+  varnames.clear(); formnames.clear(); formdef.clear();
+  cutnames.clear(); cutdef.clear(); histdef.clear();
+}
 
 //_____________________________________________________________________________
 Int_t THaOutput::InitVariables( const DefinitionSet& defs )
