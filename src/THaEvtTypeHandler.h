@@ -29,12 +29,12 @@ public:
    virtual void SetDebugFile(const char *filename);
    virtual void AddEvtType(int evtype);
    virtual void SetEvtType(int evtype);
-   virtual Int_t GetNumTypes() { return eventtypes.size(); };
-   virtual Int_t GetEvtType() {
+   virtual Int_t GetNumTypes() const { return eventtypes.size(); };
+   virtual Int_t GetEvtType() const {
      if (eventtypes.size()==0) return -1;
      return eventtypes[0];
    }
-   virtual std::vector<Int_t> GetEvtTypes() { return eventtypes; };
+   virtual const std::vector<Int_t>& GetEvtTypes() const { return eventtypes; };
 
 protected:
 

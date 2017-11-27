@@ -60,6 +60,15 @@ static const UInt_t MAXCHAN   = 32;
 static const UInt_t MAXTEVT   = 5000;
 static const UInt_t defaultDT = 4;
 
+class ScalerLoc { // Utility class used by THaScalerEvtHandler
+ public:
+ ScalerLoc(TString nm, TString desc, Int_t idx, Int_t sl, Int_t ich, Int_t iki) :
+  name(nm), description(desc), index(idx), islot(sl), ichan(ich), ikind(iki) { };
+  ~ScalerLoc();
+  TString name, description;
+  UInt_t index, islot, ichan, ivar, ikind;
+};
+
 THaScalerEvtHandler::THaScalerEvtHandler(const char *name, const char* description)
   : THaEvtTypeHandler(name,description), evcount(0), fNormIdx(-1), fNormSlot(-1),
     dvars(0), fScalerTree(0)

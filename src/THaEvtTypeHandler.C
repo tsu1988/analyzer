@@ -15,11 +15,13 @@
 
 using namespace std;
 
+//_____________________________________________________________________________
 THaEvtTypeHandler::THaEvtTypeHandler(const char* name, const char* description)
   : THaAnalysisObject(name, description), fDebugFile(0)
 {
 }
 
+//_____________________________________________________________________________
 THaEvtTypeHandler::~THaEvtTypeHandler()
 {
   if (fDebugFile) {
@@ -28,16 +30,18 @@ THaEvtTypeHandler::~THaEvtTypeHandler()
   }
 }
 
+//_____________________________________________________________________________
 void THaEvtTypeHandler::AddEvtType(int evtype) {
   eventtypes.push_back(evtype);
 }
   
+//_____________________________________________________________________________
 void THaEvtTypeHandler::SetEvtType(int evtype) {
   eventtypes.clear();
   AddEvtType(evtype);
 }
 
-
+//_____________________________________________________________________________
 void THaEvtTypeHandler::EvPrint() const
 {
   cout << "Hello !  THaEvtTypeHandler name =  "<<GetName()<<endl;
@@ -49,6 +53,7 @@ void THaEvtTypeHandler::EvPrint() const
   cout << "----------------- good bye ----------------- "<<endl;
 }
 
+//_____________________________________________________________________________
 void THaEvtTypeHandler::EvDump(THaEvData *evdata) const
 {
   // Dumps data to file, if fDebugFile was set.
@@ -77,18 +82,21 @@ void THaEvtTypeHandler::EvDump(THaEvData *evdata) const
   }
 }
 
+//_____________________________________________________________________________
 THaAnalysisObject::EStatus THaEvtTypeHandler::Init(const TDatime&)
 {
   fStatus = kOK;
   return kOK;
 }
 
+//_____________________________________________________________________________
 void THaEvtTypeHandler::SetDebugFile(const char *filename) {
     delete fDebugFile;
     fDebugFile = new ofstream;
     fDebugFile->open(filename);
 }
 
+//_____________________________________________________________________________
 Bool_t THaEvtTypeHandler::IsMyEvent(Int_t evnum) const
 {
   for (UInt_t i=0; i < eventtypes.size(); i++) {
