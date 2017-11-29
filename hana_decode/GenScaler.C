@@ -214,7 +214,7 @@ namespace Decoder {
     cout << "Clock channel "<<fClockChan<<"   clock rate "<<fClockRate<<endl;
   }
 
-  void GenScaler::DebugPrint(ofstream *file) const {
+  void GenScaler::DebugPrint(ostream *file) const {
     if (!file) return;
     *file << "GenScaler::   crate "<<fCrate<<"   slot "<<fSlot<<endl;
     *file << "GenScaler::   Header 0x"<<hex<<fHeader<<"    Mask  0x"<<fHeaderMask<<dec<<endl;

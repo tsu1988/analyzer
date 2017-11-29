@@ -35,7 +35,7 @@ namespace Decoder {
     Double_t GetTimeSincePrev() const;  // returns deltaT since last reading
     Bool_t IsDecoded() const { return fIsDecoded; };
     void LoadNormScaler(GenScaler *scal);  // loads pointer to norm. scaler
-    void DebugPrint(std::ofstream *file=0) const;
+    void DebugPrint(std::ostream *file=0) const;
 
     // Loads sldat
     virtual Int_t LoadSlot(THaSlotData *sldat,  const UInt_t *evbuffer, const UInt_t *pstop );

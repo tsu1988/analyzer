@@ -61,7 +61,8 @@ Int_t CodaDecoder::GetPrescaleFactor(Int_t trigger_type) const
 }
 
 //_____________________________________________________________________________
-Int_t CodaDecoder::Init() {
+Int_t CodaDecoder::Init()
+{
   Int_t ret = HED_OK;
   ret = init_cmap();
   //  if (fMap) fMap->print();
@@ -76,23 +77,28 @@ Int_t CodaDecoder::Init() {
 Int_t CodaDecoder::LoadEvent(const UInt_t* evbuffer)
 {
   // Main engine for decoding, called by public LoadEvent() methods
- static Int_t fdfirst=1;
- static Int_t chkfbstat=1;
- if (fDebugFile) *fDebugFile << "CodaDecode:: Loading event  ... "<<endl;
- if (fDebugFile) *fDebugFile << "evbuffer ptr "<<evbuffer<<endl;
+  static Int_t fdfirst=1;
+  static Int_t chkfbstat=1;
+  if (fDebugFile) *fDebugFile << "CodaDecode:: Loading event  ... "<<endl;
+  if (fDebugFile) *fDebugFile << "evbuffer ptr "<<evbuffer<<endl;
   assert( evbuffer );
   assert( fMap || fNeedInit );
   Int_t ret = HED_OK;
   buffer = evbuffer;
+  event_length = evbuffer[0]+1;  // in longwords (4 bytes)
+  event_type = evbuffer[1]>>16;
+  assert( event_type >= 0 );
+  event_num = 0;
   if(fDebugFile) {
     *fDebugFile << "CodaDecode:: dumping "<<endl;
-    dump(evbuffer);
+    dump(*fDebugFile);
   }
+
   if (first_decode || fNeedInit) {
     ret = init_cmap();
     if (fDebugFile) {
-	 *fDebugFile << "\n CodaDecode:: Print of Crate Map"<<endl;
-	 fMap->print(fDebugFile);
+      *fDebugFile << "\n CodaDecode:: Print of Crate Map"<<endl;
+      fMap->print(*fDebugFile);
     } else {
       //      fMap->print();
     }
@@ -102,13 +108,11 @@ Int_t CodaDecoder::LoadEvent(const UInt_t* evbuffer)
     FindUsedSlots();
     first_decode=kFALSE;
   }
+
   if( fDoBench ) fBench->Begin("clearEvent");
   for( Int_t i=0; i<fNSlotClear; i++ ) crateslot[fSlotClear[i]]->clearEvent();
   if( fDoBench ) fBench->Stop("clearEvent");
-  event_length = evbuffer[0]+1;  // in longwords (4 bytes)
-  event_type = evbuffer[1]>>16;
-  if(event_type < 0) return HED_ERR;
-  event_num = 0;
+
   if (event_type == PRESTART_EVTYPE) {
      // Usually prestart is the first 'event'.  Call SetRunTime() to
      // re-initialize the crate map since we now know the run time.
@@ -124,17 +128,17 @@ Int_t CodaDecoder::LoadEvent(const UInt_t* evbuffer)
       return ret;
   }
   if (event_type <= MAX_PHYS_EVTYPE) {
-     event_num = evbuffer[4];
-     recent_event = event_num;
-     FindRocs(evbuffer);
-     if ((fdfirst==1) & (fDebugFile!=0)) {
-       fdfirst=0;
-       CompareRocs();
-     }
+    event_num = evbuffer[4];
+    recent_event = event_num;
+    FindRocs(evbuffer);
+    if ((fdfirst==1) && (fDebugFile!=0)) {
+      fdfirst=0;
+      CompareRocs();
+    }
 
-   // Decode each ROC
-   // This is not part of the loop above because it may exit prematurely due
-   // to errors, which would leave the rocdat[] array incomplete.
+    // Decode each ROC
+    // This is not part of the loop above because it may exit prematurely due
+    // to errors, which would leave the rocdat[] array incomplete.
 
     for( Int_t i=0; i<nroc; i++ ) {
 
@@ -144,21 +148,21 @@ Int_t CodaDecoder::LoadEvent(const UInt_t* evbuffer)
       Int_t iptmax = proc->pos + proc->len;
 
       if (fMap->isFastBus(iroc)) {  // checking that slots found = expected
-	  if (GetEvNum() > 200 && chkfbstat < 3) chkfbstat=2;
-	  if (chkfbstat == 1) ChkFbSlot(iroc, evbuffer, ipt, iptmax);
-	  if (chkfbstat == 2) {
-	      ChkFbSlots();
-	      chkfbstat = 3;
-	  }
+        if (GetEvNum() > 200 && chkfbstat < 3) chkfbstat=2;
+        if (chkfbstat == 1) ChkFbSlot(iroc, evbuffer, ipt, iptmax);
+        if (chkfbstat == 2) {
+          ChkFbSlots();
+          chkfbstat = 3;
+        }
       }
 
       Int_t status;
 
- // If at least one module is in a bank, must split the banks for this roc
+      // If at least one module is in a bank, must split the banks for this roc
 
       if (fMap->isBankStructure(iroc)) {
-	  if (fDebugFile) *fDebugFile << "\nCodaDecode::Calling bank_decode "<<i<<"   "<<iroc<<"  "<<ipt<<"  "<<iptmax<<endl;
-	  /*status =*/ bank_decode(iroc,evbuffer,ipt,iptmax);
+        if (fDebugFile) *fDebugFile << "\nCodaDecode::Calling bank_decode "<<i<<"   "<<iroc<<"  "<<ipt<<"  "<<iptmax<<endl;
+        /*status =*/ bank_decode(iroc,evbuffer,ipt,iptmax);
       }
 
       if (fDebugFile) *fDebugFile << "\nCodaDecode::Calling roc_decode "<<i<<"   "<<evbuffer<<"  "<<iroc<<"  "<<ipt<<"  "<<iptmax<<endl;
@@ -192,15 +196,15 @@ Int_t CodaDecoder::LoadFromMultiBlock()
 
   for( Int_t i=0; i<nroc; i++ ) {
 
-      Int_t roc = irn[i];
-      Int_t minslot = fMap->getMinSlot(roc);
-      Int_t maxslot = fMap->getMaxSlot(roc);
-      for (Int_t slot = minslot; slot <= maxslot; slot++) {
-	if (fMap->slotUsed(roc,slot) && crateslot[idx(roc,slot)]->GetModule()->IsMultiBlockMode()) {
-	  crateslot[idx(roc,slot)]->LoadNextEvBuffer();
-	  if (crateslot[idx(roc,slot)]->BlockIsDone()) fBlockIsDone = kTRUE;
-	}
+    Int_t roc = irn[i];
+    Int_t minslot = fMap->getMinSlot(roc);
+    Int_t maxslot = fMap->getMaxSlot(roc);
+    for (Int_t slot = minslot; slot <= maxslot; slot++) {
+      if (fMap->slotUsed(roc,slot) && crateslot[idx(roc,slot)]->GetModule()->IsMultiBlockMode()) {
+        crateslot[idx(roc,slot)]->LoadNextEvBuffer();
+        if (crateslot[idx(roc,slot)]->BlockIsDone()) fBlockIsDone = kTRUE;
       }
+    }
   }
   return HED_OK;
 }
@@ -208,7 +212,7 @@ Int_t CodaDecoder::LoadFromMultiBlock()
 
 //_____________________________________________________________________________
 Int_t CodaDecoder::roc_decode( Int_t roc, const UInt_t* evbuffer,
-				  Int_t ipt, Int_t istop )
+                               Int_t ipt, Int_t istop )
 {
   // Decode a Readout controller
   assert( evbuffer && fMap );
@@ -241,11 +245,11 @@ Int_t CodaDecoder::roc_decode( Int_t roc, const UInt_t* evbuffer,
   }
 
   if (fMap->isFastBus(roc)) {  // higher slot # appears first in multiblock mode
-      firstslot=maxslot;       // the decoding order improves efficiency
-      incrslot = -1;
+    firstslot=maxslot;       // the decoding order improves efficiency
+    incrslot = -1;
   } else {
-      firstslot=minslot;
-      incrslot = 1;
+    firstslot=minslot;
+    incrslot = 1;
   }
 
   if (fDebugFile) {
@@ -259,8 +263,8 @@ Int_t CodaDecoder::roc_decode( Int_t roc, const UInt_t* evbuffer,
   while ( p++ < pstop && n_slots_done < Nslot ) {
 
     if (fDebugFile) {
-	 *fDebugFile << "CodaDecode::roc_decode:: evbuff "<<(p-evbuffer)<<"  "<<hex<<*p<<dec<<endl;
-	 *fDebugFile << "CodaDecode::roc_decode:: n_slots_done "<<n_slots_done<<"  "<<firstslot<<endl;
+      *fDebugFile << "CodaDecode::roc_decode:: evbuff "<<(p-evbuffer)<<"  "<<hex<<*p<<dec<<endl;
+      *fDebugFile << "CodaDecode::roc_decode:: n_slots_done "<<n_slots_done<<"  "<<firstslot<<endl;
     }
 
     LoadIfFlagData(p);
@@ -268,7 +272,7 @@ Int_t CodaDecoder::roc_decode( Int_t roc, const UInt_t* evbuffer,
     n_slots_checked = 0;
     slot = firstslot;
     slotdone = kFALSE;
-// bank structure is decoded with bank_decode
+    // bank structure is decoded with bank_decode
     if (fMap->getBank(roc,slot) >= 0) {
       n_slots_done++;
       slotdone=kTRUE;
@@ -278,31 +282,31 @@ Int_t CodaDecoder::roc_decode( Int_t roc, const UInt_t* evbuffer,
 
 
       if (!fMap->slotUsed(roc,slot) || fMap->slotDone(slot)) {
-	 slot = slot + incrslot;
-	 continue;
+        slot = slot + incrslot;
+        continue;
       }
 
       ++n_slots_checked;
 
-     if (fDebugFile) {
-       *fDebugFile<< "roc_decode:: slot logic "<<roc<<"  "<<slot<<"  "<<firstslot<<"  "<<n_slots_checked<<"  "<<Nslot-n_slots_done<<endl;
-     }
+      if (fDebugFile) {
+        *fDebugFile<< "roc_decode:: slot logic "<<roc<<"  "<<slot<<"  "<<firstslot<<"  "<<n_slots_checked<<"  "<<Nslot-n_slots_done<<endl;
+      }
 
       nwords = crateslot[idx(roc,slot)]->LoadIfSlot(p, pstop);
 
       if (nwords > 0) {
-	   p = p + nwords - 1;
-	   fMap->setSlotDone(slot);
-	   n_slots_done++;
-	   if(fDebugFile) *fDebugFile << "CodaDecode::  slot "<<slot<<"  is DONE    "<<nwords<<endl;
-	   slotdone = kTRUE;
+        p = p + nwords - 1;
+        fMap->setSlotDone(slot);
+        n_slots_done++;
+        if(fDebugFile) *fDebugFile << "CodaDecode::  slot "<<slot<<"  is DONE    "<<nwords<<endl;
+        slotdone = kTRUE;
       }
 
       if (crateslot[idx(roc,slot)]->IsMultiBlockMode()) fMultiBlockMode = kTRUE;
       if (crateslot[idx(roc,slot)]->BlockIsDone()) fBlockIsDone = kTRUE;
 
       if (fDebugFile) {
-	  *fDebugFile<< "CodaDecode:: roc_decode:: after LoadIfSlot "<<p << "  "<<pstop<<"  "<<"  "<<hex<<*p<<"  "<<dec<<nwords<<endl;
+        *fDebugFile<< "CodaDecode:: roc_decode:: after LoadIfSlot "<<p << "  "<<pstop<<"  "<<"  "<<hex<<*p<<"  "<<dec<<nwords<<endl;
       }
 
       slot = slot + incrslot;
@@ -321,7 +325,7 @@ Int_t CodaDecoder::roc_decode( Int_t roc, const UInt_t* evbuffer,
 
 //_____________________________________________________________________________
 Int_t CodaDecoder::bank_decode( Int_t roc, const UInt_t* evbuffer,
-				  Int_t ipt, Int_t istop )
+                                Int_t ipt, Int_t istop )
 {
   // Split a roc into banks, if using bank structure
   // Then loop over slots and decode it from a bank if the slot
@@ -416,9 +420,9 @@ Int_t CodaDecoder::LoadIfFlagData(const UInt_t* evbuffer)
 }
 
 
-
-Int_t CodaDecoder::FindRocs(const UInt_t *evbuffer) {
-
+//_____________________________________________________________________________
+Int_t CodaDecoder::FindRocs(const UInt_t *evbuffer)
+{
   assert( evbuffer && fMap );
 #ifdef FIXME
   if( fDoBench ) fBench->Begin("physics_decode");
@@ -437,8 +441,8 @@ Int_t CodaDecoder::FindRocs(const UInt_t *evbuffer) {
     if( iroc>=MAXROC ) {
 #ifdef FIXME
       if(fDebug>0) {
-	cout << "ERROR in EvtTypeHandler::FindRocs "<<endl;
-	cout << "  illegal ROC number " <<dec<<iroc<<endl;
+        cout << "ERROR in EvtTypeHandler::FindRocs "<<endl;
+        cout << "  illegal ROC number " <<dec<<iroc<<endl;
       }
       if( fDoBench ) fBench->Stop("physics_decode");
 #endif
@@ -465,12 +469,14 @@ Int_t CodaDecoder::FindRocs(const UInt_t *evbuffer) {
 }
 
 
-// To initialize the THaSlotData member on first call to decoder
+//_____________________________________________________________________________
 int CodaDecoder::init_slotdata(const THaCrateMap* map)
 {
-  // Update lists of used/clearable slots in case crate map changed
+  // To initialize the THaSlotData member on first call to decoder
+
   if(!map) return HED_ERR;
 
+  // Update lists of used/clearable slots in case crate map changed
   for (Int_t iroc = 0; iroc<MAXROC; iroc++) {
     if (  !map->crateUsed(iroc)  ) continue;
 
@@ -478,7 +484,7 @@ int CodaDecoder::init_slotdata(const THaCrateMap* map)
 
       if ( !map->slotUsed(iroc,islot) ) continue;
 
-	makeidx(iroc,islot);
+      makeidx(iroc,islot);
 
     }
   }
@@ -492,19 +498,19 @@ int CodaDecoder::init_slotdata(const THaCrateMap* map)
     crslot->loadModule(map);
     if (fDebugFile) *fDebugFile << "CodaDecode::  crate, slot "<<crate<<"  "<<slot<<"   Dev type  = "<<crslot->devType()<<endl;
     if( !map->crateUsed(crate) || !map->slotUsed(crate,slot) ||
-	!map->slotClear(crate,slot)) {
+        !map->slotClear(crate,slot)) {
       for( int k=0; k<fNSlotClear; k++ ) {
-	if( crslot == crateslot[fSlotClear[k]] ) {
-	  for( int j=k+1; j<fNSlotClear; j++ )
-	    fSlotClear[j-1] = fSlotClear[j];
-	  fNSlotClear--;
-	  break;
-	}
+        if( crslot == crateslot[fSlotClear[k]] ) {
+          for( int j=k+1; j<fNSlotClear; j++ )
+            fSlotClear[j-1] = fSlotClear[j];
+          fNSlotClear--;
+          break;
+        }
       }
     }
     if( !map->crateUsed(crate) || !map->slotUsed(crate,slot)) {
       for( int j=i+1; j<fNSlotUsed; j++ )
-	fSlotUsed[j-1] = fSlotUsed[j];
+        fSlotUsed[j-1] = fSlotUsed[j];
       fNSlotUsed--;
     }
   }
@@ -512,35 +518,6 @@ int CodaDecoder::init_slotdata(const THaCrateMap* map)
 
   return HED_OK;
 
-}
-
-
-//_____________________________________________________________________________
-void CodaDecoder::dump(const UInt_t* evbuffer) const
-{
-  if( !evbuffer ) return;
-  if ( !fDebugFile ) return;
-  Int_t len = evbuffer[0]+1;
-  Int_t type = evbuffer[1]>>16;
-  Int_t num = evbuffer[4];
-  *fDebugFile << "\n\n Raw Data Dump  " << hex << endl;
-  *fDebugFile << "\n Event number  " << dec << num;
-  *fDebugFile << "  length " << len << "  type " << type << endl;
-  Int_t ipt = 0;
-  for (Int_t j=0; j<(len/5); j++) {
-    *fDebugFile << dec << "\n evbuffer[" << ipt << "] = ";
-    for (Int_t k=j; k<j+5; k++) {
-      *fDebugFile << hex << evbuffer[ipt++] << " ";
-    }
-  }
-  if (ipt < len) {
-    *fDebugFile << dec << "\n evbuffer[" << ipt << "] = ";
-    for (Int_t k=ipt; k<len; k++) {
-      *fDebugFile << hex << evbuffer[ipt++] << " ";
-    }
-    *fDebugFile << endl;
-  }
-  *fDebugFile<<dec<<endl;
 }
 
 //_____________________________________________________________________________
@@ -551,7 +528,7 @@ void CodaDecoder::CompareRocs(  )
   for (Int_t i=0; i<nroc; i++) {
     Int_t iroc = irn[i];
     if (!fMap->crateUsed(iroc)) {
-	  *fDebugFile << "ERROR  CompareRocs:: roc "<<iroc<<"  in data but not in map"<<endl;
+      *fDebugFile << "ERROR  CompareRocs:: roc "<<iroc<<"  in data but not in map"<<endl;
     }
   }
   for (Int_t iroc1 = 0; iroc1<MAXROC; iroc1++) {
@@ -560,8 +537,8 @@ void CodaDecoder::CompareRocs(  )
     for( Int_t i=0; i<nroc; i++ ) {
       Int_t iroc2 = irn[i];
       if (iroc1 == iroc2) {
-	ifound=1;
-	break;
+        ifound=1;
+        break;
       }
     }
     if (!ifound) *fDebugFile << "ERROR: CompareRocs:  roc "<<iroc1<<" in cratemap but not found data"<<endl;
@@ -570,7 +547,7 @@ void CodaDecoder::CompareRocs(  )
 
 //_____________________________________________________________________________
 void CodaDecoder::ChkFbSlot( Int_t roc, const UInt_t* evbuffer,
-				  Int_t ipt, Int_t istop )
+                             Int_t ipt, Int_t istop )
 {
   const UInt_t* p      = evbuffer+ipt;    // Points to ROC ID word (1 before data)
   const UInt_t* pstop  =evbuffer+istop;   // Points to last word of data in roc
@@ -594,16 +571,16 @@ void CodaDecoder::ChkFbSlots()
       Int_t index = MAXSLOT*iroc + islot;
       slotstat[index]=0;
       if (fbfound[index] && fMap->slotUsed(iroc, islot)) {
-	  if (fDebugFile) *fDebugFile << "FB slot in cratemap and in data.  (good!).  roc = "<<iroc<<"   slot = "<<islot<<endl;
-	  slotstat[index]=1;
+        if (fDebugFile) *fDebugFile << "FB slot in cratemap and in data.  (good!).  roc = "<<iroc<<"   slot = "<<islot<<endl;
+        slotstat[index]=1;
       }
       if ( !fbfound[index] && fMap->slotUsed(iroc, islot)) {
-	if (fDebugFile) *fDebugFile << "FB slot NOT in data, but in cratemap  (bad!).  roc = "<<iroc<<"   slot = "<<islot<<endl;
-	slotstat[index]=2;
+        if (fDebugFile) *fDebugFile << "FB slot NOT in data, but in cratemap  (bad!).  roc = "<<iroc<<"   slot = "<<islot<<endl;
+        slotstat[index]=2;
       }
       if ( fbfound[index] && !fMap->slotUsed(iroc, islot)) {
-	if (fDebugFile) *fDebugFile << "FB slot in data, but NOT in cratemap  (bad!).  roc = "<<iroc<<"   slot = "<<islot<<endl;
-	slotstat[index]=3;
+        if (fDebugFile) *fDebugFile << "FB slot in data, but NOT in cratemap  (bad!).  roc = "<<iroc<<"   slot = "<<islot<<endl;
+        slotstat[index]=3;
       }
     }
   }

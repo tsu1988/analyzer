@@ -225,27 +225,27 @@ int THaCrateMap::init(ULong64_t tloc) {
   return init(db);
 }
 
-void THaCrateMap::print(ofstream *file) const {
+void THaCrateMap::print(ostream& os) const {
 {
   for( int roc=0; roc<MAXROC; roc++ ) {
     if( !crdat[roc].crate_used || crdat[roc].nslot ==0 ) continue;
-    *file << "==== Crate " << roc << " type " << crdat[roc].crate_type;
-    if( !crdat[roc].scalerloc.IsNull() )  *file << " \"" << crdat[roc].scalerloc << "\"";
-    *file << endl;
-    *file << "#slot\tmodel\tclear\t  header\t  mask  \tnchan\tndata\n";
-    if (isBankStructure(roc)) *file << "crate has bank structure"<<endl;
+    os << "==== Crate " << roc << " type " << crdat[roc].crate_type;
+    if( !crdat[roc].scalerloc.IsNull() )  os << " \"" << crdat[roc].scalerloc << "\"";
+    os << endl;
+    os << "#slot\tmodel\tclear\t  header\t  mask  \tnchan\tndata\n";
+    if (isBankStructure(roc)) os << "crate has bank structure"<<endl;
     for( int slot=0; slot<MAXSLOT; slot++ ) {
       if( !slotUsed(roc,slot) ) continue;
-      *file << "  " << slot << "\t" << crdat[roc].model[slot]
+      os << "  " << slot << "\t" << crdat[roc].model[slot]
 	   << "\t" << crdat[roc].slot_clear[slot];
-      *file << "   \t0x" << hex << crdat[roc].header[slot]
+      os << "   \t0x" << hex << crdat[roc].header[slot]
 	   << "    \t0x" << hex  << crdat[roc].headmask[slot]
 	   << dec << "   "
 	   << "  \t" << crdat[roc].nchan[slot]
 	   << "  \t" << crdat[roc].ndata[slot]
 	   << endl;
       Int_t bank = getBank(roc,slot);
-      if (bank >= 0) *file << "Bank number "<< bank<<endl;
+      if (bank >= 0) os << "Bank number "<< bank<<endl;
 
     }
   }

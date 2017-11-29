@@ -71,7 +71,7 @@ class THaCrateMap {
      int init(TString the_map);                     // Initialize from text-block
      int init(ULong64_t time = 0);                  // Initialize by Unix time.
      void print() const;
-     void print(std::ofstream *file) const;
+     void print(std::ostream& os) const;
 
      static const int CM_OK;
      static const int CM_ERR;

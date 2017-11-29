@@ -24,7 +24,6 @@
 #include "Module.h"
 #include <cassert>
 #include <iostream>
-#include <fstream>
 
 const int SD_WARN = -2;
 const int SD_ERR = -1;
@@ -65,7 +64,7 @@ public:
        Bool_t IsMultiBlockMode() { if (fModule) return fModule->IsMultiBlockMode(); return kFALSE; };
        Bool_t BlockIsDone() { if (fModule) return fModule->BlockIsDone(); return kFALSE; };
 
-       void SetDebugFile(std::ofstream *file) { fDebugFile = file; };
+       void SetDebugFile(std::ostream *file) { fDebugFile = file; };
        Module* GetModule() { return fModule; };
 
        void define(int crate, int slot, UShort_t nchan=DEFNCHAN,
@@ -95,7 +94,7 @@ private:
        UShort_t* numMaxHits;  // [channel] current maximum number of hits
        int* rawData;         // rawData[hit] (all bits)
        int* data;            // data[hit] (only data bits)
-       std::ofstream *fDebugFile; // debug output to this file, if nonzero
+       std::ostream *fDebugFile; // debug output to this file, if nonzero
        bool didini;          // true if object initialized via define()
        UInt_t maxc;        // Number of channels for this device
        UInt_t maxd;          // Max number of data words per event

@@ -10,7 +10,7 @@
 #include "THaCrateMap.h"
 #include "TMath.h"
 #include <iostream>
-#include <string>
+#include <cstring>
 #include <sstream>
 
 using namespace std;
@@ -25,24 +25,33 @@ THaEvtTypeHandler::THaEvtTypeHandler(const char* name, const char* description)
 THaEvtTypeHandler::~THaEvtTypeHandler()
 {
   if (fDebugFile) {
-    fDebugFile->close();
+    //    fDebugFile->close();
     delete fDebugFile;
   }
 }
 
 //_____________________________________________________________________________
-void THaEvtTypeHandler::AddEvtType(int evtype) {
+void THaEvtTypeHandler::AddEvtType(Int_t evtype)
+{
   eventtypes.push_back(evtype);
 }
   
 //_____________________________________________________________________________
-void THaEvtTypeHandler::SetEvtType(int evtype) {
+void THaEvtTypeHandler::SetEvtType(Int_t evtype)
+{
   eventtypes.clear();
   AddEvtType(evtype);
 }
 
 //_____________________________________________________________________________
-void THaEvtTypeHandler::EvPrint() const
+Int_t THaEvtTypeHandler::GetEvtType(Int_t i) const
+{
+  if( GetNumTypes() == 0 || i>=GetNumTypes() ) return -1;
+  return eventtypes[i];
+}
+
+//_____________________________________________________________________________
+void THaEvtTypeHandler::Print( Option_t* ) const
 {
   cout << "Hello !  THaEvtTypeHandler name =  "<<GetName()<<endl;
   cout << "    description "<<GetTitle()<<endl;
@@ -56,30 +65,8 @@ void THaEvtTypeHandler::EvPrint() const
 //_____________________________________________________________________________
 void THaEvtTypeHandler::EvDump(THaEvData *evdata) const
 {
-  // Dumps data to file, if fDebugFile was set.
-  if (!fDebugFile) return;
-  if (!evdata) return;  // get what you deserve
-  int evnum = evdata->GetRawData(4);
-  int len = evdata->GetRawData(0) + 1;
-  int evtype = evdata->GetRawData(1)>>16;
-  *fDebugFile << "\n ------ Raw Data Dump ------ "<<endl;
-  *fDebugFile << "\n\n Event number " << dec << evnum << endl;
-  *fDebugFile << " length " << len << " type " << evtype << endl;
-  int ipt = 0;
-  for (int j=0; j<(len/5); j++) {
-    *fDebugFile << dec << "\n evbuffer[" << ipt << "] = ";
-    for (int k=j; k<j+5; k++) {
-      *fDebugFile << hex << evdata->GetRawData(ipt++) << " ";
-    }
-    *fDebugFile << endl;
-  }
-  if (ipt < len) {
-    *fDebugFile << dec << "\n evbuffer[" << ipt << "] = ";
-    for (int k=ipt; k<len; k++) {
-      *fDebugFile << hex << evdata->GetRawData(ipt++) << " ";
-    }
-    *fDebugFile << endl;
-  }
+  if( evdata && fDebugFile )
+    evdata->dump(*fDebugFile);
 }
 
 //_____________________________________________________________________________
@@ -90,10 +77,14 @@ THaAnalysisObject::EStatus THaEvtTypeHandler::Init(const TDatime&)
 }
 
 //_____________________________________________________________________________
-void THaEvtTypeHandler::SetDebugFile(const char *filename) {
+void THaEvtTypeHandler::SetDebugFile(const char *filename)
+{
+  if( filename && *filename ) {
     delete fDebugFile;
-    fDebugFile = new ofstream;
-    fDebugFile->open(filename);
+    fDebugFile = new ofstream(filename);
+  } else {
+    Error( "THaEvtTypeHandler::SetDebugFile", "Must specify a file name" );
+  }
 }
 
 //_____________________________________________________________________________

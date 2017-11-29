@@ -11,7 +11,7 @@
 #include "TNamed.h"
 #include "Decoder.h"
 #include <set>
-#include <fstream>
+#include <iostream>
 #include <vector>
 
 namespace Decoder {
@@ -92,7 +92,7 @@ namespace Decoder {
     virtual Int_t GetCrate() const { return fCrate; };
     virtual Int_t GetSlot()  const { return fSlot; };
 
-    virtual void SetDebugFile(std::ofstream *file)
+    virtual void SetDebugFile(std::ostream *file)
     {
       if (file!=0) fDebugFile = file;
     }
@@ -121,7 +121,7 @@ namespace Decoder {
     Bool_t fMultiBlockMode, fBlockIsDone;
     Int_t fFirmwareVers;
 
-    std::ofstream *fDebugFile;
+    std::ostream *fDebugFile;
 
   private:
 

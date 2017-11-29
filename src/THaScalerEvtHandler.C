@@ -30,7 +30,6 @@
 //
 /////////////////////////////////////////////////////////////////////
 
-#include "THaEvtTypeHandler.h"
 #include "THaScalerEvtHandler.h"
 #include "GenScaler.h"
 #include "Scaler3800.h"

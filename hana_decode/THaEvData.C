@@ -5,17 +5,16 @@
 //
 //   This is a pure virtual base class.  You should not
 //   instantiate this directly (and actually CAN not), but
-//   rather use THaCodaDecoder or (less likely) a sim class like
-//   THaVDCSimDecoder.
+//   rather use Decoder::CodaDecoder or (less likely) a sim class like
+//   Podd::SimDecoder.
 //
 //   This class is intended to provide a crate/slot structure
 //   for derived classes to use.  All derived class must define and
-//   implement LoadEvent(const int*).  See the header.
+//   implement LoadEvent(const UInt_t*).  See the header.
 //
 //   original author  Robert Michaels (rom@jlab.org)
 //
 //   modified for abstraction by Ken Rossato (rossato@jlab.org)
-//
 //
 /////////////////////////////////////////////////////////////////////
 
@@ -30,7 +29,6 @@
 #include <cstring>
 #include <cstdio>
 #include <cctype>
-#include <iostream>
 #include <iomanip>
 #include <ctime>
 
@@ -57,13 +55,13 @@ Bool_t THaEvData::fgAllowUnimpl = true;
 TString THaEvData::fgDefaultCrateMapName = "cratemap";
 
 //_____________________________________________________________________________
-
 THaEvData::THaEvData() :
   fMap(0), first_decode(true), fTrigSupPS(true),
   fMultiBlockMode(kFALSE), fBlockIsDone(kFALSE),
-  buffer(0), fDebugFile(0), run_num(0), run_type(0), fRunTime(0),
+  buffer(0), run_num(0), run_type(0), fRunTime(0),
   evt_time(0), recent_event(0), fNSlotUsed(0), fNSlotClear(0),
-  fDoBench(kFALSE), fBench(0), fNeedInit(true), fDebug(0)
+  fDoBench(kFALSE), fBench(0), fNeedInit(true), fDebug(0),
+  fDebugFile(0)
 {
   fInstance = fgInstances.FirstNullBit();
   fgInstances.SetBitNumber(fInstance);
@@ -97,12 +95,14 @@ THaEvData::THaEvData() :
     gHaVars->DefineVariables( vars, prefix, "THaEvData::THaEvData" );
   } else
     Warning("THaEvData::THaEvData","No global variable list found. "
-	    "Variables not registered.");
+            "Variables not registered.");
 #endif
 }
 
 
-THaEvData::~THaEvData() {
+//_____________________________________________________________________________
+THaEvData::~THaEvData()
+{
   if( fDoBench ) {
     Float_t a,b;
     fBench->Summary(a,b);
@@ -124,17 +124,22 @@ THaEvData::~THaEvData() {
   delete [] fSlotUsed;
   delete [] fSlotClear;
   delete fMap;
+  delete fDebugFile;
   fInstance--;
   fgInstances.ResetBitNumber(fInstance);
 }
 
-const char* THaEvData::DevType(int crate, int slot) const {
-// Device type in crate, slot
+//_____________________________________________________________________________
+const char* THaEvData::DevType(int crate, int slot) const
+{
+  // Device type in crate, slot
   return ( GoodIndex(crate,slot) ) ?
     crateslot[idx(crate,slot)]->devType() : " ";
 }
 
-Int_t THaEvData::Init() {
+//_____________________________________________________________________________
+Int_t THaEvData::Init()
+{
   Int_t ret = HED_OK;
   ret = init_cmap();
   if (fMap) fMap->print();
@@ -145,6 +150,59 @@ Int_t THaEvData::Init() {
   return ret;
 }
 
+//_____________________________________________________________________________
+void THaEvData::SetDebugFile( const char* filename, bool append )
+{
+  // Send debug output to the given file. The file will be overwritten
+  // upon calling this routine unless 'append' is set.
+  // Calling this function will turn on all debug messages by default, equivalent
+  // to calling SetDebug(255).  Call SetDebug(level) with a lower level if you
+  // want less output.
+  // To close the file, call this routine with an empty string, which
+  // will also turn off all debug messages.
+  
+  const char* const here = "THaEvData";
+  
+  if( !filename ) {
+    Error( here, "Invalid file name for debug output. Ignoring." );
+    return;
+  }
+  delete fDebugFile; fDebugFile = 0;
+  if( *filename ) {
+    ios_base::openmode mode = ios_base::out;
+    if( append )
+      mode |= ios_base::app;
+    fDebugFile = new ofstream(filename,mode);
+    if( !fDebugFile || !*fDebugFile ) {
+      Error( here, "Cannot open debug output file %s. "
+             "Check file name and permissions.", filename );
+      delete fDebugFile; fDebugFile = 0;
+      return ;
+    }
+    SetDebug(255);
+    Info( here, "Sending debug output to \"%s\".", filename );
+  } else {
+    SetDebug(0);
+    Info( here, "Debug off." );
+  }
+}
+
+//_____________________________________________________________________________
+void THaEvData::SetDebugFile( ofstream* fstream )
+{
+  // Deprecated function to set debug output to the given output file stream.
+  // Use SetDebugFile("filename.txt") instead.
+  // This class will take ownership of the fiven object and will delete it
+  // upon destruction. The caller must not delete the fstream object themselves.
+  // Calling this function will turn on all debug messages by default, equivalent
+  // to calling SetDebug(255).  Call SetDebug(level) with a lower level if you
+  // want less output.
+  
+  SetDebug(255);
+  fDebugFile = fstream;
+}
+
+//_____________________________________________________________________________
 void THaEvData::SetRunTime( ULong64_t tloc )
 {
   // Set run time and re-initialize crate map (and possibly other
@@ -156,6 +214,7 @@ void THaEvData::SetRunTime( ULong64_t tloc )
   init_cmap();
 }
 
+//_____________________________________________________________________________
 void THaEvData::EnableBenchmarks( Bool_t enable )
 {
   // Enable/disable run time reporting
@@ -169,18 +228,21 @@ void THaEvData::EnableBenchmarks( Bool_t enable )
   }
 }
 
+//_____________________________________________________________________________
 void THaEvData::EnableHelicity( Bool_t enable )
 {
   // Enable/disable helicity decoding
   SetBit(kHelicityEnabled, enable);
 }
 
+//_____________________________________________________________________________
 void THaEvData::EnableScalers( Bool_t enable )
 {
   // Enable/disable scaler decoding
   SetBit(kScalersEnabled, enable);
 }
 
+//_____________________________________________________________________________
 void THaEvData::SetVerbose( UInt_t level )
 {
   // Set verbosity level. Identical to SetDebug(). Kept for compatibility.
@@ -188,6 +250,7 @@ void THaEvData::SetVerbose( UInt_t level )
   SetDebug(level);
 }
 
+//_____________________________________________________________________________
 void THaEvData::SetDebug( UInt_t level )
 {
   // Set debug level
@@ -195,6 +258,7 @@ void THaEvData::SetDebug( UInt_t level )
   fDebug = level;
 }
 
+//_____________________________________________________________________________
 void THaEvData::SetOrigPS(Int_t evtyp)
 {
   fTrigSupPS = true;  // default after Nov 2003
@@ -209,6 +273,7 @@ void THaEvData::SetOrigPS(Int_t evtyp)
   }
 }
 
+//_____________________________________________________________________________
 TString THaEvData::GetOrigPS() const
 {
   TString answer = "PS from ";
@@ -222,25 +287,66 @@ TString THaEvData::GetOrigPS() const
   return answer;
 }
 
-void THaEvData::hexdump(const char* cbuff, size_t nlen)
+//_____________________________________________________________________________
+void THaEvData::hexdump(const char* cbuff, size_t nlen, ostream& os)
 {
-  // Hexdump buffer 'cbuff' of length 'nlen'
-  const int NW = 16; const char* p = cbuff;
+  // Hexdump buffer 'cbuff' of length 'nlen' bytes to output stream 'os'
+
+  if( !cbuff || nlen == 0 ) return;
+  const size_t NW = 16, GRN = 2; const char* p = cbuff;
+  // Determine how many digits we need for the address offset
+  int sh = sizeof(nlen)*8;
+  const size_t mask = (size_t)1ULL<<(sh-1);
+  size_t n = nlen, lw, ld = 0;
+  while( (n&mask)==0 ) { n<<=1; --sh; }
+  lw = (sh/(4*GRN)+1)*GRN;
+  n = nlen;
+  while( n>0 ) { n/=10; ++ld; }
+  // Print <offset> <16 data words (16 bytes)> <ASCII representation>
   while( p<cbuff+nlen ) {
-    cout << dec << setw(4) << setfill('0') << (size_t)(p-cbuff) << " ";
-    int nelem = TMath::Min((Long_t)NW,(Long_t)(cbuff+nlen-p));
-    for(int i=0; i<NW; i++) {
+    size_t off = p-cbuff;
+    os << "0x"
+       << hex << setw(lw) << setfill('0') << off << "/"
+       << dec << setw(ld) << setfill(' ') << left << off
+       << hex << right << " ";
+    size_t nelem = TMath::Min((size_t)NW,nlen-off);
+    for(size_t i=0; i<NW; i++) {
       UInt_t c = (i<nelem) ? *(const unsigned char*)(p+i) : 0;
-      cout << " " << hex << setfill('0') << setw(2) << c << dec;
-    } cout << setfill(' ') << "  ";
-    for(int i=0; i<NW; i++) {
+      os << " " << setfill('0') << setw(2) << c;
+      if( i+1==NW/2 ) os << " ";
+    } os << setfill(' ') << "  |" << dec;
+    for(size_t i=0; i<NW; i++) {
       char c = (i<nelem) ? *(p+i) : 0;
-      if(isgraph(c)||c==' ') cout << c; else cout << ".";
-    } cout << endl;
+      if(isgraph(c)||c==' ') os << c; else os << ".";
+    } os << "|" << endl;
     p += NW;
   }
 }
 
+//_____________________________________________________________________________
+void THaEvData::hexdump(const char* cbuff, size_t nlen)
+{
+  // Hexdump buffer 'cbuff' of length 'nlen' to stdout
+  hexdump(cbuff,nlen,std::cout);
+}
+
+//_____________________________________________________________________________
+void THaEvData::dump( ostream& os ) const
+{
+  // Dumps data to ostream 'os'. Must have called LoadEvent first.
+
+  if( !buffer ) { //FIXME: this is not the correct test!
+    Error("THaEvData::dump", "Must call LoadEvent first");
+    return;
+  }
+  os << endl <<" ------ Raw Data Dump ------ " << endl;
+  os << endl << endl << " Event number " << dec << GetEvNum() << endl;
+  os << " length " << GetEvLength() << " type " << GetEvType() << endl;
+
+  hexdump(reinterpret_cast<const char*>(buffer), 4*event_length, os);
+}
+
+//_____________________________________________________________________________
 void THaEvData::SetDefaultCrateMapName( const char* name )
 {
   // Static function to set fgDefaultCrateMapName. Call this function to set a
@@ -252,10 +358,11 @@ void THaEvData::SetDefaultCrateMapName( const char* name )
   }
   else {
     ::Error( "THaEvData::SetDefaultCrateMapName", "Default crate map name "
-	     "must not be empty" );
+             "must not be empty" );
   }
 }
 
+//_____________________________________________________________________________
 void THaEvData::SetCrateMapName( const char* name )
 {
   // Set fCrateMapName for this decoder instance only
@@ -271,8 +378,10 @@ void THaEvData::SetCrateMapName( const char* name )
   }
 }
 
+//_____________________________________________________________________________
 // Set up and initialize the crate map
-int THaEvData::init_cmap()  {
+int THaEvData::init_cmap()
+{
   if( fCrateMapName.IsNull() )
     fCrateMapName = fgDefaultCrateMapName;
   if( !fMap || fNeedInit || fCrateMapName != fMap->GetName() ) {
@@ -286,6 +395,7 @@ int THaEvData::init_cmap()  {
   return HED_OK;
 }
 
+//_____________________________________________________________________________
 void THaEvData::makeidx(int crate, int slot)
 {
   // Activate crate/slot
@@ -297,19 +407,24 @@ void THaEvData::makeidx(int crate, int slot)
   if( fMap->crateUsed(crate) && fMap->slotUsed(crate,slot)) {
     crateslot[idx]
       ->define( crate, slot, fMap->getNchan(crate,slot),
-		fMap->getNdata(crate,slot) );
+                fMap->getNdata(crate,slot) );
     fSlotUsed[fNSlotUsed++] = idx;
     if( fMap->slotClear(crate,slot))
       fSlotClear[fNSlotClear++] = idx;
   }
 }
 
-void THaEvData::PrintOut() const {
-  //TODO
-  cout << "THaEvData::PrintOut() called" << endl;
+//_____________________________________________________________________________
+void THaEvData::PrintOut() const
+{
+  // Print info about this event. Currently just dumps the raw data to stdout
+
+  dump(std::cout);
 }
 
-void THaEvData::PrintSlotData(int crate, int slot) const {
+//_____________________________________________________________________________
+void THaEvData::PrintSlotData(int crate, int slot) const
+{
   // Print the contents of (crate, slot).
   if( GoodIndex(crate,slot)) {
     crateslot[idx(crate,slot)]->print();
@@ -320,6 +435,7 @@ void THaEvData::PrintSlotData(int crate, int slot) const {
   return;
 }
 
+//_____________________________________________________________________________
 // To initialize the THaSlotData member on first call to decoder
 int THaEvData::init_slotdata(const THaCrateMap* map)
 {
@@ -330,19 +446,19 @@ int THaEvData::init_slotdata(const THaCrateMap* map)
     int crate = module->getCrate();
     int slot  = module->getSlot();
     if( !map->crateUsed(crate) || !map->slotUsed(crate,slot) ||
-	!map->slotClear(crate,slot)) {
+        !map->slotClear(crate,slot)) {
       for( int k=0; k<fNSlotClear; k++ ) {
-	if( module == crateslot[fSlotClear[k]] ) {
-	  for( int j=k+1; j<fNSlotClear; j++ )
-	    fSlotClear[j-1] = fSlotClear[j];
-	  fNSlotClear--;
-	  break;
-	}
+        if( module == crateslot[fSlotClear[k]] ) {
+          for( int j=k+1; j<fNSlotClear; j++ )
+            fSlotClear[j-1] = fSlotClear[j];
+          fNSlotClear--;
+          break;
+        }
       }
     }
     if( !map->crateUsed(crate) || !map->slotUsed(crate,slot)) {
       for( int j=i+1; j<fNSlotUsed; j++ )
-	fSlotUsed[j-1] = fSlotUsed[j];
+        fSlotUsed[j-1] = fSlotUsed[j];
       fNSlotUsed--;
     }
   }
@@ -350,17 +466,18 @@ int THaEvData::init_slotdata(const THaCrateMap* map)
 }
 
 //_____________________________________________________________________________
-void THaEvData::FindUsedSlots() {
+void THaEvData::FindUsedSlots()
+{
   // Disable slots for which no module is defined.
   // This speeds up the decoder.
   for (Int_t roc=0; roc<MAXROC; roc++) {
     for (Int_t slot=0; slot<MAXSLOT; slot++) {
       if ( !fMap->slotUsed(roc,slot) ) continue;
       if ( !crateslot[idx(roc,slot)]->GetModule() ) {
-	cout << "WARNING:  No module defined for crate "<<roc<<"   slot "<<slot<<endl;
-	cout << "Check db_cratemap.dat for module that is undefined"<<endl;
-	cout << "This crate, slot will be ignored"<<endl;
-	fMap->setUnused(roc,slot);
+        cout << "WARNING:  No module defined for crate "<<roc<<"   slot "<<slot<<endl;
+        cout << "Check db_cratemap.dat for module that is undefined"<<endl;
+        cout << "This crate, slot will be ignored"<<endl;
+        fMap->setUnused(roc,slot);
       }
     }
   }
@@ -374,5 +491,6 @@ Module* THaEvData::GetModule(Int_t roc, Int_t slot) const
   return NULL;
 }
 
+//_____________________________________________________________________________
 ClassImp(THaEvData)
 ClassImp(THaBenchmark)

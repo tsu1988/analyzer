@@ -17,33 +17,28 @@
 //
 /////////////////////////////////////////////////////////////////////
 
-#include "THaEvtTypeHandler.h"
 #include "THaEpicsEvtHandler.h"
-#include "THaCodaData.h"
 #include "THaEvData.h"
 #include "THaEpics.h"
 #include "TNamed.h"
 #include "TMath.h"
-#include "TString.h"
 #include <cstring>
-#include <cstdio>
-#include <cstdlib>
-#include <iostream>
-#include <sstream>
-#include "THaVarList.h"
-#include "VarDef.h"
 
 using namespace std;
 using namespace Decoder;
 
+static const size_t fgInitMaxData = 20000;
+
 THaEpicsEvtHandler::THaEpicsEvtHandler(const char *name, const char* description)
-  : THaEvtTypeHandler(name,description)
+  : THaEvtTypeHandler(name,description), fBufsize(fgInitMaxData)
 {
   fEpics = new Decoder::THaEpics();
+  fEvtBuffer = new UInt_t[fBufsize];
 }
 
 THaEpicsEvtHandler::~THaEpicsEvtHandler()
 {
+  delete [] fEvtBuffer;
   delete fEpics;
 }
 
@@ -80,30 +75,29 @@ Int_t THaEpicsEvtHandler::Analyze(THaEvData *evdata)
 
   if ( !IsMyEvent(evdata->GetEvType()) ) return -1;
 
-  UInt_t evbuffer[MAXDATA];
-  Int_t recent_event = evdata->GetEvNum();  
-
-  if (evdata->GetEvLength() >= MAXDATA) 
-      cerr << "EpicsHandler:  need a bigger buffer ! "<<endl;
-
-// Copy the buffer.  EPICS events are infrequent, so no harm.
-  for (Int_t i = 0; i < evdata->GetEvLength(); i++) 
-         evbuffer[i] = evdata->GetRawData(i);
+  size_t evlen = static_cast<size_t>(evdata->GetEvLength());
+  if( evlen >= fBufsize ) {
+    delete [] fEvtBuffer;
+    fBufsize = TMath::Max( evlen, 2*fBufsize );
+    fEvtBuffer = new UInt_t[fBufsize];
+  }
+  // Copy the buffer.  EPICS events are infrequent, so no harm.
+  memcpy( fEvtBuffer, evdata->GetRawDataBuffer(), sizeof(UInt_t)*evlen );
 
   if (fDebugFile) EvDump(evdata);
 
-  fEpics->LoadData(evbuffer, recent_event);
+  Int_t recent_event = evdata->GetEvNum();
+  fEpics->LoadData(fEvtBuffer, recent_event);
 
   return 1;
 }
 
 THaAnalysisObject::EStatus THaEpicsEvtHandler::Init(const TDatime&)
 {
-
-  cout << "Howdy !  We are initializing THaEpicsEvtHandler !!   name =   "<<fName<<endl;
-
-// Set the event type to the default unless the client has already defined it.
-  if (GetNumTypes()==0) SetEvtType(Decoder::EPICS_EVTYPE); 
+  //  cout << "Howdy !  We are initializing THaEpicsEvtHandler !!   name =   "<<fName<<endl;
+  
+  // Set the event type to the default unless the client has already defined it.
+  if (GetNumTypes()==0) SetEvtType(Decoder::EPICS_EVTYPE);
 
   fStatus = kOK;
   return kOK;

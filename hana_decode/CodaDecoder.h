@@ -53,7 +53,6 @@ class CodaDecoder : public THaEvData {
 
   int init_slotdata(const THaCrateMap *map);
   Int_t prescale_decode(const UInt_t* evbuffer);
-  void dump(const UInt_t* evbuffer) const;
 
   ClassDef(CodaDecoder,0) // Decoder for CODA event buffer
 };

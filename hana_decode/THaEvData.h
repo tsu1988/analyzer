@@ -15,7 +15,7 @@
 #include "THaSlotData.h"
 #include "TBits.h"
 #include <cassert>
-#include <iostream>
+#include <fstream>
 
 class THaBenchmark;
 
@@ -156,7 +156,8 @@ public:
   virtual Int_t GetScaler(const TString& /*spec*/,
 			  Int_t /*slot*/, Int_t /*chan*/) const
   { return GetScaler(0,0,0); }
-  virtual void SetDebugFile( std::ofstream *file ) { fDebugFile = file; };
+  virtual void SetDebugFile( std::ofstream *fstream );  // deprecated
+  virtual void SetDebugFile( const char* filename, bool append = false );
   virtual Decoder::Module* GetModule(Int_t roc, Int_t slot) const;
 
   // Access functions for EPICS (slow control) data
@@ -168,6 +169,7 @@ public:
 
   virtual void PrintSlotData(Int_t crate, Int_t slot) const;
   virtual void PrintOut() const;
+  virtual void dump( std::ostream& os ) const;
   virtual void SetRunTime( ULong64_t tloc );
 
   // Status control
@@ -188,8 +190,9 @@ public:
   void SetVerbose( UInt_t level );
   void SetDebug( UInt_t level );
 
-  // Utility function for hexdumping any sort of data
+  // Utility functions for hexdumping any sort of data
   static void hexdump(const char* cbuff, size_t len);
+  static void hexdump(const char* cbuff, size_t len, std::ostream& os);
 
   void SetCrateMapName( const char* name );
   static void SetDefaultCrateMapName( const char* name );
@@ -239,8 +242,6 @@ protected:
 
   const UInt_t *buffer;
 
-  std::ofstream *fDebugFile;  // debug output
-
   Int_t  event_type,event_length,event_num,run_num,evscaler;
   Int_t  run_type;    // CODA run type from prestart event
   ULong64_t fRunTime; // CODA run time (Unix time) from prestart event
@@ -273,12 +274,13 @@ protected:
   static Bool_t fgAllowUnimpl; // If true, allow unimplemented functions
 
   static TString fgDefaultCrateMapName; // Default crate map name
-  TString fCrateMapName; // Crate map database file name to use
-  Bool_t fNeedInit;  // Crate map needs to be (re-)initialized
+  TString fCrateMapName;       // Crate map database file name to use
+  Bool_t fNeedInit;            // Crate map needs to be (re-)initialized
 
-  Int_t  fDebug;     // Debug/verbosity level
+  Int_t  fDebug;               // Debug/verbosity level
+  std::ofstream *fDebugFile;   // debug output file stream
 
-  ClassDef(THaEvData,0)  // Decoder for CODA event buffer
+  ClassDef(THaEvData,0)        // Decoder for CODA event buffer
 
 };
 
